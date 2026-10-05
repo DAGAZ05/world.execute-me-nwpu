@@ -427,7 +427,8 @@ def fx_cut(s: "Screen", t: float, ent: dict | None) -> None:
     # cells that switched, and it works for any shape of field - a sweep's not-yet-switched set is a
     # tail, a radial's is a head and a tail, an inward's is a hole in the middle.
     c = dict(t0=t, kind=kind, seed=i, cols=cols, rows=rows, sy=sy, order=order, sd=sd, holds=[],
-             cur=[r[:] for r in s.prev], old=None, done=-1e9, el=-1e9, carry=None)
+             cur=[r[:] for r in s.prev], cur_wide=[r[:] for r in s.wide],
+             old=None, old_wide=None, done=-1e9, el=-1e9, carry=None)
     if "RETAIN" in mech:
         c["holds"] = _retain_rects(s.prev, cols, rows)
     if "CARRY" in mech:
@@ -436,6 +437,7 @@ def fx_cut(s: "Screen", t: float, ent: dict | None) -> None:
             c["holds"].append((0, rows - 1, 0, -1, CARRY_DUR))   # filled in once the landing is known
     if c["holds"]:
         c["old"] = [r[:] for r in s.prev]
+        c["old_wide"] = [r[:] for r in s.wide]      # the two go together; see `Screen._unpair`
     if kind == "hard" and c["carry"] is None and not c["holds"]:
         _CUT[0] = None                 # nothing to stage after all: a plain hard cut
         return
@@ -520,8 +522,12 @@ def _fx_front(s: "Screen", c: dict, el: float) -> None:
             continue
         row = s.buf[y]
         for x in range(cols):
-            if row[x][0] != " " and not s.wide[y][x] and not _in_clear(x, y):
-                row[x] = ("─", fg, BG)
+            if row[x][0] not in (" ", "") and not s.wide[y][x] and not _in_clear(x, y):
+                # ...and never the placeholder of a wide glyph (its character is `""`, which is not a
+                # space), nor the first half of one: either leaves half a CJK character on screen
+                if x + 1 < cols and s.wide[y][x + 1] and row[x + 1][0] == "":
+                    continue
+                s.set_cell(x, y, "\u2500", fg, BG)
 
 
 def _fx_carry(s: "Screen", c: dict, el: float) -> None:
@@ -550,7 +556,10 @@ def _fx_carry(s: "Screen", c: dict, el: float) -> None:
             continue
         if X + 1 < s.cols and s.wide[Y][X + 1]:
             s.wide[Y][X + 1] = False
+        if X + 1 < s.cols and s.buf[Y][X + 1][0] == "":
+            s.buf[Y][X + 1] = (" ", s.buf[Y][X + 1][1], s.buf[Y][X + 1][2])
         s.buf[Y][X] = (ch, lit, BG)
+        s.wide[Y][X] = False
 
 
 def fx_reveal(s: "Screen", t: float) -> None:
@@ -570,6 +579,8 @@ def fx_reveal(s: "Screen", t: float) -> None:
         _CUT[0] = None
         return
     new = s.buf
+    new_wide = s.wide            # the placeholder flags travel with the cells, always: a `buf` copy
+                                 # without its `wide` copy is how a reveal leaves half-glyphs behind
     if c["carry"] is not None and c["carry"]["dst"] is None:
         _carry_target(new, c["carry"], c["cols"], c["rows"], s.wide, int(c["cols"] * 0.62))
         span = c["carry"]["span"]
@@ -582,6 +593,7 @@ def fx_reveal(s: "Screen", t: float) -> None:
             c["old"] = None
     if c["order"] is not None:
         cur, order, sd = c["cur"], c["order"], c["sd"]
+        cur_wide = c["cur_wide"]
         seed, cols, done = c["seed"], c["cols"], c["done"]
         front = el - CUT_CELL                 # a cell that switched later than this is still decoding
         c["done"], c["el"] = front, el
@@ -590,16 +602,35 @@ def fx_reveal(s: "Screen", t: float) -> None:
             p1 = bisect_right(srow, el)
             p0 = bisect_right(srow, done)     # finalise behind the decoding front, one cell-duration back
             if p1 > p0:
-                row, nrow = cur[y], new[y]
+                row, nrow, wrow, nwrow = cur[y], new[y], cur_wide[y], new_wide[y]
                 for k in range(p0, p1):
-                    row[orow[k]] = nrow[orow[k]]
+                    x = orow[k]
+                    row[x] = nrow[x]
+                    wrow[x] = nwrow[x]
+                    # ...and a placeholder never arrives without its character. The reveal copies cells
+                    # in its own order, so the second column of a wide glyph can switch before the first
+                    # one does - and a placeholder whose character is still the *old* frame's is half a
+                    # glyph: the terminal paints the character two columns wide and the buffer never
+                    # repaints the column it took (`_dev/ansi_probe.py` named this one: the first
+                    # inconsistency in the whole song is inside an `unfold` reveal).
+                    if nwrow[x] and not nrow[x][0] and x > 0:
+                        row[x - 1] = nrow[x - 1]
+                        wrow[x - 1] = nwrow[x - 1]
                 g0 = bisect_right(srow, front)
                 for k in range(g0, p1):       # kit.py:379-394, `front=True`, density 0.40
                     x = orow[k]
+                    if row[x][0] == "":
+                        continue              # a placeholder is not a cell of its own: no glyph in it
                     if (x * 31 + y * 17 + seed * 7) % 100 < CUT_FRONT * 100 and not _in_clear(x, y):
                         kk = min(1.0, max(0.0, (el - srow[k]) / CUT_CELL))
                         row[x] = (_glitch(t, x + y * cols), mix(ME_TEXT, 0.2 + 0.6 * kk), BG)
+                        # a glitch glyph is one cell wide, so a wide character it replaces leaves a
+                        # placeholder behind it - half a glyph, and the terminal would keep painting it
+                        if x + 1 < cols and wrow[x + 1] and row[x + 1][0] == "":
+                            row[x + 1] = (" ", row[x + 1][1], row[x + 1][2])
+                            wrow[x + 1] = False
         s.buf = [r[:] for r in cur]
+        s.wide = [r[:] for r in cur_wide]
         if c["kind"] in ("scan", "unfold"):
             _fx_front(s, c, el)
     if c["old"] is not None:
@@ -607,9 +638,11 @@ def fx_reveal(s: "Screen", t: float) -> None:
             if el < until:
                 for y in range(max(0, y0), min(c["rows"], y1 + 1)):
                     s.buf[y][x0:x1 + 1] = c["old"][y][x0:x1 + 1]
+                    s.wide[y][x0:x1 + 1] = c["old_wide"][y][x0:x1 + 1]
     for a, b, e, d in CLEAR:                  # the readable rects cut clean: no hold, no glyphs
         for y in range(max(0, b), min(s.rows, d + 1)):
             s.buf[y][a:e + 1] = new[y][a:e + 1]
+            s.wide[y][a:e + 1] = new_wide[y][a:e + 1]
     if c["carry"] is not None:
         _fx_carry(s, c, el)
 
@@ -638,7 +671,11 @@ def fx_trail(s: "Screen") -> None:
     gh = bytearray(cols * rows)
     for i, (ch, fg, lv) in g.items():
         y, x = divmod(i, cols)
-        if buf[y][x][0] == " ":
+        # a ghost is one cell of one character, so a *wide* glyph cannot be trailed: writing it here
+        # would put a two-column character in a one-column slot with no placeholder behind it, and the
+        # renderer would then shift the rest of the row. The trail is a fading effect; CJK does not need
+        # to fade.
+        if buf[y][x][0] == " " and not _wide_char(ch):
             buf[y][x] = (ch, (int(fg[0] * lv), int(fg[1] * lv), int(fg[2] * lv)), BG)
             gh[i] = 1
     s.ghost_prev = gh
@@ -678,6 +715,15 @@ def fx_shake(s: "Screen", t: float, ent: dict | None) -> None:
         if not off or abs(off) >= cols:
             continue
         s.buf[y] = s.buf[y][-off:] + s.buf[y][:-off]
+        # the placeholder flags have to travel with their cells too, and the join is where a wide glyph
+        # can end up split across the wrap: the two cells either side of it are disowned
+        s.wide[y] = s.wide[y][-off:] + s.wide[y][:-off]
+        for xx in (0, cols - 1):
+            if s.wide[y][xx] and s.buf[y][xx][0] == "" and xx > 0:
+                s.buf[y][xx - 1] = (" ", s.buf[y][xx - 1][1], s.buf[y][xx - 1][2])
+        if cols > 1 and s.wide[y][0] and s.buf[y][0][0] == "":
+            s.wide[y][0] = False
+            s.buf[y][0] = (" ", s.buf[y][0][1], s.buf[y][0][2])
         # the ghost markers have to travel with their cells, or a ghost spawns off its own tail
         base = y * cols
         mark = bytes(s.ghost_prev[base:base + cols])
@@ -922,6 +968,19 @@ def _wide_char(ch: str) -> bool:
     return len(ch) == 1 and unicodedata.east_asian_width(ch) in "WF"
 
 
+# Nothing below U+1100 is double-width in East Asian Width *except* a handful of Hangul jamo, which are
+# above it - so this one string comparison is a fast "could this be wide" for the overwhelmingly common
+# case (ASCII). `Screen.fix_pair` runs per cell per frame, and `east_asian_width` there would cost 3 ms
+# of a 41.7 ms budget on its own.
+_WIDE_MIN = "\u1100"
+# a character no drawing can produce: `fix_pair` writes it into `prev` to force a repaired cell out
+_STALE = ("\x00", (0, 0, 0), (0, 0, 0))
+
+
+def _maybe_wide(ch: str) -> bool:
+    return bool(ch) and ch >= _WIDE_MIN and _wide_char(ch)
+
+
 class Screen:
     """A character cell buffer; only the cells that changed are written out."""
 
@@ -936,6 +995,10 @@ class Screen:
         self._span_cache: dict = {}           # row -> [(x0, x1)] of the readable rects on that row
         self.ghost: dict = {}                 # the trail, as (glyph, colour, level) per cell
         self.ghost_prev = bytearray(cols * rows)   # which cells of the last frame a ghost held
+        # which rows have had a double-width character written in them this frame. `normalise` is the
+        # only pass that walks the frame outside the renderer, and this is what keeps it proportional to
+        # the CJK on screen rather than to the screen. Cleared by `normalise` itself.
+        self.cjk = bytearray(rows)
 
     def _dim_field(self) -> list[list[float]]:
         """tuikit.py:454-465's vignette and tuikit.py:445's scanlines, as a per-cell brightness.
@@ -982,6 +1045,60 @@ class Screen:
             self._span_cache[y] = sp
         return sp
 
+    def _unpair(self, x: int, y: int) -> None:
+        """Make the cell at `(x, y)` safe to overwrite: a wide glyph is two cells, and half of one is a bug.
+
+        Every write used to touch exactly the cell it was given, which is wrong in both directions and
+        both of them are on screen as "garbled characters" (the user's "\u76f8\u5f53\u591a\u7684\u5b57\u7b26\u663e\u793a\u6df7\u4e71"):
+
+          * writing a *narrow* character onto the second half of a CJK glyph leaves the first half marked
+            wide, so the terminal paints the whole glyph and then the new character on top of its right
+            column;
+          * writing anything over the *first* half leaves the second half marked as a continuation, and
+            `render_diff` skips continuation cells - so the terminal keeps the right column of a glyph
+            that is not there any more.
+
+        Both are fixed by disowning the other half: the leftover cell becomes a space of its own. Only
+        the halves that the player itself marked as placeholders are touched, so this cannot eat a
+        character that is genuinely there.
+        """
+        row, wrow = self.buf[y], self.wide[y]
+        if wrow[x] and row[x][0] == "" and x > 0:
+            # we are the second half of a wide glyph: give the first half back as a plain space
+            ch, fg, bg = row[x - 1]
+            if ch != "":
+                row[x - 1] = (" ", fg, bg)
+                self.cjk[y] = 1
+        if x + 1 < self.cols and wrow[x + 1] and row[x + 1][0] == "":
+            # ...and we are the first half: the placeholder behind us is not a cell any more
+            row[x + 1] = (" ", row[x + 1][1], row[x + 1][2])
+            wrow[x + 1] = False
+            self.cjk[y] = 1
+
+    def set_cell(self, x: int, y: int, ch: str, fg, bg) -> None:
+        """Put one character in one cell, keeping the two-cell invariant that `render_diff` depends on.
+
+        This is the *only* safe way to write a cell directly. A double-width character occupies two
+        columns: the character itself and a placeholder the renderer skips, and both halves have to
+        arrive together or the terminal (which paints the glyph across both columns) and the buffer
+        disagree about what is on screen. `_dev/ansi_probe.py` found the cost of getting this wrong: the
+        pane transitions moved cells with a plain assignment, so every cut left wide characters whose
+        placeholder had been turned into a space - the terminal painted the glyph two columns wide, the
+        character itself never changed again, and the damage stayed for the life of that character. That
+        is the user's "\u76f8\u5f53\u591a\u7684\u5b57\u7b26\u663e\u793a\u6df7\u4e71".
+        """
+        if not (0 <= x < self.cols and 0 <= y < self.rows):
+            return
+        self._unpair(x, y)
+        row, wide = self.buf[y], self.wide[y]
+        row[x] = (ch, fg, bg)
+        wide[x] = False
+        if ch and _wide_char(ch) and x + 1 < self.cols:
+            self._unpair(x + 1, y)
+            row[x + 1] = ("", fg, bg)
+            wide[x + 1] = True
+            self.cjk[y] = 1
+
     def put(self, x: int, y: int, text: str, fg=UI, bg=BG) -> None:
         if not (0 <= y < self.rows):
             return
@@ -996,6 +1113,7 @@ class Screen:
         spans = self._clear_spans(y)
         for ch in text:
             if 0 <= x < self.cols:
+                self._unpair(x, y)
                 k = dim[x]
                 if k < 0.999 and spans and any(a <= x <= c for a, c in spans):
                     k = 1.0
@@ -1008,6 +1126,7 @@ class Screen:
                 if _wide_char(ch) and x + 1 < self.cols:
                     row[x + 1] = ("", fg2, bg)
                     wide[x + 1] = True
+                    self.cjk[y] = 1              # this row is worth a look before the frame is written
             if _wide_char(ch):
                 x += 2
             else:
@@ -1016,8 +1135,18 @@ class Screen:
     def fill(self, x0, y0, x1, y1, ch=" ", fg=UI, bg=BG) -> None:
         for y in range(max(0, y0), min(self.rows, y1 + 1)):
             row = self.buf[y]
+            wide = self.wide[y]
             for x in range(max(0, x0), min(self.cols, x1 + 1)):
+                # a rectangle that starts or ends in the middle of a wide glyph tears it in half on the
+                # terminal, so the halves just outside the rect are disowned too
+                if x == x0 and x0 > 0:
+                    self._unpair(x, y)
+                if x == x1:
+                    if x + 1 < self.cols and wide[x + 1] and row[x + 1][0] == "":
+                        row[x + 1] = (" ", row[x + 1][1], row[x + 1][2])
+                        wide[x + 1] = False
                 row[x] = (ch, fg, bg)
+                wide[x] = False
 
     def box(self, x0, y0, x1, y1, title: str = "", level: float = 0.6, colour=None,
             spinner: bool = True) -> None:
@@ -1081,8 +1210,84 @@ class Screen:
 
     # ------------------------------------------------------------------ output
 
+    def normalise(self) -> int:
+        """Make every wide character and its placeholder agree, whatever wrote them. Returns repairs.
+
+        This runs once per frame, after everything has drawn, and it is the only thing that can repair a
+        *stale* glyph: the renderer compares the buffer with the buffer's own previous state, so once a
+        CJK character has been painted the terminal keeps its right column until something writes there -
+        and a repair that makes the buffer equal to `prev` is never emitted at all. `render_diff` repairs
+        what it walks as well (`fix_pair`), which is free, but a cell whose repair leaves it equal to
+        `prev` still needs the screen cleared, and only this pass knows to force that.
+
+        It is bounded to the rows that carry a double-width character (`cjk`, set by `put`/`set_cell`):
+        a row with no CJK in it cannot hold half a glyph, and skipping those is what keeps this under a
+        millisecond on the rows that do. `_dev/ansi_probe.py` is the measure of whether it works.
+        """
+        n = 0
+        for y in range(self.rows):
+            if not self.cjk[y]:
+                continue
+            for x in range(self.cols):
+                n += self.fix_pair(x, y)
+        self.cjk = bytearray(self.rows)
+        return n
+
+    def fix_pair(self, x: int, y: int) -> int:
+        """Repair the two-cell relationship at `(x, y)` in place. Returns 1 if it changed anything.
+
+        A repair also marks the cell **stale in `prev`**, and that is not bookkeeping: the renderer only
+        writes a cell that differs from the buffer's own previous state, so a repair that happens to make
+        the buffer equal to `prev` would never reach the terminal - and the terminal is exactly where the
+        half-glyph is. The sentinel is a character no drawing can produce, so the comparison fails and the
+        cell is written whatever it now holds.
+        """
+        row, wide = self.buf[y], self.wide[y]
+        ch, fg, bg = row[x]
+        fixed = 0
+        if ch == "" and wide[x]:
+            if x > 0 and _wide_char(row[x - 1][0]):
+                return 0
+            row[x] = (" ", fg, bg)                        # an orphan placeholder: not half of anything
+            wide[x] = False
+            fixed = 1
+        elif ch == "" and not wide[x]:
+            row[x] = (" ", fg, bg)                        # a 0-column cell with no owner
+            fixed = 1
+        elif _maybe_wide(ch):
+            if x + 1 >= self.cols:
+                row[x] = (" ", fg, bg)                    # no room for its second column
+                fixed = 1
+            elif not wide[x + 1] or row[x + 1][0] != "":
+                row[x + 1] = ("", fg, bg)                 # give it back the placeholder it lost
+                wide[x + 1] = True
+                fixed = 1
+        if fixed and self.prev is not None:
+            self.prev[y][x] = _STALE
+        return fixed
     def render_diff(self, out) -> int:
-        """Write only changed cells; returns the number of cells written."""
+        """Write only changed cells; returns the number of cells written.
+
+        **The cursor column is not the cell index.** A row's cells and the terminal's columns are two
+        different scales, and this function used to confuse them: `x - len(run) + 1` assumes every cell
+        is one column wide, which is false on any row with a CJK character - a double-width character is
+        one cell and two columns, and the placeholder behind it is one cell and *no* columns. So every
+        run was addressed with a column that drifted further left the more Chinese there was before it,
+        which is the user's "\u76f8\u5f53\u591a\u7684\u5b57\u7b26\u663e\u793a\u6df7\u4e71": the film's header, footer and chat are all
+        Chinese, so most rows were written several columns off and the glyphs landed on top of each
+        other. It is invisible to any probe that reads the buffer, and `_dev/ansi_probe.py` - which
+        decodes the escape stream back into a screen and diffs it against the buffer - is what found it.
+
+        A placeholder is still not a cell of its own, in three ways this loop closes:
+
+          * a placeholder that **changed** - something wrote into that column (a space, a border, a pane
+            edge) - re-emits its character, which costs two columns and repairs both halves;
+          * a character that **is wide** takes the column after it, so whatever the buffer holds there is
+            written again (`old[x] = None` past the run), or the terminal keeps a glyph where the buffer
+            has something else;
+          * a placeholder with **no character to its left** is not half of anything: it is repaired to a
+            space here, which clears whatever the terminal still has in that column.
+        """
         if self.prev is None:
             out.write("\x1b[2J")
             self.prev = [[self.blank] * self.cols for _ in range(self.rows)]
@@ -1091,25 +1296,51 @@ class Screen:
             row, old = self.buf[y], self.prev[y]
             wide = self.wide[y]
             x = 0
+            col = 1                        # the terminal's column for cell `x`, 1-based
             while x < self.cols:
+                # the pair check is gated, not free: it is worth a call only where a two-cell relationship
+                # can be wrong, which is a cell that holds a wide character or a placeholder. A stray
+                # `""` without the flag (the other way a pair can disagree) is unreachable now that every
+                # writer goes through `set_cell`, and `normalise` covers it if one ever appears.
+                if wide[x] or _maybe_wide(row[x][0]):
+                    if self.fix_pair(x, y):
+                        row = self.buf[y]      # `fix_pair` may have rewritten this cell
+                ch = row[x][0]
+                here = 0 if (ch == "" and wide[x]) else (2 if _wide_char(ch) else 1)
                 if row[x] == old[x]:
                     x += 1
+                    col += here
                     continue
                 ch, fg, bg = row[x]
                 if ch == "" and wide[x]:
+                    pch, pfg, pbg = row[x - 1]
+                    out.write(f"\x1b[{y + 1};{col - 2}H"
+                              f"\x1b[38;2;{pfg[0]};{pfg[1]};{pfg[2]}m"
+                              f"\x1b[48;2;{pbg[0]};{pbg[1]};{pbg[2]}m" + pch)
+                    written += 2
                     x += 1
+                    col += 0
                     continue
                 run = [ch]
                 x += 1
+                col += here
                 while (x < self.cols and row[x] != old[x]
                        and row[x][1] == fg and row[x][2] == bg
                        and not (row[x][0] == "" and wide[x])):
-                    run.append(row[x][0])
+                    c = row[x][0]
+                    run.append(c)
                     x += 1
-                out.write(f"\x1b[{y + 1};{x - len(run) + 1}H"
+                    col += 0 if (c == "" and wide[x - 1]) else (2 if _wide_char(c) else 1)
+                out.write(f"\x1b[{y + 1};{max(1, col - _text_w(run))}H"
                           f"\x1b[38;2;{fg[0]};{fg[1]};{fg[2]}m"
                           f"\x1b[48;2;{bg[0]};{bg[1]};{bg[2]}m" + "".join(run))
                 written += len(run)
+                # a run that ends on a wide character has just painted over the column after it: if the
+                # buffer has a cell of its own there (rather than that character's placeholder, which the
+                # terminal has already drawn as part of the glyph), it has to go out too
+                if (_wide_char(run[-1]) and x < self.cols
+                        and not (row[x][0] == "" and wide[x])):
+                    old[x] = None
         out.flush()
         self.prev = [r[:] for r in self.buf]
         return written
@@ -1383,6 +1614,16 @@ def _morph_mask(u: float, order: tuple, k: int, t: float):
     if th > v:
         return False, False                                 # not arrived yet
     return True, abs(th - v) < MORPH_EDGE
+
+
+def _text_w(run) -> int:
+    """How many terminal columns a run of cells occupies: a wide character is two, a placeholder none.
+
+    `len(run)` is the number of *cells* and it is not the number of columns, which is the difference
+    between addressing a run correctly and shifting every character on the row by however much Chinese
+    came before it. A `""` in a run is always a placeholder - `Screen.put` writes it only there.
+    """
+    return sum(0 if c == "" else (2 if _wide_char(c) else 1) for c in run)
 
 
 def _glitch(t: float, k: int) -> str:
@@ -3199,6 +3440,20 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
         lx = max(30, min(cols - 24, int(cols * 0.50)))
     else:
         lx = max(24, min(cols - 20, int(cols * 0.60)))
+    # The two columns change places after the college gate: "进入学院部分后可以将左右panel位置交换（相应的
+    # 之前设计的图像的位置也需移动）". The widths do not change - only which side each one is drawn on - so
+    # the whole swap is these two rectangles, and everything below draws into `chat_*` and `pane_*`
+    # instead of `x0`/`lx`/`x1`. The images move with them because they are placed in the rect they are
+    # given: the chat window, its avatar, the lyric band, the spectrum bars, every pane drawing and the
+    # ops ticker all take their coordinates from here.
+    swap = bool(SP is not None and VAR[0] == "school"
+                and t >= getattr(SP, "SWAP_AT", 1e9))
+    if swap:
+        chat_x0, chat_x1 = x1 - (lx - x0), x1
+        pane_x0, pane_x1 = x0, chat_x0 - 1
+    else:
+        chat_x0, chat_x1 = x0, lx
+        pane_x0, pane_x1 = lx + 1, x1
     sp_bottom = min(top + 8, bottom - 4)      # border + 7 bands
 
     # her pane, above the stdout band, when the column can hold a legible portrait - and only on the
@@ -3239,11 +3494,12 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
     # pane is redrawn inside a smaller rect each time, with the walls it lost left behind as outlines.
     walls = FP.kv_inset(ent["u"]) if (ent is not None
                                       and ent["name"] in ("shot_trapped", "shot_red_trapped")) else 0
-    hx0, hy0, hx1, hy1 = x0, top, lx, top + her_h - 1
+    hx0, hy0, hx1, hy1 = chat_x0, top, chat_x1, top + her_h - 1
     if walls and (her or chat):
         for j in range(walls):
-            s.box(x0 + j * 6, top + j, lx - j * 6, hy1 - j, "", 0.15)
-        hx0, hy0, hx1, hy1 = x0 + walls * 6, top + walls, lx - walls * 6, hy1 - walls
+            s.box(chat_x0 + j * 6, top + j, chat_x1 - j * 6, hy1 - j, "", 0.15)
+        hx0, hy0, hx1, hy1 = (chat_x0 + walls * 6, top + walls,
+                              chat_x1 - walls * 6, hy1 - walls)
     LEFT_BOX[:] = [hx0, hy0, hx1, hy1]      # see the note on LEFT_BOX
     if chat:
         WINDOW[0] = "chat"
@@ -3278,30 +3534,30 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
     band_top = top + (her_h if (her or chat or cursor) else 0)
 
     # --------------------------------------------------------------- stdout band
-    BAND_BOX[:] = [x0, band_top, lx, bottom]
+    BAND_BOX[:] = [chat_x0, band_top, chat_x1, bottom]
     if t < SIM_START:
-        draw_boot_log(s, x0, band_top, lx, bottom, t)
+        draw_boot_log(s, chat_x0, band_top, chat_x1, bottom, t)
     elif t < SIM_END:
-        draw_sim_start(s, x0, band_top, lx, bottom, t)
+        draw_sim_start(s, chat_x0, band_top, chat_x1, bottom, t)
     else:
-        CLEAR.append((x0, band_top, lx, bottom))     # before the draw, so `put` leaves its colour alone
-        draw_lyrics(s, d, t, x0, band_top, lx, bottom)
+        CLEAR.append((chat_x0, band_top, chat_x1, bottom))   # before the draw, so `put` leaves its colour
+        draw_lyrics(s, d, t, chat_x0, band_top, chat_x1, bottom)
 
     # --------------------------------------------------------- spectrum panel
-    s.box(lx + 1, top, x1, sp_bottom, "feature bands", 0.55, ME_TEXT)
+    s.box(pane_x0, top, pane_x1, sp_bottom, "feature bands", 0.55, ME_TEXT)
     inner = sp_bottom - top - 1
     for i in range(min(7, inner)):
         yy = top + 1 + i
         v = d.band(t, i)
-        s.put(lx + 3, yy, BANDS[i].rjust(7), ui(0.68))
-        bar_x, bar_w = lx + 12, max(4, x1 - (lx + 12) - 1)
+        s.put(pane_x0 + 2, yy, BANDS[i].rjust(7), ui(0.68))
+        bar_x, bar_w = pane_x0 + 11, max(4, pane_x1 - (pane_x0 + 11) - 1)
         s.hbar(bar_x, yy, bar_w, v, mix(ME_TEXT, 0.45 + 0.55 * v))
 
     # ------------------------------------------------------- the chapter panel
     # the drawings that were always terminal text, on the shots that own them: (want, least worth
     # drawing). The mask needs its twelve rows or it is not a matrix, so its minimum is its want.
     pane, need, least = None, 0, 0
-    rw = x1 - lx - 2                                    # the right column's inner width
+    rw = pane_x1 - pane_x0 - 1                          # the drawing column's inner width
     if SP is not None and VAR[0] == "school" and ent is not None and ent.get("pane"):
         # the school variant names its pane on the entry (`SP.school_entry`), so the column does not
         # have to match on the film's shot names at all - which is the whole point of the overlay: the
@@ -3376,7 +3632,7 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
         pane_h = 0
     ops_top = sp_bottom + 1
     if pane_h:
-        px0, py1 = lx + 1, ops_top + pane_h - 1
+        px0, py1 = pane_x0, ops_top + pane_h - 1
         dur = ent["end"] - ent["start"]
         lt = ent["u"] * dur
         if pane == "corpus":
@@ -3447,7 +3703,7 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
         ops_bottom = ops_top + n_tick - 1
     else:
         ops_bottom = bottom
-    draw_ops(s, lx + 1, ops_top, x1, ops_bottom, t, tick, ent["alert"] if ent else None,
+    draw_ops(s, pane_x0, ops_top, pane_x1, ops_bottom, t, tick, ent["alert"] if ent else None,
              machine)
 
 
@@ -3491,14 +3747,15 @@ def draw_footer(s: Screen, d: Data, t: float, playing: bool, fps: float, ent: di
     else:
         msg = (f"{'WAIT' if waiting else ('PLAY' if playing else 'PAUSE')} {fps:4.1f}fps  "
                f"h her  c chat  x fx  q quit")
-    room = max(0, cols - len(msg) - 4)
-    if len(left) > room:                     # drop whole fields rather than cut one in half
+    room = max(0, cols - dw(msg) - 4)
+    if dw(left) > room:                      # drop whole fields rather than cut one in half
         fields = left.split("  ")
-        while fields and len("  ".join(fields)) > room:
+        while fields and dw("  ".join(fields)) > room:
             fields.pop()
         left = "  ".join(fields)
     s.put(2, rows - 1, left, ui(0.55))
-    s.put(max(2, cols - len(msg) - 1), rows - 1, msg,
+    # the hint line carries `等你回答` while the gate is up, so it is right-aligned by cells as well
+    s.put(max(2, cols - dw(msg) - 1), rows - 1, msg,
           ui(0.62) if playing else mix(ANOM, 0.8))
 
 
@@ -3534,11 +3791,17 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
                   else "whale@deepsea:~"), ME_TEXT)
     wav_x, clock = 38, f"{int(t // 60):02d}:{t % 60:04.1f} / 03:32"
     tail = f"  {d.chapter(t)}"
-    wav_w = max(8, cols - wav_x - len(clock) - len(tail) - 4)
+    wav_w = max(8, cols - wav_x - len(clock) - dw(tail) - 4)
     if wav_w > 8:
         s.waveform(wav_x, 0, wav_w, d.wave, t, mix(ME_TEXT, 0.85))
-    s.put(cols - len(clock) - len(tail) - 2, 0, clock, ui(UI_DIM_LEVEL))
-    s.put(cols - len(tail) - 1, 0, tail, mix(ANOM, 0.75))
+    # right-aligned by *cells*, not by characters: the chapter name is Chinese and `len("副歌")` is 2
+    # where the terminal needs 4 - which put the tail one cell too far right, so its last glyph landed on
+    # the final column with no room for the placeholder behind it. That is a wide character drawn off the
+    # edge of the screen: the terminal wraps it onto the next row and the frame reads as garbled text.
+    # `_dev/ansi_probe.py` found it on the very first frame (y=0, x=195).
+    tail_x = max(1, cols - dw(tail) - 1)
+    s.put(cols - len(clock) - dw(tail) - 2, 0, clock, ui(UI_DIM_LEVEL))
+    s.put(tail_x, 0, tail, mix(ANOM, 0.75))
 
     top, bottom = 1, rows - 5
     if bottom - top < 6:
@@ -3607,6 +3870,11 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
             print(f"warning: the full-frame layer failed ({exc})", file=sys.stderr, flush=True)
     # tuikit.py:468-476's post, and the cut's reveal, both after everything else has been drawn
     fx_apply(s, t, ent)
+    # ...and the frame is made consistent before it is written: a wide character and the placeholder
+    # behind it are two cells that have to agree, and this is the one place that checks them all rather
+    # than trusting a dozen writers. See `Screen.normalise` - and `_dev/ansi_probe.py`, which is what
+    # measures whether it works (it decodes the escape stream back into a screen and diffs it).
+    s.normalise()
 
 
 # --------------------------------------------------------------------------- io

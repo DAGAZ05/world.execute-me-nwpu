@@ -30,6 +30,8 @@ from pathlib import Path
 
 from PIL import Image
 
+import film_panels as FP        # the film's own beat clock, for the figure's hop (`stand`)
+
 ROOT = Path(__file__).resolve().parents[2]
 ASSETS = ROOT / "assets"
 LANDMARKS = ASSETS / "\u6821\u56ed\u6807\u8bc6\u7269"          # the campus works
@@ -244,14 +246,24 @@ def sprite(name: str, cols: int, rows: int, contrast: float = 1.0, flip: str = "
         pass
     L, A, P = small.convert("L").load(), small.getchannel("A").load(), small.convert("RGB").load()
     out = []
+    n_lev = len(SHADE) - 1
     for r in range(rows):
         row = []
         for c in range(cols):
-            def lv(y):
+            def lv(y, r=r, c=c):
                 if A[c, y] <= 96:
                     return None
                 v = (LEVEL_FLOOR + (1 - LEVEL_FLOOR) * L[c, y] / 255) ** (1.0 / max(0.2, contrast))
-                return int(round(min(1.0, v) * (len(SHADE) - 1)))
+                # **ordered dithering on the ramp**, which is the one thing this project's pictures were
+                # missing. A five-level ramp quantises a photograph's sky and its shadow into five flat
+                # bands, and that banding is what "视觉效果还是有些单调" is looking at: the sources have
+                # hundreds of greys and the picture shows five. A Bayer 4x4 threshold, at half a level,
+                # turns the boundary between two levels into a checkerboard instead of a hard edge - the
+                # same trick every image-to-terminal converter uses (chafa's `--dither`, libcaca before
+                # it), and the reason its output reads as a photograph rather than as poster art.
+                b = (BAYER4[r & 3][c & 3] + 0.5) / 16.0 - 0.5
+                v = min(1.0, max(0.0, v + b * DITHER / n_lev))
+                return int(round(min(1.0, v) * n_lev))
             top, bot = lv(2 * r), lv(2 * r + 1)
             if top is None and bot is None:
                 row.append(None)
@@ -262,6 +274,13 @@ def sprite(name: str, cols: int, rows: int, contrast: float = 1.0, flip: str = "
     if outline:
         out = _outline(out, cols, rows)
     return tuple(out), cols, rows
+
+
+# The ordered-dither threshold, 4x4: the classic Bayer matrix, as the fraction of one ramp level each
+# cell is nudged by before it is quantised. `DITHER` is how much of a level that nudge may be - half is
+# the textbook setting, and less than that keeps the dither from reading as noise in a small pane.
+BAYER4 = ((0, 8, 2, 10), (12, 4, 14, 6), (3, 11, 1, 9), (15, 7, 13, 5))
+DITHER = 0.5
 
 
 # The light every silhouette in the film is drawn against is the frame's own `(4,7,15)`, and a dark
@@ -615,12 +634,18 @@ def _aspect(name: str) -> float:
 
 def stand(s, cols: int, rows: int, t: float, u: float, name: str, side: str = "right",
           size: int = 0, caption: str = "") -> None:
-    """A figure standing at the edge of the frame, half out of it, breathing.
+    """A figure standing at the edge of the frame, half out of it, **moving on the beat**.
 
     The chat window has always shown 航小天's *face* - a crop, at sixteen cells across, because that is
     what an avatar is. The user's note was that the full body never appears anywhere. This is that: the
     whole figure as half-block art, at the size of the frame, stepping in from an edge and standing
     there while the last lines play.
+
+    ...and then this batch: "后面部分有航小天大图的部分，我希望航小天随音乐节奏上下跃动". So the figure
+    hops: `FP.pulse` is the film's own beat detector (1 on the beat, decaying over 140 ms), and the hop is
+    that pulse raised to a power - a sharp rise and a soft landing rather than a sine wave, which is what
+    a body does. `breathe` stays underneath it, so the figure is alive between the beats too, and the
+    landing is a small extra dip so the hop reads as weight rather than as a slide.
 
     `side` is which edge it is standing at; the figure is cropped by the frame rather than scaled to fit
     it, which is the whole difference between a sprite and a person standing there.
@@ -633,8 +658,11 @@ def stand(s, cols: int, rows: int, t: float, u: float, name: str, side: str = "r
     _, cw, chh = cells
     breathe = int(round(math.sin(t * 1.1) * 1.2))
     rise = int((1.0 - min(1.0, u * 2.4)) * (chh * 0.5))          # steps up into place and settles
+    p = FP.pulse(t)                                              # 1 on the beat, 0 between them
+    hop = int(round((p ** 1.5) * max(2, chh * 0.11)))
+    landing = int(round((p ** 0.5) * 1.5)) if p < 0.25 else 0     # the dip just after the beat
     x = cols - cw - 6 if side == "right" else 6
-    y = rows - chh + rise // 2 + breathe
+    y = rows - chh + rise // 2 + breathe - hop + landing
     paste(s, cells, x, y)
     if caption and 2 <= x <= cols - len(caption) - 3:
         s.put(x, max(0, y - 1), caption, (255, 220, 150))
@@ -743,17 +771,51 @@ def plate(s, cols: int, rows: int, t: float, u: float, name: str, cols_n: int = 
               (255, 210, 120))
 
 
+@lru_cache(None)
+def _ink_share(name: str) -> tuple[float, float, float]:
+    """How much of a sprite's own rectangle its *subject* fills: `(w, h, centre y)` as fractions.
+
+    Every photograph in `assets/` is a cut-out with sky, paper or floor around the subject, and the
+    sprite is the whole frame. "运-20 到达屏幕中间时需要占据全屏 2/3" was therefore never satisfied by
+    asking for a sprite two thirds of the frame wide: the aircraft inside that sprite is about 62 % of
+    its width, so the thing on screen was two fifths of the frame - measured, not guessed, which is what
+    `_dev/measure_art.py` exists for. This says what the *subject* occupies, and where its middle is, so
+    a caller can size and place the subject rather than the box around it.
+    """
+    for cols, rows in ((140, 48), (90, 30), (50, 18)):
+        cells = sprite(name, cols, rows)
+        if not cells:
+            return (1.0, 1.0, 0.5)
+        grid, w, h = cells
+        xs = [x for row in grid for x, c in enumerate(row) if c is not None]
+        ys = [y for y, row in enumerate(grid) for c in row if c is not None]
+        if xs and ys:
+            return ((max(xs) - min(xs) + 1) / float(w),
+                    (max(ys) - min(ys) + 1) / float(h),
+                    ((min(ys) + max(ys)) / 2.0) / float(h))
+    return (1.0, 1.0, 0.5)
+
+
 def lowpass(s, cols: int, rows: int, t: float, u: float, name: str, y: float = 0.30,
-            peak: float = 0.66, caption: str = "", wave: float = 0.0) -> None:
+            peak: float = 1.05, caption: str = "", wave: float = 0.0, cover: float = 0.66) -> None:
     """A low pass: the aircraft comes over the frame, is biggest in the middle of it, and goes.
 
     The user asked for this one specifically - "运20需要展示掠空的冲击效果，其到达屏幕中间时需要占据全屏
-    2/3" - so it is not one of the crossings: the size is a function of `u` that peaks at the centre,
-    where it is `peak` of the frame's width (two thirds at the default), it crosses on a shallow diagonal
-    rather than a rail, and while it is over the frame the frame takes the shock: an expanding ring off
-    the hull, a shock line across the whole width at its altitude, dust coming up off the floor, and the
-    screen shake that `tui_live.fx_shake` asks this module for (`shock`).
+    2/3", and then again in this batch: "运20 我之前要求大图掠空，但现在依旧不够大，请让其在屏幕中间时至少
+    覆盖2/3的全屏幕" - so the size is not a fraction of the frame, it is a **coverage**: the size that makes
+    the aircraft's own ink cover `cover` of the frame's *area* at the centre of the pass.
 
+    Why that is not the same thing, and why the first two attempts both looked too small: every aircraft
+    here is a photograph with sky around it, so "a sprite two thirds of the frame wide" is an aircraft
+    about 62 % of that wide and 54 % of that tall (measured by `_ink_share`) - a thin band across the
+    middle of the screen. Covering two thirds of the screen with a side-on aeroplane needs the sprite to
+    be about as wide as the frame is, because the subject's height is what is short. Solved for the size
+    rather than guessed, the y20 asks for 198 cells in a 197-cell frame: the wings meet both edges and
+    the hull is 34 rows tall, which is the 2/3 the user is asking for, and the frame takes the shock.
+
+    It crosses on a shallow diagonal rather than a rail, and while it is over the frame the frame takes
+    the hit: an expanding ring off the hull, a shock line across the whole width at its altitude, dust
+    coming up off the floor, and the screen shake that `tui_live.fx_shake` asks this module for (`shock`).
     None of that is a function of anything but `u`, so a seek lands on the frame playing would.
     """
     near = math.sin(max(0.0, min(1.0, u)) * math.pi)              # 0 at the edges of the pass, 1 at the centre
@@ -761,17 +823,24 @@ def lowpass(s, cols: int, rows: int, t: float, u: float, name: str, y: float = 0
     # pass whose size changes every frame decodes the whole PNG every frame. Measured over 11.8-12.9 s of
     # the low pass: every frame 95-100 ms, against a 41.7 ms budget.
     frac = math.ceil((0.34 + 0.66 * near ** 0.7) * PASS_STEPS) / PASS_STEPS
-    size = max(16, int(cols * peak * frac))
+    share_w, share_h, ink_cy = _ink_share(name)
+    aspect = max(0.2, _aspect(name))
+    # the sprite width whose *ink* covers `cover` of the frame's area - see the docstring
+    want = math.sqrt(max(1e-6, cover * cols * rows * CELL_ASPECT * aspect
+                         / max(0.05, share_w * share_h)))
+    size = max(16, int(min(cols * peak, want) * frac))
     if wave:
         # kept for symmetry with `fly`: a boat, not a plane, if one is ever put on this path
         pass
-    rn = max(6, int(round(size / (CELL_ASPECT * max(0.2, _aspect(name))))))
+    rn = max(6, int(round(size / (CELL_ASPECT * aspect))))
     cells = sprite(name, size, rn, flip=_flip_for(name, 1.0))
     if not cells:
         return
     _, w, h = cells
     x = int((cols + w) * u - w)
-    yy = int(rows * y + (0.5 - u) * rows * 0.20)                  # a shallow diagonal, not a rail
+    # placed by its *ink*, not by its box: at the peak this sprite is taller than the frame, and what has
+    # to be at `y` is the aircraft rather than the sky above it
+    yy = (int(rows * y - h * ink_cy) + int((0.5 - u) * rows * 0.20))   # a shallow diagonal, not a rail
     paste(s, cells, x, yy)
     cx, cy = x + w // 2, yy + h // 2
     d = abs(u - 0.5) / 0.34                                       # 0 at the centre, 1 at the edge of the hit
@@ -1090,21 +1159,30 @@ def _cells(s, grid, w: int, h: int, ox: int, oy: int, bx0: int, by0: int, bx1: i
         if y < by0 or y > by1:
             continue
         row, wrow = grid[r], buf[y]
+        wrowf = wide[y]
         for c in range(w):
             x = ox + c
             if x < bx0 or x > bx1:
                 continue
+            # the two cells a wide glyph occupies are disowned at the panel's own edges: the box fill
+            # covers the middle, but a CJK character straddling the border would otherwise keep half of
+            # itself on screen (`Screen._unpair`)
+            if x == bx0 and x > 0 and wrowf[x] and wrow[x][0] == "":
+                wrow[x - 1] = (" ", wrow[x - 1][1], wrow[x - 1][2])
+            if x == bx1 and x + 1 < s.cols and wrowf[x + 1] and wrow[x + 1][0] == "":
+                wrow[x + 1] = (" ", wrow[x + 1][1], wrow[x + 1][2])
+                wrowf[x + 1] = False
             cell = row[c]
             if cell is None:
                 # the art's own transparent cells become paper too, so the panel has *no* space cells
                 # anywhere in it - see `PAPER_CH`. A cell left as a space is a cell the trail may write
                 # the previous frame into, and one of those lands on the figure.
                 wrow[x] = (PAPER_CH, PAPER_COL, PAPER_COL)
-                wide[y][x] = False
+                wrowf[x] = False
                 continue
             ch, _lv, fg, bg = cell
             wrow[x] = (ch, fg, bg)
-            wide[y][x] = False
+            wrowf[x] = False
 
 
 def covers_band(t: float) -> bool:
@@ -1303,12 +1381,17 @@ def _carry(s, dy: int, dx: int, cell, wide: bool) -> None:
     not the flag leaves an empty character with `wide=False` in the buffer, and the next thing to read
     the frame - the PNG rasteriser, in this case - calls `east_asian_width("")` and raises. So the
     filler becomes a space, which it is: it is the blank half of a character that is not there any more.
+
+    **And the character keeps its filler when it moves**, which the first version did not do: `_slide`,
+    `_zoom`, `_skew` and `_page` run on the frame of *every* cut in this variant, and each of them moved
+    a two-column character as a one-column cell - so after every cut the buffer said "wide character,
+    then a space", the terminal painted the glyph across both columns, and nothing ever repainted the
+    column it had taken. `_dev/ansi_probe.py` measured it: 341 of 425 frames with at least one cell where
+    the terminal and the buffer disagreed. `Screen.set_cell` is the one place that knows how to write a
+    cell now, so this is two lines instead of a rule every caller has to remember.
     """
     ch, fg, bg = cell
-    if ch == "":
-        ch = " "
-    s.buf[dy][dx] = (ch, fg, bg)
-    s.wide[dy][dx] = False
+    s.set_cell(dx, dy, ch if ch else " ", fg, bg)
 
 
 def _shift(s, x0: int, y0: int, x1: int, y1: int, dx: int, dy: int = 0) -> None:
@@ -1328,7 +1411,7 @@ def _shift(s, x0: int, y0: int, x1: int, y1: int, dx: int, dy: int = 0) -> None:
             if 0 <= sx < s.cols:
                 _carry(s, y, x, src[sy][sx], srcw[sy][sx])
             elif dy:
-                s.buf[y][x] = (" ", s.buf[y][x][1], s.buf[y][x][2])
+                s.set_cell(x, y, " ", s.buf[y][x][1], s.buf[y][x][2])
 
 
 def _slide(s, cols: int, rows: int, q: float) -> None:
@@ -1370,7 +1453,7 @@ def _zoom(s, cols: int, rows: int, q: float) -> None:
             if 0 <= sx < cols:
                 _carry(s, y, x, src[sy][sx], srcw[sy][sx])
             else:
-                s.buf[y][x] = (" ", s.buf[y][x][1], s.buf[y][x][2])
+                s.set_cell(x, y, " ", s.buf[y][x][1], s.buf[y][x][2])
 
 
 def _skew(s, cols: int, rows: int, q: float) -> None:
@@ -1393,7 +1476,7 @@ def _skew(s, cols: int, rows: int, q: float) -> None:
             if 0 <= sx < cols:
                 _carry(s, y, x, src[y][sx], srcw[y][sx])
             else:
-                s.buf[y][x] = (" ", s.buf[y][x][1], s.buf[y][x][2])
+                s.set_cell(x, y, " ", s.buf[y][x][1], s.buf[y][x][2])
     for y in range(y0, y1 + 1):                      # the edge that is moving, lit
         d = int(k * (y - y0)) - int(k * (y1 - y0) * 0.5)
         s.put(min(cols - 1, max(0, x0)), y, "\u2502", (120, 180, 240))
@@ -1532,8 +1615,9 @@ def _shatter(s, cols: int, rows: int, t: float, q: float) -> None:
                 ch, fg, _bg = src[y][x]
                 if ch in ("", " "):
                     continue
-                s.buf[ny][nx] = (ch, tuple(int(c * fade) for c in fg), bg)
-                s.wide[ny][nx] = srcw[y][x]
+                # a shard carries its character; `set_cell` gives a wide one its placeholder back and
+                # disowns whatever half was already at the landing site
+                s.set_cell(nx, ny, ch, tuple(int(c * fade) for c in fg), bg)
     # the cracks: bright, jagged, radiating from the impact, and they fade with the shards
     for k in range(14):
         a = k * (2 * math.pi / 14) + 0.21
@@ -1572,9 +1656,11 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     (7.30, 9.60, plate, dict(name="he_zun", cols_n=72, rows_n=36,
                              caption="\u5b85\u5179\u4e2d\u56fd \u00b7 \u94ed\u6587\u91cc\u6700\u65e9\u7684\u4e2d\u56fd\u4e8c\u5b57")),
     # --- "Set up our new world": 运-20's one appearance, as a low pass with the shock the user asked for.
-    #     2/3 of the frame at the middle of it, on a shallow diagonal, and the frame shakes (`SHOCKS`).
-    (11.20, 13.10, lowpass, dict(name="y20", y=0.26, peak=0.66, caption="\u8fd0-20 \u63a0\u7a7a",
-                                 )),
+    #     "运20 我之前要求大图掠空，但现在依旧不够大，请让其在屏幕中间时至少覆盖2/3的全屏幕". The size is
+    #     solved from that coverage rather than given as a share of the frame (`lowpass` has the sum), and
+    #     `peak` is only a cap: at 197x52 it comes out at the full width, 63 rows of sprite and a hull
+    #     34 rows tall, and the frame shakes (`SHOCKS`).
+    (11.20, 13.10, lowpass, dict(name="y20", y=0.42, caption="\u8fd0-20 \u63a0\u7a7a")),
     # --- "so dizzy": 直-20, once, coming *down* the frame - the one direction a helicopter reads in, and
     #     deliberately not a horizontal crossing: the user's note was "飞机不用只是横向飞"
     (49.20, 51.00, dive, dict(name="z20", x=0.70, caption="\u76f4-20 \u4e0b\u964d")),

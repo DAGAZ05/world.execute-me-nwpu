@@ -26,6 +26,9 @@ import math
 
 import school_courses as _C
 
+# a terminal cell is this many times taller than it is wide, so every circle in this file divides by it
+_CA = 2.1
+
 BOX_H = _C.BOX_H
 BOX_V = _C.BOX_V
 
@@ -294,58 +297,50 @@ def epicycles(k, t: float) -> None:
 
 
 def hearts9(k, t: float) -> None:
-    """Nine heart curves: the six the textbooks use plus three that only exist as equations.
+    """**One** heart curve, big - "心形曲线可以只画1个大的".
 
-    `想法.md` lists five heart formulae under LOVE and asks for nine. They are drawn as a contact sheet -
-    three rows of three - because the point is that they are *different shapes*, and a contact sheet is
-    the only layout where that is visible at terminal resolution. Each cell is one equation, drawn on its
-    own clock, so the sheet breathes rather than being a printed figure.
+    This was nine: `想法.md` lists five heart formulae and asks for nine, so it drew a 3x3 contact sheet
+    of tiny dotted loops with nine equations printed over them. The user's note at this batch is
+    "有些演出太复杂导致图像精细度不够，可以进行简化，重点放在细节刻画（比如心形曲线可以只画1个大的）", and
+    they are right about the cause: at a band's height each cell of that sheet had three rows, so every
+    heart was a dash and the equations overlapped. Nine shapes at three rows each is not nine times the
+    information, it is no information - what the sheet was for ("同一个形状，九个方程") survives as one
+    line of text under one heart that can actually be seen.
+
+    The curve is `r = 1 - sin θ`: the one polar heart everybody recognises, with the cusp at the top and
+    the point at the bottom. It is drawn at the band's own size with the cell aspect divided out, so it is
+    a heart rather than a squashed heart, and with a second contour inside it at 0.82 - two passes are
+    what give a curve *weight* at terminal resolution. The whole thing breathes, so the pane's clock
+    (`_dev/clock_probe.py`) sees it move.
     """
-    k.section(k.by0, "\u4e5d\u79cd\u5fc3\u5f62\u66f2\u7ebf", 0.28)
-    # the sheet adapts: nine cells when the band is tall, three when it is short. The first version was
-    # always 3x3, and in a ten-row band each cell got three rows - the hearts came out as dashes and the
-    # nine equations printed on top of each other
-    tall = (k.by1 - k.by0) >= 11
-    cols, rows = (3, 3) if tall else (3, 1)
-    cw = max(10, k.bw // cols)
-    chh = max(3, (k.by1 - k.by0 - 1) // rows)
-    if chh < 3:
+    k.section(k.by0, "\u5fc3\u5f62\u66f2\u7ebf r = 1 \u2212 sin \u03b8", 0.28)
+    if k.bw < 14 or k.bh < 5:
         return
-    eqs = ("r=1\u2212sin\u03b8", "r=1\u2212cos\u03b8", "(x\u00b2+y\u00b2\u22121)\u00b3=x\u00b2y\u00b3",
-           "x\u00b2+(y\u2212|x|)\u00b2=1", "r=\u03b8", "16sin\u00b3t", "|x|^0.5", "r=sin\u00b2\u03b8", "e^{-|x|}")
-    for ci in range(cols * rows):
-        eq = eqs[ci]
-        r0, c0 = divmod(ci, cols)
-        ox = k.bx0 + c0 * cw + 2
-        oy = k.by0 + 1 + r0 * chh
-        k.put(ox, oy, eq[: max(0, cw - 3)], _ui(0.5))
-        sx, sy = max(2, cw // 5), max(2, (chh - 1) // 2)
-        spin = t * (0.4 + 0.1 * ci)
-        for a in range(0, 360, 6):
-            th = math.radians(a)
-            if ci == 0:
-                r = 1 - math.sin(th)
-            elif ci == 1:
-                r = 1 - math.cos(th)
-            elif ci == 2:
-                r = 0.8 + 0.2 * math.cos(2 * th)          # a stand-in for the implicit curve
-            elif ci == 3:
-                r = 0.7 + 0.3 * abs(math.cos(th))
-            elif ci == 4:
-                r = 0.3 + 0.7 * abs(math.sin(th))
-            elif ci == 5:
-                r = 0.6 + 0.4 * abs(math.sin(3 * th))
-            elif ci == 6:
-                r = 0.5 + 0.5 * abs(math.sin(th)) ** 0.5
-            elif ci == 7:
-                r = 0.4 + 0.6 * math.sin(th) ** 2
-            else:
-                r = 0.5 + 0.5 * math.exp(-abs(math.cos(th)) * 2)
-            x = int(ox + 3 + sx * r * math.cos(th + spin) * 1.6)
-            y = int(oy + 1 + sy * r * math.sin(th) * 0.9 + sy)
-            k.put(x, y, "\u00b7", _mix(_C.RED if ci % 2 else _C.VIOLET, 0.85))
-    k.put(k.bx0, k.by1, "\u540c\u4e00\u4e2a\u5f62\u72b6\uff0c\u4e5d\u4e2a\u65b9\u7a0b\uff1a\u6ca1\u6709"
-                        "\u54ea\u4e2a\u662f\u201c\u5bf9\u201d\u7684", _ui(0.5))
+    # The heart hangs *below* its cusp: `r = 1 - sin θ` is 0 at the top (the notch) and 2 at the bottom
+    # (the point), so `cy` is the top of the drawing rather than its middle - the first version centred
+    # `cy` and clipped the point off the bottom of every box. Both radii come from what is left: the width
+    # is `2 rx` and the height `2 ry`, and a cell is `_CA` times taller than it is wide.
+    cx = k.bx0 + k.bw // 2
+    cy = k.by0 + 2
+    room = max(4, (k.by1 - cy) - 1)
+    ry = max(3, min(room // 2, int((k.bw // 2 - 2) / _CA)))
+    rx = max(5, int(ry * _CA))
+    beat = 0.62 + 0.38 * abs(math.sin(t * 1.9))
+    for i in range(0, 360, 2):
+        th = math.radians(i)
+        r = 1.0 - math.sin(th)
+        x = cx + int(rx * r * math.cos(th))
+        y = cy - int(ry * r * math.sin(th))
+        k.put(x, y, "\u00b7", _mix(_C.RED, beat))
+        if i % 6 == 0:                              # every third sample again, brighter: the contour
+            k.put(x, y, "\u2022", _mix(_C.RED, min(1.0, beat + 0.25)))
+    for i in range(0, 360, 3):                      # the inner contour, the curve's own body
+        th = math.radians(i)
+        r = (1.0 - math.sin(th)) * 0.82
+        k.put(cx + int(rx * r * math.cos(th)), cy - int(ry * r * math.sin(th)),
+              "\u00b7", _mix(_C.VIOLET, 0.34 + 0.2 * beat))
+    k.put(k.bx0, k.by1, "\u540c\u4e00\u4e2a\u5f62\u72b6\uff0c\u4e5d\u4e2a\u65b9\u7a0b\uff1a"
+                        "\u6ca1\u6709\u54ea\u4e2a\u662f\u201c\u5bf9\u201d\u7684", _ui(0.5))
 
 
 def fork_bomb(k, t: float) -> None:

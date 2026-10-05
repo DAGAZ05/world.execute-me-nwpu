@@ -674,37 +674,39 @@ def pane_knowledge(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
 
 
 def pane_love_class(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
-    """`the algebraic expression of lo-o-ove` (03:04.33-03:13.46): the one still drawing in the film.
+    """`the algebraic expression of lo-o-ove` (03:04.33-03:13.46): the class, and **one big heart**.
 
     `02b` §4.6 wants the class the previous pane collapsed to, magnified to fill the column, and
     **nothing moving** - "every other pane in this bar animates, and this one does not, because the
     answer has been written". So this is the only pane in the variant with no `lt` in it at all, and
     the `u` reveal is a typewriter rather than an animation.
+
+    It used to be that listing *plus two motif bands* underneath it - the Fourier epicycles and a 3x3
+    contact sheet of nine heart equations. The user's note this batch is "有些演出太复杂导致图像精细度不够，
+    可以进行简化，重点放在细节刻画（比如心形曲线可以只画1个大的）", and this pane was the example: in the
+    rows that were left, each of the nine hearts got three and the equations printed over each other. The
+    listing keeps its four lines - the expression is what the lyric names - and everything below it is now
+    one heart at the size the box can carry, drawn by `school_motifs.hearts9` (which is the same curve,
+    rewritten for a whole box rather than a band).
     """
     lines = [
         "class Love:",
         "    giver: Person",
         "    taker: Person",
-        "",
-        "    def give(self) -> None:",
-        "        ...",
-        "",
-        "# \u4e00\u4e2a\u7c7b\uff0c\u4e24\u4e2a\u89d2\u8272\uff0c\u4e00\u4e2a\u65b9\u6cd5",
+        "    def give(self) -> None: ...",
     ]
     import school_courses as _C
     w, h = x1 - x0, y1 - y0
     if w < 12 or h < 3:
         return
-    # the box is the lines that fit, not all eight: a seven-row pane gets a shorter class rather than
-    # its bottom two lines written outside it (caught by the probe at 60x7 and 34x5)
-    fit = max(1, min(len(lines), h - 2))
+    # the box is the lines that fit, not all of them: a short pane gets a shorter class rather than its
+    # bottom line written outside it (caught by the probe at 60x7 and 34x5)
+    fit = max(1, min(len(lines), max(1, h // 2)))
     lines = lines[:fit]
-    bx, by = x0 + 1, y0 + max(0, (h - len(lines) - 2) // 2)
+    bx, by = x0 + 1, y0
     bw = min(w - 2, 46)
     for xx in range(bx, bx + bw):
         s.put(xx, by, _C.BOX_H, _C._mix(_C.AMBER, 0.8))
-        if by + len(lines) + 1 <= y1:
-            s.put(xx, by + len(lines) + 1, _C.BOX_H, _C._mix(_C.AMBER, 0.8))
     revealed = int(len(lines) * min(1.0, u * 1.25))
     for i, line in enumerate(lines):
         if i >= revealed:
@@ -712,6 +714,12 @@ def pane_love_class(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         s.put(bx + 2, by + 1 + i, line[: max(0, bw - 4)],
               _C._mix(_C.AMBER, 0.95) if i == 0 else _C._ui(0.85))
     s.put(bx + 2, by, " Love ", _C._mix(_C.AMBER, 0.95))
+    # ...and the heart, in whatever is left: one curve, as big as the box allows
+    top = by + len(lines) + 2
+    if y1 - top >= 5:
+        import school_motifs as _M
+        k = _kit(s, x0, y0, x1, y1, 0, "")
+        _M.hearts9(k.sub(k.bx0, top, k.bx1, y1), t)
 
 
 # --------------------------------------------------------------- the campus landmarks
@@ -1603,7 +1611,6 @@ MOTIF_IN = {
     "pane_point_set": "byrne",
     "pane_landmark_sword": "quantize",
     "pane_memory": "dijkstra",
-    "pane_love_class": "epicycles",
     "pane_exec_os": "fork_bomb",
     # the two `想法.md` motifs that a character grid draws better than anything else left on the list:
     # 定义 gets the sine and its envelope (drawn, not written - the user's note for this batch), 互换
@@ -1625,7 +1632,6 @@ MOTIF_IN = {
 # cracks on "Erase all the pointless fragments", the pixel sort beside the quantisation on the crash, and
 # the circular plate beside the square one under the countdown.
 MOTIF_ALSO = {
-    "pane_love_class": "hearts9",
     "pane_three_arms": "galaxy",
     "pane_memory": "fragmentation",
     "pane_countdown": "bessel",

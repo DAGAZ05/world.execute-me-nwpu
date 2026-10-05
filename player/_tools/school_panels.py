@@ -635,6 +635,15 @@ def ui_gain_at(t: float, name: str, u: float) -> float:
 MACHINE_FROM = EXEC_FROM          # 147.52, the first of the twelve hits
 MACHINE_STEP = 0.30               # one instruction per 300 ms - fast enough to read as a machine
 
+# ---------------------------------------------------------------- the two columns change places
+#
+# "进入学院部分后可以将左右panel位置交换（相应的之前设计的图像的位置也需移动）". The gate is answered at
+# 02:11.9 and the curriculum starts at 02:16.9, and that is where the film stops being about a student
+# arriving and starts being about the machine's own work: the person moves to the right of the machine.
+# It is one number, and `tui_live.draw_body` reads it through `getattr` so `--variant original` (which
+# has no `school_panels`) simply never swaps.
+SWAP_AT = 136.90                  # the curriculum row: the first frame on the far side of the gate
+
 # eight instructions, because a program listing that fits without scrolling is a listing, not a ticker
 MACHINE_PROG = (
     "LOAD  R1, [r0 + id]",
