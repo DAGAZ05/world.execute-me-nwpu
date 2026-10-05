@@ -1,0 +1,13 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Scratch: every `_dev` probe writes its PNGs, logs and character dumps here. Nothing in `_dev/out`
+# is a deliverable - the frames worth keeping are copied into `04_验证记录/批次NN_*/` by hand.
+_dev/out/
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
