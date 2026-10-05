@@ -1,0 +1,25 @@
+﻿批次 26：动图归位到会话框那一层、MEMORY 节奏、图书馆左下、校门超出屏幕、白框
+
+用户六条，逐个落地（详见 04_验证记录/批次26_动图层级与节奏.md）：
+
+1. 「打篮球面板不在最上层」——用户是对的。面板原本挂在 EVENTS 上，是 draw_body 画完
+   会话框之后由整屏层再画的，于是还要挨一遍影片后期（fx_reveal 逐格用上一帧替换、
+   fx_trail 给任何空格格写回上一帧字符、fx_shake 整行旋转）。拆出 WINDOW_EVENTS，由
+   draw_body 用它自己算的矩形在会话框那一层画（school_panels.school_window_fx →
+   school_fx.window_fx）；面板里不再有任何空格（透明处也写纸色的 █）。终端解码实测：
+   框内 3332 格有 3325 格字形（改前 1999）。
+2. MEMORY 15s → 7.4s（单行最长 5.5s → 1.86s）：空出的两句各给一张新图
+   pane_isolation（点阵一颗颗灭，落在 shot_isolation）与 pane_fragments（游标一行行删，
+   落在 shot_erase）；单层 MEMORY 补呼吸（原本是静帧）。
+3. 图书馆移到左下角：flash 新增 x 锚点（x=0.0, y=0.78，底边留给页脚）；另加
+   covers_band + 重画歌词带的保险。
+4. 校门开头 fill=1.45：197x52 下 285x90，四边被裁（锚点不再夹到 0）。
+5. 校门/校徽大图各只留第一次：删 01:24.7 校门、01:28.5 与 03:19.0 校徽；02:56.3 那张
+   （用户批次 20 要的桥接）缩到 37x13 当标记。事件 16 → 14 条。
+6. 飞机与魔鬼鱼加白色轮廓：sprite(outline=)，编进 sprite 缓存，不占每帧预算。
+
+新探针：_dev/panel_probe.py（动图在不在最终帧）、_dev/live_screen_probe.py（ANSI 解码回
+屏幕）、_dev/lyrics_at.py（歌词时间轴）。
+
+机检 check.cmd --full exit 0：56 panes 0 异常、77 行 0 静帧无理由、0 超时无理由、
+frame_probe 197x52 热帧最差 24.3 ms（预算 41.7）。

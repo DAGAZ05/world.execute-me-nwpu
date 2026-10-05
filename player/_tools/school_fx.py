@@ -190,7 +190,8 @@ def _paper(im: Image.Image, crop: bool = True) -> Image.Image:
 
 
 @lru_cache(None)
-def sprite(name: str, cols: int, rows: int, contrast: float = 1.0, flip: str = ""):
+def sprite(name: str, cols: int, rows: int, contrast: float = 1.0, flip: str = "",
+           outline: bool = False):
     """`(cells, w, h)` where a cell is `(char, level, rgb)` or None. Cached per size.
 
     `level` is 0..4 for the block ramp and `rgb` is the picture's own colour, so a caller can pick
@@ -202,10 +203,16 @@ def sprite(name: str, cols: int, rows: int, contrast: float = 1.0, flip: str = "
     the torpedo's nose points down-right in the file, and the transition needs it pointing *up*, so the
     image is mirrored rather than the sprite being drawn upside down by the caller. The flip is part of
     the cache key, because it is part of the sprite.
+
+    `outline` adds a one-cell white contour around the sprite's ink - see `_outline`. It is set from
+    `OUTLINED` rather than by every caller, because "which pictures get a white edge" is a property of
+    the *pictures*: the aircraft and the manta are dark silhouettes against a dark frame, and the campus
+    photographs are not.
     """
     spec = FILES.get(name)
     if spec is None or cols < 3 or rows < 2:
         return None
+    outline = outline or name in OUTLINED
     p = spec[0] / spec[1]
     if not p.exists():
         return None
@@ -252,7 +259,53 @@ def sprite(name: str, cols: int, rows: int, contrast: float = 1.0, flip: str = "
                 k = 2 * r if top is not None else 2 * r + 1
                 row.append(("\u2580" if top is not None else SHADE[1], max(top or 0, bot or 0), P[c, k]))
         out.append(tuple(row))
+    if outline:
+        out = _outline(out, cols, rows)
     return tuple(out), cols, rows
+
+
+# The light every silhouette in the film is drawn against is the frame's own `(4,7,15)`, and a dark
+# aircraft on it has no edge: the user's note is "各类飞机、魔鬼鱼的轮廓加上白框，这样图像清晰一些". The
+# outline is one cell of white outside the sprite's own ink, with the *shape* of the neighbouring ink in
+# it - `▀` when the ink is above, `▄` below, `▌`/`▐` to the sides - so what it draws is a contour rather
+# than a box around the picture. It is built into the sprite (and therefore into the sprite cache) rather
+# than applied per frame: a 130x41 aircraft is 5300 cells and a second pass over them every frame is
+# 10 ms of a 41.7 ms budget for something that never changes.
+OUTLINE_RGB = (236, 243, 255)
+OUTLINED = ("y20", "j20", "z20", "arj21", "manta", "torpedo")
+
+
+def _outline(grid, cols: int, rows: int):
+    """`grid` with a one-cell white contour added around its ink. See `OUTLINE_RGB`."""
+    def ink(x, y):
+        if 0 <= x < cols and 0 <= y < rows:
+            return grid[y][x] is not None
+        return False
+
+    out = []
+    for r in range(rows):
+        row = list(grid[r])
+        for c in range(cols):
+            if grid[r][c] is not None:
+                continue
+            up, dn, lf, rt = ink(c, r - 1), ink(c, r + 1), ink(c - 1, r), ink(c + 1, r)
+            if not (up or dn or lf or rt):
+                continue
+            # the glyph follows the side the ink is on, so the white reads as the edge of the shape:
+            # a half block against the ink, and a full one where the ink is on both sides of the cell
+            if up and dn:
+                ch = "\u2588"
+            elif up:
+                ch = "\u2580"
+            elif dn:
+                ch = "\u2584"
+            elif lf:
+                ch = "\u258c"
+            else:
+                ch = "\u2590"
+            row[c] = (ch, len(SHADE) - 2, OUTLINE_RGB)
+        out.append(tuple(row))
+    return tuple(out)
 
 
 def paste(s, cells, x0: int, y0: int, ink=None, dim: float = 1.0, box=None, flat: bool = False) -> None:
@@ -463,7 +516,8 @@ def sweep(s, cols: int, rows: int, t: float, u: float, name: str, rows_n: int = 
 
 def flash(s, cols: int, rows: int, t: float, u: float, name: str, cols_n: int = 0,
           rows_n: int = 0, dim: float = 1.0, caption: str = "", behind: bool = False,
-          contrast: float = 0.0, zoom: float = 0.0, fill: float = 0.62, y: float = 0.5) -> None:
+          contrast: float = 0.0, zoom: float = 0.0, fill: float = 0.62, x: float = 0.5,
+          y: float = 0.5) -> None:
     """A picture landing over the whole frame, growing in and fading out.
 
     The scale is on `u` and the fade is on `u` too, so it arrives fast, holds, and goes - a hit rather
@@ -484,10 +538,14 @@ def flash(s, cols: int, rows: int, t: float, u: float, name: str, cols_n: int = 
     `zoom` is the walk-in, and it is the user's: "校门可以逐渐放大，拟态'我'走进校门的过程". With `zoom=0.2`
     the picture starts at a fifth of its final size and grows for the *whole* event instead of being
     full size in a third of a second, and the growth eases in (`u ** 1.35`) the way a gate grows when you
-    walk at it: slowly from far off, fast at the end. `fill` is how much of the frame it may take, and
-    `y` is where it sits vertically (`0.5` centred, `0.0` against the header) - the library needs the
-    second because the lyric band is at the bottom and a backdrop that covers the dialogue is not a
-    backdrop any more.
+    walk at it: slowly from far off, fast at the end.
+
+    `fill` is how much of the frame the picture may take, and it is allowed to be **more than one**: the
+    user's "校门放大至超出屏幕" is `fill=1.45`, i.e. the gate ends up wider and taller than the terminal
+    and is clipped by it, which is the difference between looking at a gate and standing in it. `x` and
+    `y` are where it sits (`0.5` centred, `0.0` against the left or the header, `1.0` against the right
+    or the footer) - the library needs them because "图书馆放在左下角", and a backdrop that covers the
+    lyrics is not a backdrop any more.
     """
     if zoom > 0.0:
         z = zoom + (1.0 - zoom) * min(1.0, u) ** 1.35
@@ -513,11 +571,13 @@ def flash(s, cols: int, rows: int, t: float, u: float, name: str, cols_n: int = 
     if not cells:
         return
     _, w, h = cells
-    x = max(0, (cols - w) // 2)
-    y0 = max(0, int((rows - h) * y))
-    paste(s, cells, x, y0, dim=dim * (0.42 if behind else 1.0) * fade)
+    # anchored, not clamped: a picture larger than the frame has to stay *centred* on the frame rather
+    # than be pushed against its left edge, or "bigger than the screen" reads as "off to one side"
+    x0 = int((cols - w) * x)
+    y0 = int((rows - h) * y)
+    paste(s, cells, x0, y0, dim=dim * (0.42 if behind else 1.0) * fade)
     if caption:
-        s.put(max(1, (cols - len(caption)) // 2), min(rows - 1, y0 + h + 1), caption,
+        s.put(max(1, (cols - len(caption)) // 2), min(rows - 1, max(0, y0) + min(h, rows) + 1), caption,
               tuple(int(k * fade) for k in (255, 210, 120)))
 
 
@@ -592,8 +652,11 @@ def emerge(s, cols: int, rows: int, t: float, u: float, name: str, caption: str 
     """
     grow = min(1.0, u * 1.5)
     fade = min(1.0, u * 3.0)
-    cw = max(1, int(cols * 0.34 * grow))
-    ch = max(1, int(rows * 0.44 * grow))
+    # A mark, not a plate: the user's "校门、校徽的大图出现了多次，仅保留第一次" leaves this one drawing the
+    # bridge out of the collapse, and at the 0.34x0.44 it used to reach it was a *third* big crest. At
+    # 0.19x0.26 it grows to 37x13 cells at 197x52 - recognisably the emblem, unambiguously not a hit.
+    cw = max(1, int(cols * 0.19 * grow))
+    ch = max(1, int(rows * 0.26 * grow))
     cells = sprite(name, cw, ch, contrast=0.9)
     if not cells:
         return
@@ -766,6 +829,12 @@ BASKET_FPS = 14.0
 PAPER = (229, 229, 229)
 PANEL_DIM = 0.65
 PANEL_TINT = (0.94, 0.98, 1.08)
+# The panel is made of *glyphs*, never spaces, and this is a layering fix rather than a style: the
+# film's trail writes a ghost into every cell whose character is a space (`tui_live.fx_trail`), so a
+# panel made of 3000 spaces has 3000 cells that the previous frame can be drawn back into. `█` in the
+# paper's own colour is the same rectangle with nothing in it for that pass to find.
+PAPER_CH = "\u2588"
+PAPER_COL = (139, 145, 160)               # `_panel(PAPER)`, precomputed: it is written 3000 times a frame
 
 
 @lru_cache(None)
@@ -901,27 +970,25 @@ def _fit_cells(grid, w: int, h: int, bw: int, bh: int):
     return tuple(rows), nw, nh
 
 
-def dunk(s, cols: int, rows: int, t: float, u: float, panel: str = "", x: float = 0.5,
-         y: float = 0.52, caption: str = "") -> None:
-    """One frame of the basketball animation, on the song's clock.
+def dunk(s, cols: int, rows: int, t: float, u: float, box: tuple, caption: str = "") -> None:
+    """One frame of the basketball animation, in the rect `box` - the chat window it covers.
 
-    `panel="left"` draws it **inside the chat window** rather than over the frame, which is what the user
-    asked for ("位置放在左panel（覆盖会话框）"): the left column is where the mascot lives and the animation
-    is what he sends. The rect comes from `tui_live.LEFT_BOX`, published by `draw_body` - the one place
-    that computes it - instead of being recomputed here and drifting out of step with the layout.
+    **It is drawn by `tui_live.draw_body`, not by `draw`**, and that is the fix for the user's second
+    report about it: "我实际测了，我确定看不到打篮球面板 ... 在我这里打篮球面板似乎不在最上层". It used to be an
+    ordinary event on `EVENTS`, i.e. drawn in the full-frame layer *after* `draw_body` - which put the
+    window's own picture one layer above the window and left it to survive everything the film's post
+    does afterwards (`fx_reveal` holds the previous frame cell by cell, `fx_trail` writes a ghost into
+    every cell that is a **space**, `fx_shake` rotates rows). A panel made of spaces is a panel with
+    3000 free cells in it, and any of those passes can put something back on top of it. So:
 
-    It is drawn as a **lit panel**: the window becomes the picture's own paper, and the figure is drawn
-    on it in the colours the file gives it. That is the third attempt and the only one that shows the
-    animation. The first kept the paper as a dim field on the film's dark ground - about 2300 of the
-    sheet's 2800 cells, characters that carry no shape, with the 1204 that do lost inside them. The
-    second dropped the paper and inverted the figure to bright-on-black, which is 1200 scattered letters:
-    a drawing is legible as line art only because the paper is there to be lighter than. So the paper is
-    kept, as the panel's background, which is also what makes the window genuinely *covered*.
+      * the box is passed in by the caller that computed it - `draw_body` - instead of being read back
+        out of `tui_live.LEFT_BOX`, so the panel cannot be drawn at a stale or degenerate rect;
+      * it is drawn with the window, in the window's layer, so the layering question does not arise;
+      * **its cells are glyphs, never spaces** (`█` in the paper's own colour): the trail's ghost rule
+        keys on `buf[y][x][0] == " "`, and a panel with no spaces in it cannot be drawn on.
 
-    The panel is dimmed to `PANEL_DIM` and given a slight cool cast. At full `#e5e5e5` it is a lamp in a
-    film whose ground is `(4,7,15)`, and the point of covering the window is to show a picture in it, not
-    to blank the frame. The dim is applied to the paper *and* to the figure together, so the relationship
-    the artist drew - the suit's `#CCCCCC` lit side a shade darker than its paper - survives it.
+    `box` is `(x0, y0, x1, y1)` inclusive; the panel fills it, so the conversation underneath is
+    covered rather than read through.
 
     The frame index is `int(t * 14) % 32`: continuous in song time (so a seek lands where playing would)
     and exactly five loops over the eleven and a half seconds the event is given, which is 160 frames at
@@ -931,40 +998,57 @@ def dunk(s, cols: int, rows: int, t: float, u: float, panel: str = "", x: float 
     if not frames:
         return
     grid, w, h = frames[int(t * BASKET_FPS) % len(frames)]
-    if panel == "left":
-        import tui_live as _T
-        bx0, by0, bx1, by1 = _T.LEFT_BOX
-        bw, bh = max(1, bx1 - bx0 + 1), max(1, by1 - by0 + 1)
-        # The window is *covered*, not layered over: without this the chat text behind the art reads
-        # through the gaps between its cells and the two compete. The user asked for it over the
-        # conversation box, so the box first becomes a panel - and the panel is the art's own paper, so
-        # the drawing sits in a picture rather than on a rectangle of its own. `fill` and not a loop of
-        # `put`s: the box is 3300 cells and `put` is a method call with a `CLEAR` lookup in it, which at
-        # 197x52 was 12 ms of the frame - a quarter of the whole budget for a flat rectangle.
-        s.fill(bx0, by0, bx1, by1, " ", (0, 0, 0), _panel(PAPER, 1.0))
-        # Fit rather than crop: the figure is the whole 45x38 sheet and it moves across it, so a shorter
-        # box scales it down instead of losing the head. See `_fit_cells`.
-        grid, w, h = _fit_cells(grid, w, h, bw, bh)
-        ox = bx0 + max(0, (bw - w) // 2)
-        oy = by0 + max(0, (bh - h) // 2)
-        _cells(s, grid, w, h, ox, oy, bx0, by0, bx1, by1)
-        if caption:
-            # a *dark* amber, not the film's `(255,220,150)`: this caption is the one in the film that
-            # sits on the picture's own paper rather than on the film's ground, and pale amber on light
-            # grey is the one colour pair that cannot be read.
-            s.put(max(bx0 + 1, min(bx1 - len(caption) - 1, ox + (w - len(caption)) // 2)),
-                  min(by1, by0 + 1), caption, (118, 72, 16))
+    bx0, by0, bx1, by1 = box
+    bw, bh = max(1, bx1 - bx0 + 1), max(1, by1 - by0 + 1)
+    if bw < 12 or bh < 5:                     # a degenerate rect: nothing legible fits, draw nothing
         return
-    # over the frame rather than in the window: the panel is only as big as the art, and it is placed
-    # where the caller asked for it. Not currently scheduled - `panel="left"` is what the score uses.
-    x0 = int(cols * x - w / 2)
-    y0 = int(rows * y - h / 2)
-    s.fill(max(0, x0), max(0, y0), min(cols - 1, x0 + w - 1), min(rows - 1, y0 + h - 1),
-           " ", (0, 0, 0), _panel(PAPER, 1.0))
-    _cells(s, grid, w, h, x0, y0, 0, 0, cols - 1, rows - 1)
+    # The window is *covered*, not layered over: without this the chat text behind the art reads
+    # through the gaps between its cells and the two compete. The user asked for it over the
+    # conversation box, so the box first becomes a panel - and the panel is the art's own paper, so
+    # the drawing sits in a picture rather than on a rectangle of its own. `fill` and not a loop of
+    # `put`s: the box is 3300 cells and `put` is a method call with a `CLEAR` lookup in it, which at
+    # 197x52 was 12 ms of the frame - a quarter of the whole budget for a flat rectangle.
+    s.fill(bx0, by0, bx1, by1, PAPER_CH, PAPER_COL, PAPER_COL)
+    # Fit rather than crop: the figure is the whole sheet and it moves across it, so a shorter box
+    # scales it down instead of losing the head. See `_fit_cells`.
+    grid, w, h = _fit_cells(grid, w, h, bw, bh)
+    ox = bx0 + max(0, (bw - w) // 2)
+    oy = by0 + max(0, (bh - h) // 2)
+    _cells(s, grid, w, h, ox, oy, bx0, by0, bx1, by1)
     if caption:
-        cx = max(1, min(cols - len(caption) - 1, int(cols * x - len(caption) / 2)))
-        s.put(cx, min(rows - 1, int(rows * y + h / 2) + 1), caption, (255, 220, 150))
+        # a *dark* amber, not the film's `(255,220,150)`: this caption is the one in the film that
+        # sits on the picture's own paper rather than on the film's ground, and pale amber on light
+        # grey is the one colour pair that cannot be read.
+        s.put(max(bx0 + 1, min(bx1 - len(caption) - 1, ox + (w - len(caption)) // 2)),
+              min(by1, by0 + 1), caption, (118, 72, 16))
+
+
+def window_fx(s, cols: int, rows: int, t: float, box: tuple) -> int:
+    """Draw whatever the score gives the chat window at `t`, into `box`. Returns how many drew.
+
+    The window's own layer, called by `tui_live.draw_body` right after the window's contents - which is
+    what makes the panel impossible to bury. `warm` plays the same table, so the file's parse cost is
+    paid before the music like every other sprite's.
+    """
+    n = 0
+    for start, end, fn, kw in WINDOW_EVENTS:
+        if not (start <= t < end):
+            continue
+        u = (t - start) / max(1e-6, end - start)
+        try:
+            fn(s, cols, rows, t, u, box=box, **kw)
+            n += 1
+        except Exception:
+            pass
+    return n
+
+
+# Events that belong to the *chat window* rather than to the frame. `draw_body` draws them, in the same
+# layer as the window they cover - see the note in `dunk`. They are declared here, after `dunk`, because
+# the table holds the function itself.
+WINDOW_EVENTS: list[tuple[float, float, object, dict]] = [
+    (58.65, 70.08, dunk, dict(caption="\u822a\u5c0f\u5929 \u00b7 \u6821\u56ed")),
+]
 
 
 def _panel(rgb, f: float = 1.0):
@@ -1012,10 +1096,34 @@ def _cells(s, grid, w: int, h: int, ox: int, oy: int, bx0: int, by0: int, bx1: i
                 continue
             cell = row[c]
             if cell is None:
+                # the art's own transparent cells become paper too, so the panel has *no* space cells
+                # anywhere in it - see `PAPER_CH`. A cell left as a space is a cell the trail may write
+                # the previous frame into, and one of those lands on the figure.
+                wrow[x] = (PAPER_CH, PAPER_COL, PAPER_COL)
+                wide[y][x] = False
                 continue
             ch, _lv, fg, bg = cell
             wrow[x] = (ch, fg, bg)
             wide[y][x] = False
+
+
+def covers_band(t: float) -> bool:
+    """Is a `behind` event live, i.e. has something just been painted over the reading layer?
+
+    `tui_live.draw` asks this after the full-frame layer and re-draws the lyric band if it says yes.
+
+    "Behind" has always meant *behind the words*: `flash(behind=True)` dims a photograph so the dialogue
+    stays readable. Until the library moved to the bottom-left corner ("图书馆放在左下角") it was never
+    asked to prove it - at `y=0.0` it sat above the band and never touched it. In the corner it covers
+    the band's own rows, and a photograph does not dim text it has replaced.
+
+    Measured before writing any of this: the library's four seconds (03:13.5-03:17.5) are *past the last
+    lyric* - `Data.line_at` has nothing to draw from 01:00 into the tail, so the band's own rows are
+    empty there and nothing is being covered today. This is therefore insurance rather than a repair,
+    and it is cheap insurance: the call is a box and a caret in those frames, and it is what keeps the
+    promise true the first time a `behind` event lands on a sung line.
+    """
+    return any(start <= t < end and kw.get("behind") for start, end, _fn, kw in EVENTS)
 
 
 def particles(s, cols: int, rows: int, t: float, u: float, n: int = 90, hue=(120, 200, 255),
@@ -1077,9 +1185,18 @@ def warm(cols: int = 197, rows: int = 52) -> int:
                 pass
     # ...and the basketball animation, which is 3 MB of JSON to read and 46,000 colours to sort: measured
     # at 159 ms, several frames' budget. It is drawn at its own 70x40, so there is one size and no reason
-    # to put it through the event list above.
+    # to put it through the event list above - but its *table* is played here, into a rect the shape of the
+    # one `draw_body` publishes, so that the panel's first frame is as warm as every other sprite's.
     try:
         basket_frames()
+        box = (1, 1, max(12, cols // 2), max(5, rows - 6))
+        for start, end, fn, kw in WINDOW_EVENTS:
+            for f in (0.0, 1.0) + tuple((k + 0.5) / 12.0 for k in range(12)):
+                try:
+                    fn(s, cols, rows, start + (end - start) * f, f, box=box, **kw)
+                    n += 1
+                except Exception:
+                    pass
     except Exception:
         pass
     return n
@@ -1442,9 +1559,11 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     # --- P0: the gate, at the very front, as the film's own establishing shot. It **walks in**: the
     #     picture starts at a fifth of its size and grows for the whole two and a half seconds, which is
     #     the user's "校门可以逐渐放大，拟态'我'走进校门的过程" - the opening is the one place in the film
-    #     where the camera can be a person, and at `fill=0.9` it ends up 145x46 cells against the 122x32
-    #     the default box gave it (which also cropped two thirds of the photograph away).
-    (0.60, 3.30, flash, dict(name="gate", zoom=0.20, fill=0.90, caption="\u897f\u5317\u5de5\u4e1a\u5927\u5b66 \u00b7 1938")),
+    #     where the camera can be a person. `fill=1.45` is the second half of that note, "校门放大至超出
+    #     屏幕": it ends up 285x90 cells in a 197x52 frame, i.e. larger than the screen and clipped by it,
+    #     which is what standing in a gateway looks like. There is only **one** gate picture in the film:
+    #     the second one (01:24.70) is gone - "校门、校徽的大图出现了多次，仅保留第一次".
+    (0.60, 3.30, flash, dict(name="gate", zoom=0.20, fill=1.45, caption="\u897f\u5317\u5de5\u4e1a\u5927\u5b66 \u00b7 1938")),
     # --- the crest, big, right after (its own pane is a watermark; this is the hit)
     (3.60, 5.10, flash, dict(name="crest", caption="\u516c\u8bda\u52c7\u6bc1")),
     # --- "Fill in my data parameters": 何尊, and therefore the earliest 中国. Drawn from the vector the
@@ -1465,43 +1584,45 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     # --- the first chorus: 歼-20, once, on a diagonal
     (58.90, 61.10, fly, dict(name="j20", y=0.30, rows_n=13, size=0, body=4, tilt=True, dy=0.30,
                              caption="\u6b7c-20")),
-    # --- 总师文化: the five firsts, on the line that claims uniqueness. The gate, not an aircraft: every
-    #     aircraft in the film gets one appearance and this one's is the low pass at 11.20 (see the note
-    #     over `EVENTS`), and the claim being made here is about the *school* anyway. Bigger than it was
-    #     ("校门、图书馆可以再放大"): 0.86 of the frame's height is 44 rows and 138 cells across, against
-    #     the 70x22 it was, which was a stamp in the middle of the screen.
-    (84.70, 87.20, flash, dict(name="gate", fill=0.86,
-                               caption="\u603b\u5e08\u6447\u7bee \u00b7 \u7b2c\u4e00\u67b6\u5c0f\u578b\u65e0\u4eba\u673a")),
-    # --- the school's own switches: the old crest
-    (88.50, 90.20, flash, dict(name="crest", cols_n=40, rows_n=18, dim=0.85)),
+    # --- 总师文化: the five firsts, on the line that claims uniqueness. **No picture.** It was the gate
+    #     again (70x22, then 139x44), and the user's note is that the gate and the crest each appear once
+    #     - "校门、校徽的大图出现了多次，仅保留第一次". The line is carried by the right column, which has
+    #     had `pane_landmark_dialogue` on it since 84.60, and by the ops ticker ("总师摇篮 · 第一架小型
+    #     无人机" is the row's own `ops`, so nothing is lost with the caption).
     # --- "Challenging your God": the sword, over everything
     (125.50, 128.20, flash, dict(name="sword", cols_n=76, rows_n=24,
                                  caption="\u4e3e\u5251\u7684\u4e0d\u662f\u795e")),
-    # --- "If I can, if I can": 航小天 打篮球, in the chat window, **five times round**. The user's note:
-    #     "航空天打篮球动图不止播放一次，设计为连续的5次，位置放在左panel（覆盖会话框），时序位于歌词第一处
-    #     if I can if I can". 58.65 is that first line; 160 frames at 14 fps is five loops to the frame, so
-    #     the window is 58.65 + 160/14 = 70.08, and the dialogue inside it is trimmed rather than hidden
-    #     behind the picture (see the note in `school_lines`).
-    (58.65, 70.08, dunk, dict(panel="left", caption="\u822a\u5c0f\u5929 \u00b7 \u6821\u56ed")),
+    # --- "If I can, if I can": 航小天 打篮球 is **not on this list**. It covers the chat window, so it is
+    #     drawn by the layer that owns that window (`WINDOW_EVENTS`, below) - see the note in `dunk` for
+    #     why that is a layering fix and not a tidy-up. The score is unchanged: 58.65 is the first line,
+    #     160 frames at 14 fps is five loops to the frame, so the window is 58.65 + 160/14 = 70.08, and
+    #     the dialogue inside it is trimmed rather than hidden behind the picture (see `school_lines`).
     # --- the AI couplet: a particle field over the convergence. The manta used to be here as well, which
     #     made three appearances of it; it swims once, at 55.00.
     (162.30, 169.40, particles, dict(n=70, hue=(120, 200, 255))),
     # --- P8: the hands, the biggest hit in the film, at the line about the algebra of love
     (184.40, 187.40, flash, dict(name="dialogue", cols_n=88, rows_n=26,
                                  caption="\u4e00\u4e2a\u7c7b\uff0c\u4e24\u4e2a\u89d2\u8272\uff0c\u4e00\u4e2a\u65b9\u6cd5")),
-    # --- the closing: the library at night. It is behind the last two lines, so it is dimmed - but at
-    #     0.62 with its contrast held up and a caption, not at the 0.42 that made it invisible. It is
-    #     larger than it was ("校门、图书馆可以再放大") and sits against the header (`y=0.0`) rather than
-    #     centred: at 0.70 of the frame's height it is 36 rows, and the lyric band starts at row 36, so
-    #     centring it would have put a third of it over the lines being read.
-    (193.50, 197.50, flash, dict(name="library", fill=0.70, y=0.0, behind=True, dim=0.62,
+    # --- the closing: the library at night, in the **bottom-left corner** ("图书馆放在左下角"), behind the
+    #     last two lines and dimmed - but at 0.62 with its contrast held up and a caption, not at the
+    #     0.42 that made it invisible. `x=0.0` puts it against the left edge; `y=0.78` rather than `1.0`
+    #     keeps the film's own footer and progress bar (the last four rows) out of it, which is what "the
+    #     corner" means once there is a status line down there. Its rows do cover the lyric band, and that
+    #     is free here: 03:13.5 is past the last lyric (see `covers_band`). It is a keyed cut-out, so the
+    #     cells where the photograph has no ink stay transparent and the dialogue is only covered where
+    #     the building actually is.
+    (193.50, 197.50, flash, dict(name="library", fill=0.62, x=0.0, y=0.78, behind=True, dim=0.62,
                                  contrast=1.1, caption="\u56fe\u4e66\u9986 \u00b7 \u706f\u8fd8\u4eae\u7740")),
     # --- 航小天's whole body, once, on the last line of the song: he has been a face in the window for
     # three and a half minutes and this is the only place the film shows that he has legs
     (193.60, 199.00, stand, dict(name="mascot", side="right", caption="\u822a\u5c0f\u5929")),
-    (199.00, 202.00, flash, dict(name="crest", cols_n=48, rows_n=20, dim=0.8)),
+    # --- the closing crest is the **pane** at 193.46 and nothing else. The flash that used to be here
+    #     (199.00, 48x20) was the emblem's third big appearance, and the user's note is that there is one:
+    #     "校门、校徽的大图出现了多次，仅保留第一次".
     # --- and the bridge out of the collapse: the dot the picture squeezed into is where the crest comes
-    # from (see `emerge`). 176.30 is inside `shot_collapse`, which draws full-bleed in this variant too.
+    #     from (see `emerge`). 176.30 is inside `shot_collapse`, which draws full-bleed in this variant
+    #     too. This one is kept - the user asked for it in batch 20 - and kept *small*, so it is a mark
+    #     rather than the emblem's second plate.
     (176.30, 178.20, emerge, dict(name="crest", caption="\u516c\u8bda\u52c7\u6bc1")),
     (203.00, 206.20, flash, dict(name="sword", cols_n=80, rows_n=26,
                                  caption="\u5728\u94f8\u5251\u5417\uff1f")),

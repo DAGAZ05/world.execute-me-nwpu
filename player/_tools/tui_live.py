@@ -2341,6 +2341,10 @@ WINDOW = [""]                 # what the left pane's upper box holds this frame,
 # basketball animation (the user: "位置放在左panel（覆盖会话框）"), and the only code that knows the
 # window's rect is `draw_body` - so it publishes it here rather than `school_fx` recomputing the layout.
 LEFT_BOX: list = [0, 0, 0, 0]
+# ...and where the lyric band is, for the same reason: a `behind` event in the full-frame layer paints
+# over it (the library now sits in the bottom-left corner), and the band has to be put back on top
+# afterwards or the words being read are gone. Published by `draw_body`, read in `draw`.
+BAND_BOX: list = [0, 0, 0, 0]
 AVATAR_MAX_W = 14             # cells; a cell is twice as tall as it is wide, so 14x7 is square
 ERR_RED = (255, 74, 61)       # the page's own --dsw-alias-state-error-primary in the red group
 CURSOR_BLINK = 0.53           # dsh_her.py:167 - `int((t - GONE) / 0.53) % 2`
@@ -3257,9 +3261,24 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
         draw_her(s, d, ent, hx0, hy0, hx1, hy1, t)
     else:
         WINDOW[0] = "-"
+    # ...and whatever the score puts *in* the window, drawn here rather than in the full-frame layer.
+    #
+    # This is the door 航小天's basketball animation comes in by, and the position is the point: it used
+    # to be an ordinary event on `school_fx.EVENTS`, i.e. drawn after `draw_body` had finished the window
+    # it is supposed to *be* - one layer above it, and then at the mercy of everything the film's post
+    # does afterwards (`fx_reveal` holds the previous frame cell by cell, `fx_trail` writes a ghost into
+    # every cell that is a space, `fx_shake` rotates rows). The user's report was "我确定看不到打篮球面板
+    # ... 似乎不在最上层", and a picture that covers a window belongs to the window. The rect is passed
+    # explicitly, so there is no second copy of the layout to drift.
+    if P is SP and hx1 - hx0 >= 12 and hy1 - hy0 >= 5:
+        try:
+            SP.school_window_fx(s, hx0, hy0, hx1, hy1, t)
+        except Exception as exc:
+            print(f"warning: the window's own layer failed ({exc})", file=sys.stderr, flush=True)
     band_top = top + (her_h if (her or chat or cursor) else 0)
 
     # --------------------------------------------------------------- stdout band
+    BAND_BOX[:] = [x0, band_top, lx, bottom]
     if t < SIM_START:
         draw_boot_log(s, x0, band_top, lx, bottom, t)
     elif t < SIM_END:
@@ -3578,6 +3597,12 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
             # and the transitions after even that: a page turn and a breaking screen move the chrome
             # too, which is the difference between a panel effect and a film transition
             _FX.transition(s, cols, rows, t)
+            # ...and then the band goes back on top of any backdrop that has just been painted over it.
+            # A `behind` photograph is *behind the words*; the band's rows are what "the words" means,
+            # and the library now sits in the bottom-left corner over them (`school_fx.covers_band` has
+            # the measurement - those four seconds are past the last lyric, so this is insurance).
+            if _FX.covers_band(t) and BAND_BOX[2] > BAND_BOX[0]:
+                draw_lyrics(s, d, t, BAND_BOX[0], BAND_BOX[1], BAND_BOX[2], BAND_BOX[3])
         except Exception as exc:
             print(f"warning: the full-frame layer failed ({exc})", file=sys.stderr, flush=True)
     # tuikit.py:468-476's post, and the cut's reveal, both after everything else has been drawn

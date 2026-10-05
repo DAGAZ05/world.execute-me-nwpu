@@ -1318,6 +1318,104 @@ def pane_landmark_crest(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
               max_rows=None if closing else 15)
 
 
+def pane_isolation(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
+    """`You have left me in isolation` - one point left, and the field emptying around it.
+
+    The user's note is that MEMORY held the column for fifteen seconds ("memory 停留时间太长了，增加其他动画
+    修改"). The sculpture is the right drawing for the five "You have left" lines - its own idea is one
+    word printed more times than the last time - but the row after them sat there for another five and a
+    half seconds over "Erase all the pointless fragments" and "Then maybe, then maybe", which are not
+    about a graduation sculpture at all. So the run is cut: the layers climb, and then the pane becomes
+    *this* on the line that says what the empty column means.
+
+    The drawing is the lyric: a lattice of points, all but one of them going out one at a time, and the
+    one that is left breathing. `u` decides how much of the field is still lit - so a seek lands on the
+    same frame as playing, and the pane is never a still picture (the failure `_dev/clock_probe.py`
+    exists to catch).
+    """
+    import school_courses as _C
+    k = _kit(s, x0, y0, x1, y1, 0, "\u5b64\u7acb \u00b7 in isolation")
+    if k is None:
+        return
+    k.section(k.by0, "\u4e00\u4e2a\u70b9\u7559\u4e0b", 0.25)
+    top = k.by0 + 2
+    rows = list(range(top, k.by1 - 2, 2))
+    if not rows or k.bw < 12:
+        k.put(k.bx0, k.by1, "\u53ea\u5269\u4e00\u4e2a\u70b9", _C._ui(0.6))
+        return
+    step_x = max(4, k.bw // 9)
+    # the field: nine points a row, each one going out on its own beat. The order is by distance from
+    # the middle, so what is left at the end is the point the whole drawing is about - and it is a
+    # function of `u`, not of a random number, so it is the same every time the second is played.
+    middle = len(rows) // 2
+    gone = 0
+    for i, y in enumerate(rows):
+        for j in range(9):
+            x = k.bx0 + 2 + j * step_x
+            far = abs(i - middle) * 9 + abs(j - 4)
+            # the last point to go is the middle one, and it never does
+            if far == 0:
+                continue
+            if far <= int(u * 60):
+                gone += 1
+                continue
+            k.put(x, y, "\u00b7", _C._ui(0.30))
+    cx = k.bx0 + 2 + 4 * step_x
+    cy = k.by0 + 2 + middle * 2
+    beat = 0.62 + 0.38 * abs(math.sin(t * 2.1))
+    k.put(cx, cy, "\u25cf", _C._mix(_C.AMBER, beat))
+    k.put(cx - 1, cy, "\u25cb", _C._mix(_C.AMBER, beat * 0.5))
+    k.put(k.bx0, k.by1 - 1, f"\u5269 {9 * len(rows) - gone - 1} / {9 * len(rows) - 1}", _C._ui(0.5))
+    k.put(k.bx0, k.by1, "\u4f60\u8d70\u4e86\uff0c\u5269\u4e0b\u7684\u90fd\u5728\u706d", _C._ui(0.55))
+
+
+def pane_fragments(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
+    """`Erase all the pointless fragments` - the field wiped a fragment at a time.
+
+    The second half of the same cut. The lyric is an instruction to delete, and the pane is that
+    instruction carried out: a grid of small marks whose cells are erased on the clock, with a cursor
+    walking the grid rather than a wipe sweeping it. `_dev/clock_probe.py` asks every pane to move; the
+    cursor is what moves here, and it is why the drawing does not read as a still frame once the grid
+    has mostly gone.
+
+    Deliberately *not* one of the four AI motifs: those belong to the last fifty seconds, and reusing
+    `pane_ai_diffusion`'s denoise here would have spent it twice.
+    """
+    import school_courses as _C
+    k = _kit(s, x0, y0, x1, y1, 0, "\u5220\u9664 \u00b7 erase fragments")
+    if k is None or k.bw < 12 or k.bh < 5:
+        return
+    k.section(k.by0, "\u65e0\u610f\u4e49\u7684\u788e\u7247", 0.25)
+    cells_w = max(6, min(34, k.bw // 3))
+    cells_h = max(2, min(13, (k.bh - 6) // 2))
+    ox, oy = k.bx0 + max(0, (k.bw - cells_w * 2) // 2), k.by0 + 2
+    total = cells_w * cells_h
+    # four cells are never deleted, so the pane does not end as an empty box: the lyric is an instruction
+    # to erase the *pointless* fragments, and this drawing leaves the last few standing.
+    live = max(1, total - 4)
+    cut = min(live, int(u * live))             # how many have been deleted, in reading order
+    # The cursor walks the whole grid, deleted cells included, and it is drawn *over* them.
+    #
+    # That is what keeps the drawing moving at every `u`, including u=1 - and u=1 is not hypothetical:
+    # `_dev/clock_probe.py` samples the slot at 0.15, 0.55 and **1.0** with `u` pinned, so a cursor
+    # constrained to the cells that are left reads as a still frame there and the row fails. A cursor
+    # that walks the field it has already erased is also the truer picture: the pass goes on.
+    step = int(t * 6.0) % max(1, total)
+    for i in range(total):
+        y, x = oy + i // cells_w, ox + (i % cells_w) * 2
+        if y > k.by1 - 2:
+            break
+        if i == step:
+            k.put(x, y, "\u2588", _C._mix(_C.RED, 0.85))
+        elif i < cut:
+            continue                           # deleted
+        else:
+            k.put(x, y, "\u2591", _C._ui(0.34))
+    k.put(k.bx0, k.by1 - 1, f"{cut} / {total} \u5df2\u5220", _C._ui(0.5))
+    k.put(k.bx0, k.by1, "\u788e\u7247\u4e0d\u662f\u75d5\u8ff9\uff0c\u5220\u4e86\u5c31\u6ca1\u4e86",
+          _C._mix(_C.BLUE, 0.7))
+
+
 def pane_memory(s, x0, y0, x1, y1, t, lt, dur, u, layers: int = 1, ghost: float = 0.42) -> None:
     """`MEMORY` - the graduation sculpture, drawn rather than characterised.
 
@@ -1361,6 +1459,12 @@ def pane_memory(s, x0, y0, x1, y1, t, lt, dur, u, layers: int = 1, ghost: float 
         # geometric falloff: 1.0, then ghost, ghost^2, ... so the far layers are ghosts of ghosts -
         # measured from the lit layer rather than from the front, so the bright word walks back
         level = 1.0 if layer == active else max(0.10, ghost ** abs(layer - active))
+        if layers == 1:
+            # ...and the single layer breathes, which is not decoration: `_dev/clock_probe.py` asks every
+            # pane to move, and with one layer there is no second layer to walk to - the word would be a
+            # still frame for as long as it is on screen (it is on screen for 1.9 s at 01:57.95, alone,
+            # after the field has emptied).
+            level = 0.84 + 0.16 * abs(math.sin(t * 2.4))
         off = layer * 2
         ox = k.bx0 + max(0, (k.bw - total) // 2) + (off // 2) - (off // 2 if layers > 3 else 0)
         oy = k.by0 + max(0, (k.bh - 5) // 2) + (off % 3) - (1 if layers > 3 else 0)
@@ -1418,6 +1522,8 @@ PANE_BY_NAME.update({
     "pane_everything_point": pane_everything_point,
     "pane_landmark_crest": pane_landmark_crest,
     "pane_memory": pane_memory,
+    "pane_isolation": pane_isolation,
+    "pane_fragments": pane_fragments,
     # the closing three sections (`02b_图像对位与可视化表达.md` §4.3-4.6)
     "pane_converge": pane_converge,
     "pane_backlog": pane_backlog,

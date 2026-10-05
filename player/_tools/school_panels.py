@@ -389,6 +389,15 @@ LANDMARK_ROWS: list[dict] = [
     # lyric is one sentence sung five times, and the count is what ties them together. So the count
     # travels in `args` rather than being derived from the clock - `draw_scene_pane` hands it to the
     # drawing, and `pane_memory` takes a `layers` keyword.
+    #
+    # The *run* was fifteen seconds and the user's note is "memory 停留时间太长了，增加其他动画修改": the
+    # climb is fine (the pane is redrawn on every line), but the last row - `layers=1` at 119.81 - then
+    # sat there for five and a half seconds over "Erase all the pointless fragments" and "Then maybe,
+    # then maybe", which are not about a graduation sculpture. So the run is cut twice: `pane_isolation`
+    # takes "You have left me in isolation" (one point left, the field emptying), MEMORY comes back for
+    # exactly one line at "If I can, if I can" as a single layer - the one word the point became - and
+    # `pane_fragments` takes the erase. MEMORY is on screen for 7.4 s of the stretch instead of 15, and
+    # no single row of it is longer than 3.2 s.
     dict(at=110.40, name="pane_memory", lyric="Though you have left",
          ops=["MEMORY", "x2"], her=False, args=dict(layers=2)),
     dict(at=111.98, name="pane_memory", lyric="You have left",
@@ -399,11 +408,15 @@ LANDMARK_ROWS: list[dict] = [
          ops=["MEMORY", "x5"], her=False, args=dict(layers=5)),
     dict(at=114.75, name="pane_memory", lyric="You have left",
          ops=["MEMORY", "x6"], her=False, args=dict(layers=6)),
-    # "Erase all the pointless fragments": the layers going the other way - four, then one
+    # "You have left me in isolation": the field emptying, one point left
+    dict(at=115.90, name="pane_isolation", lyric="You have left me in isolation",
+         ops=["ISOLATION", "\u4e00\u4e2a\u70b9"], her=False),
+    # ...and then the sculpture once more, as the single word that point became
     dict(at=117.95, name="pane_memory", lyric="If I can, if I can",
-         ops=["MEMORY", "x4"], her=False, args=dict(layers=4)),
-    dict(at=119.81, name="pane_memory", lyric="Erase all the pointless fragments",
          ops=["MEMORY", "x1"], her=False, args=dict(layers=1)),
+    # "Erase all the pointless fragments": the instruction carried out, cell by cell
+    dict(at=119.81, name="pane_fragments", lyric="Erase all the pointless fragments",
+         ops=["ERASE", "\u788e\u7247"], her=False),
     # closing: the crest alone
     dict(at=193.46, name="pane_landmark_crest", lyric="[gap] \u5c3e\u58f0",
          ops=["NWPU", "\u516c\u8bda\u52c7\u6bc5"], her=False),
@@ -423,6 +436,11 @@ PANE_MIN = {
     "pane_countdown": (8, 4),
     "pane_curriculum": (9, 4),
     "pane_point_set": (10, 5),
+    # the two drawings that took the MEMORY run's tail. Both are legible in four rows and want nine:
+    # `pane_isolation` is a grid of points (a short pane just shows fewer) and `pane_fragments` is a cell
+    # grid that needs at least two rows of cells and its two captions.
+    "pane_isolation": (11, 4),
+    "pane_fragments": (11, 5),
 }
 # every course drawing wants the column's whole height: at 197x52 that is eleven rows, which is what
 # a DFD, a sequence diagram or a register trace needs to be legible rather than merely present. The
@@ -523,6 +541,17 @@ def school_entry(t: float, base: dict | None) -> dict | None:
 def dsh_window(t: float):
     """`(expression, theme, items)` - 航小天's window. Same shape as the film's own cache."""
     return _CH.window(t)
+
+
+def school_window_fx(s, x0: int, y0: int, x1: int, y1: int, t: float) -> int:
+    """What the score puts *inside* the chat window at `t` - the basketball animation, when it is due.
+
+    A thin adapter for the same reason `SP_scene_pane` is one: `draw_body` should not have to know that
+    the window's own events live in `school_fx`, and the one place that decides which module owns the
+    full-frame layer is `tui_live.draw`. Returns how many events drew, which nothing waits on.
+    """
+    import school_fx as _FX
+    return _FX.window_fx(s, s.cols, s.rows, t, (x0, y0, x1, y1))
 
 
 def dsh_inside(t: float) -> bool:
