@@ -28,6 +28,16 @@ Two things this had to learn, both of them measured:
   * **noise only ever adds time**, so the warm number reported is the *minimum over `--reps` passes* for
     each time, and the largest such minimum is the frame's cost. The biggest single observation is
     printed beside it as `peak`, so a machine that is genuinely too slow still shows up.
+
+**...and the gate is load-sensitive, which is worth knowing before believing a failure.** Measured over
+four consecutive runs on this machine (batch 47): `mean 25.8 / worst 41.2`, `mean 16.2 / worst 25.1`,
+`mean 24.2 / worst 42.0`, `mean 26.8 / worst 42.4` - i.e. the same code reads anywhere from 25 to 42 ms
+on its worst frame depending on what else the machine is doing, and the 41.7 ms budget sits inside that
+band. The idle run says what the film actually costs. So: **a failure here means "measure again on a
+quiet machine"**, not "the code got slower" - and this file has to be run on its own
+(`check.cmd` runs it last, after the probes that only read). `--reps` defaults to 5 rather than 3 for
+the same reason: taking the minimum over more passes is the only lever a probe has against sustained
+load, and it is cheap next to being wrong about a regression.
 """
 from __future__ import annotations
 
@@ -76,7 +86,7 @@ def main() -> None:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--sizes", default="197x52", help="comma-separated, e.g. 197x52,120x34")
     ap.add_argument("--budget", type=float, default=41.7, help="ms per frame at 24 fps")
-    ap.add_argument("--reps", type=int, default=3, help="warm passes; the per-time minimum is reported")
+    ap.add_argument("--reps", type=int, default=5, help="warm passes; the per-time minimum is reported")
     ap.add_argument("--major", default="s", help="pre-answer the college gate")
     ap.add_argument("--no-cuts", dest="cuts", action="store_false", default=True,
                     help="skip the per-transition samples (faster, and it is the old grid)")

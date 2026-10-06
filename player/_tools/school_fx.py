@@ -13,10 +13,20 @@ be live at once**, because they are independent layers rather than a sequence.
 
 Two kinds of event, deliberately in one place because they compete for the same screen:
 
-  * **the aircraft** (`fly`, `sweep`), which are the school's three 三航 results and which the song
+  * **the aircraft** (`fly`, `dive`, `lowpass`), which are the school's 三航 results and which the song
     has a rhythm for - they are placed on the chorus hits, not sprinkled.
-  * **the hits** (`flash`, `glyphs`), a photograph or a piece of character art landing over the whole
-    frame for a beat and going.
+  * **the hits** (`flash`, `plate`, `emerge`, `stand`), a photograph or a piece of character art landing
+    over the whole frame for a beat and going.
+
+**Two drawings were removed here as superseded** (batch 47), and both had been flagged as dead code by
+two separate audits without anyone deciding what to do with them. `sweep` drew "the second plane of a
+pair" crossing diagonally; the film now has one appearance per aircraft, because the user forbade
+repeats, so a routine whose whole purpose is a *second* plane cannot be called. `approach` flew a
+photograph at the camera, growing from 7 % of the frame to 72 %; the user then asked for 运-20 to be
+"更大，允许超出屏幕" and that became `lowpass`, which grows the same way, fills more of the frame, and
+carries the shock the low pass needed. Neither is reachable without contradicting a rule the film is
+built on, and a drawing nothing can call is a drawing the next audit has to re-discover. `git log` has
+both if a head-on aircraft is ever wanted again.
 
 A sprite is loaded once, reduced to terminal cells, and cached. Nothing here re-decodes an image per
 frame; the cost per frame is a splice of a few hundred cells, which is what the pane drawings already
@@ -57,16 +67,47 @@ FILES = {
     # breakout at the end is the whole figure, which the film had never shown
     "mascot": (ASSETS, "\u822a\u5c0f\u5929.png"),
 }
+# One tolerant pass, and it is **narrow on purpose**.
+#
+# The idea is right: two of these filenames are Chinese, they are easy to mistype an escape in, and a
+# missing sprite is a *silent* absence at runtime - the event simply draws nothing - so resolving a
+# mistyped tail by prefix is better than discovering it in a frame.
+#
+# What it used to do was not tolerant, it was a lottery. The prefix was `_f.split(".")[0][:2]` - **two
+# characters** - and the first hit won, and `.txt` was in the suffix whitelist. Measured against the real
+# asset folder (batch 47):
+#
+#   * `memory_单层.jpg` has stem `me` and **two** candidates, the other being `memory_叠印1.jpg` - the
+#     overlay photograph that `02b §0` says "糊成一团" and explicitly must not be used as a picture;
+#   * `何尊_线稿.png` has stem `何尊` and **three**, and the one it would have picked is `何尊.png` - a
+#     different drawing (the character-art source) from the line drawing the schedule means;
+#   * `何尊_字符画.txt` is a *text file* that matched the whitelist.
+#
+# So: resolve only when the prefix names **exactly one** picture, never consider a text file, and say so
+# on stderr when a name cannot be resolved at all - which is the failure the tolerance exists to prevent.
+_STEMS: dict = {}
 for _k, (_d, _f) in list(FILES.items()):
-    # one tolerant pass: the two Chinese filenames are easy to mistype an escape for, and a missing
-    # sprite is a *silent* absence at runtime (the event just draws nothing), so it is worth resolving
-    # by prefix here rather than discovering it in a frame
-    if not (_d / _f).exists():
-        _stem = _f.split(".")[0][:2]
-        for _p in _d.glob("*"):
-            if _p.suffix.lower() in (".png", ".jpg", ".webp", ".jpeg", ".txt") and _p.name.startswith(_stem):
-                FILES[_k] = (_d, _p.name)
-                break
+    if (_d / _f).exists():
+        _STEMS[_k] = _f
+        continue
+    _stem = _f.split(".")[0][:2]
+    _hits = sorted(_p.name for _p in _d.glob("*")
+                   if _p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp")
+                   and _p.name.startswith(_stem)) if _d.is_dir() else []
+    if len(_hits) == 1:
+        FILES[_k] = (_d, _hits[0])
+        _STEMS[_k] = _hits[0]
+    else:
+        _STEMS[_k] = _f
+        import sys as _sys
+        if _hits:
+            print(f"warning: school_fx.FILES[{_k!r}] = {_f!r} is missing and the prefix {_stem!r} "
+                  f"matches {len(_hits)} pictures ({', '.join(_hits)}) - keeping the name rather than "
+                  f"guessing", file=_sys.stderr, flush=True)
+        else:
+            print(f"warning: school_fx.FILES[{_k!r}] = {_f!r} is missing and nothing in {_d.name!r} "
+                  f"starts with {_stem!r} - this sprite will draw nothing",
+                  file=_sys.stderr, flush=True)
 
 TITLES = {
     "gate": "\u6821\u95e8", "library": "\u56fe\u4e66\u9986",
@@ -605,44 +646,6 @@ def dive(s, cols: int, rows: int, t: float, u: float, name: str, x: float = 0.5,
     if caption:
         s.put(max(0, min(cols - len(caption) - 1, xx + w // 2)), rows - FOOTER_KEEP, caption,
               (160, 205, 245))
-
-
-def approach(s, cols: int, rows: int, t: float, u: float, name: str, x: float = 0.5,
-             y: float = 0.55, size: int = 0, caption: str = "") -> None:
-    """Flying at the camera: a speck that grows until the frame is full of it.
-
-    The one direction the set of photographs can actually support for a head-on aircraft, because it
-    never has to *point* anywhere: the sprite is scaled from eight percent of the frame to seventy, and
-    the eye reads the growth as approach. The user asked for exactly this ("可以由小至大向屏幕方向飞").
-    """
-    s0 = max(5, int(cols * 0.07))
-    s1 = size or max(40, int(cols * 0.72))
-    sz = int(s0 + (s1 - s0) * (u ** 1.7))
-    rn = max(3, int(sz * 0.42))
-    cells = sprite(name, sz, rn)
-    if not cells:
-        return
-    _, w, h = cells
-    xx = int(cols * x - w / 2 + math.sin(u * 4.0) * 3)
-    yy = int(rows * y - h / 2 + math.cos(u * 3.0) * 2)
-    paste(s, cells, xx, yy)
-    if caption and u < 0.8:
-        s.put(max(0, min(cols - len(caption) - 1, xx + w // 2)), min(rows - FOOTER_KEEP, yy + h + 1), caption,
-              (160, 205, 245))
-
-
-def sweep(s, cols: int, rows: int, t: float, u: float, name: str, rows_n: int = 14,
-          size: int = 0, caption: str = "") -> None:
-    """A diagonal crossing from the bottom right, for the second plane of a pair."""
-    size = size or max(36, int(cols * 0.36))
-    cells = sprite(name, size, rows_n, flip=_flip_for(name, -1.0))
-    if not cells:
-        return
-    x = int((cols + size) * (1 - u) - size)
-    y = int((rows + rows_n) * (1 - u) * 0.7 + rows * 0.05)
-    paste(s, cells, x, y, lift=AIRCRAFT_LIFT, span=AIRCRAFT_SPAN)
-    if caption and 0 <= x <= cols - len(caption) - 2:
-        s.put(x, max(0, y - 1), caption, (240, 180, 90))
 
 
 def flash(s, cols: int, rows: int, t: float, u: float, name: str, cols_n: int = 0,
@@ -1484,18 +1487,27 @@ SHATTER_AT = (147.52,)
 
 
 def _cuts():
-    """`{row start: (kind, duration)}` for every cut in the song, built once.
+    """`{row start: (kind, duration)}` for every transition, built once.
 
-    The kind cycles by position in the schedule, so two consecutive cuts are never the same transition;
-    that is the difference between a vocabulary and a tic. The shatter snaps to whatever cut is nearest
-    its chosen line, because the effect has to land on a real cut to be a transition at all.
+    **"Cut" here means a *schedule row*, not a film shot.** This iterates `SP.shot_rows()` - the
+    variant's own 81 rows - while `tui_live.fx_cut` and `CUT_REVEAL` are indexed by the film's **97
+    shot table** (`Engine().table`). The two vocabularies coexist and they are not the same list: the
+    great majority of the film's cuts therefore have no transition at all, and every transition here
+    lands on a row boundary. The docstring used to say the shatter "snaps to whatever *cut* is nearest",
+    which reads as the film's cuts and is not what the code does - it snaps to the nearest row.
 
-    **A row shorter than the transition gets none.** Two of them did (`pane_gauge_attention` and
-    `pane_gauge_fem` are 0.395 s to a 0.42 s transition), and a transition whose `q` never reaches 1.0
+    The kind cycles by position in the schedule, so two consecutive transitions are never the same one;
+    that is the difference between a vocabulary and a tic.
+
+    **A row shorter than the transition gets none.** Measured (batch 47) against the film's own
+    numbers: `TRANS_DUR` is `FP.BEAT` = 0.4615 s, and **four** of the 81 rows are shorter than that -
+    `pane_gauge_burndown` and `pane_gauge_pareto` at 0.435 s, `pane_gauge_attention` and
+    `pane_gauge_fem` at 0.395 s, all four in the countdown. A transition whose `q` never reaches 1.0
     never lands: the drawing is replaced by the next row's transition while it is still visibly halfway
     through the move. A cut that cannot complete is worse than a hard cut, so those rows are skipped
-    rather than shortened - the film has 79 rows and two hard cuts among them will not be noticed, while
-    two interrupted moves will.
+    rather than shortened - four hard cuts among 81 will not be noticed, while four interrupted moves
+    will. (`TRANS_DUR` was 0.42 when this was written, which is why the comment here used to say "two of
+    them": raising it to a full beat brought the two 0.435 s rows under the line as well.)
     """
     import school_panels as SP
     rows = SP.shot_rows()
