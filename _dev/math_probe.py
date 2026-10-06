@@ -115,6 +115,76 @@ def main() -> None:
         bad.append("pane_converge has no frame in which a source and the class coexist "
                    "(that is a fade-out plus a fade-in, not a reduction)")
 
+    # ---- 4. the labels that claim something the drawing has to contain -------------------------
+    #
+    # Both of these were *false for the whole life of the pane* and no probe could see it: the drawing
+    # rendered perfectly, inside its rect, moving, and the words next to it described something that was
+    # not there. Batch 40 found them by taking a census of the rendered glyphs rather than by looking.
+    print(f"\nthe labels that promise a specific mark:")
+
+    # `g_pareto` prints `cum 80% ──` - a legend for the cumulative curve. Censused for amber.
+    s = T.Screen(w + 6, h + 4)
+    CO.draw_gauge("pane_gauge_pareto", s, x0, y0, x1, y1, 0.0, 0.4, 0.44, 1.0, run=2)
+    amber = [(x, y) for y in range(h + 4) for x in range(w + 6)
+             if (lambda c: c[0] > 200 and c[1] > 150 and c[2] < 90)(s.buf[y][x][1])]
+    rows_amber = sorted({y for _x, y in amber})
+    print(f"  pane_gauge_pareto  'cum 80% ──': {len(amber)} amber cells over rows {rows_amber}")
+    if len(rows_amber) < 2:
+        bad.append("pane_gauge_pareto's legend promises a cumulative line and no curve is drawn "
+                   "(fewer than two rows carry it)")
+
+    # `g_fem` is captioned `mesh`; a mesh needs both directions.
+    s = T.Screen(w + 6, h + 4)
+    CO.draw_gauge("pane_gauge_fem", s, x0, y0, x1, y1, 0.0, 0.4, 0.44, 1.0, run=4)
+    cen: dict[str, int] = {}
+    for y in range(h + 4):
+        for x in range(w + 6):
+            ch = s.buf[y][x][0]
+            if ch not in ("", " "):
+                cen[ch] = cen.get(ch, 0) + 1
+    vbar = cen.get("\u2502", 0)
+    hbar = cen.get("\u2500", 0)
+    print(f"  pane_gauge_fem     'mesh': {vbar} vertical, {hbar} horizontal")
+    if vbar == 0:
+        bad.append("pane_gauge_fem is captioned 'mesh' and draws no vertical edge "
+                   "(rows of dashes are not a mesh)")
+
+    # `pane_exec_ds` is captioned as a red-black tree with a search path lit. The lit path has to
+    # actually arrive at the key it is searching for.
+    #
+    # It did not: the path was `(0, 1, 4)` - keys 10, 5, 7 - and a search for 8 in that tree walks
+    # `(0, 1, 4, 10)`, i.e. 10 -> 5 -> 7 -> **8**. The drawing said "search 8" and the light stopped one
+    # node short, which is the difference between a search and a walk that gave up.
+    s = T.Screen(w + 6, h + 4)
+    CO.draw_course("pane_exec_ds", s, x0, y0, x1, y1, 0.0, 1.0, 1.0, 1.0, run=3, total=16)
+    # The tree's nodes are `marker + digit`, and every node is preceded by a marker glyph, so a node is
+    # identifiable by its *left neighbour* and nothing else on the pane looks like that. (The first
+    # version looked for any cell reading `8` and took the last one in scan order, which found an `8` in
+    # a text row and failed a pane that was correct. A probe that cannot tell a node from a label is not
+    # a probe.)
+    #
+    # **Lit is a colour, not a glyph.** The `◎` ring belongs to the node the roaming search light is
+    # standing on, which walks the tree on the song's clock and is almost never the target; the nodes on
+    # the lit path keep `●` and turn AMBER. So the test is "preceded by a marker, and amber" - the first
+    # version demanded the ring and would have failed even the corrected drawing.
+    MARKERS = "\u25ce\u25cf"
+    found = None
+    for yy in range(h + 4):
+        for xx in range(1, w + 6):
+            if s.buf[yy][xx][0] == "8" and s.buf[yy][xx - 1][0] in MARKERS:
+                found = (xx, yy, s.buf[yy][xx - 1][0], s.buf[yy][xx][1])
+    if found is None:
+        print("  pane_exec_ds       'search 8': no tree node reading 8 (marker + digit) is on screen")
+        bad.append("pane_exec_ds draws a search for 8 and the key 8 is not on the tree")
+    else:
+        xx, yy, mark, col = found
+        is_lit = col[0] > 200 and 150 < col[1] < 235 and col[2] < 90
+        print(f"  pane_exec_ds       'search 8': node 8 at ({xx},{yy}) marker U+{ord(mark):04X} "
+              f"fg={col} lit={is_lit}")
+        if not is_lit:
+            bad.append("pane_exec_ds lights a search path that does not reach the key being searched "
+                       "for (the search for 8 stops before 8)")
+
     print()
     if bad:
         print("FAIL:")

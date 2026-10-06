@@ -1272,8 +1272,15 @@ def _ds_tree(k: _Kit, u: float) -> None:
     while depth > 0 and top + depth * step > k.by1 - tail:
         depth -= 1
     n_nodes = 2 ** (depth + 1) - 1
-    # the path a search for 8 takes, replayed on a short loop: one animation, on its own clock
-    lit = set((0, 1, 4)[: 1 + int(u * 2.99)])
+    # the path a search for 8 takes, replayed on a short loop: one animation, on its own clock.
+    #
+    # **The path has four nodes, not three, and the last one is the point of it.** It used to be
+    # `(0, 1, 4)` - keys 10, 5, 7 - which stops one step short of the key it is searching for: the whole
+    # drawing is captioned "搜索 8" and the light never arrives at 8. Measured by replaying the search
+    # over the array (batch 40): a lookup of 8 walks indices `[0, 1, 4, 10]`, i.e. keys 10 -> 5 -> 7 -> 8.
+    # The reveal is divided over the four steps so the arrival is the last thing that happens.
+    path = (0, 1, 4, 10)
+    lit = set(path[: 1 + int(u * 3.99)])
     xs, ys = {}, {}
     for i in range(n_nodes):
         d = (i + 1).bit_length() - 1
@@ -1490,16 +1497,38 @@ def _algo_dp(k: _Kit, u: float) -> None:
 
 
 def _algo_greedy(k: _Kit, u: float) -> None:
-    """Greedy: intervals sorted by end time, and the ones a greedy choice keeps."""
+    """Greedy: intervals sorted by end time, and the ones a greedy choice keeps.
+
+    **The selection is computed now, and it used to be a hard-coded guess that was wrong twice over.**
+    The rows were `(i * 7) % 20` and the picks were `[0, 2, 5, 7]`, which meant:
+
+      * the rows were **not sorted by end time** - the ends ran 4, 12, 20, 5, 13, 21, 6, 14 - while the
+        caption under them says `按结束时间排序`, and sorting by end time is the *entire* first step of
+        this algorithm. A reader checking the drawing against the label found them disagreeing;
+      * worse, the chosen set **overlapped itself**: C was [14, 20] and F was [15, 21], and an interval
+        scheduler that returns two overlapping intervals is not a scheduler.
+
+    Both were measured by replaying the code's own arithmetic (batch 40). The intervals are now sorted by
+    end time and the picks come out of the real greedy rule - take the earliest-finishing interval, then
+    the next one that starts after it ends - so the picture, the caption and the algorithm agree.
+    """
     k.section(k.by0, "\u8d2a\u5fc3 \u00b7 \u533a\u95f4\u8c03\u5ea6", 0.30)
     rows = max(3, min(8, k.bh - 5))
     span = max(6, k.bw - 14)
-    picks = [0, 2, 5, 7]
+    # 1. the intervals, **sorted by end time** (the algorithm's own first step, now actually done)
+    ivs = sorted(((2, 6), (0, 4), (7, 12), (1, 5), (9, 14), (8, 13), (15, 21), (14, 20)),
+                 key=lambda z: (z[1], z[0]))
+    # 2. the greedy sweep: keep an interval if it starts after the last one kept has ended
+    picks, last = set(), -1
+    for idx, (st, en) in enumerate(ivs):
+        if st >= last:
+            picks.add(idx)
+            last = en
     for i in range(rows):
         y = k.by0 + 2 + i
-        if y > k.by1 - 2:
+        if y > k.by1 - 2 or i >= len(ivs):
             break
-        st, en = (i * 7) % 20, (i * 7) % 20 + 4 + (i % 3)
+        st, en = ivs[i]
         x0 = k.bx0 + 6 + int(span * st / 24)
         x1 = k.bx0 + 6 + int(span * min(24, en) / 24)
         keep = i in picks and u > 0.4
@@ -1507,8 +1536,9 @@ def _algo_greedy(k: _Kit, u: float) -> None:
         k.put(x0, y, "\u2591" * max(1, x1 - x0), _mix(GREEN, 0.85) if keep else _ui(0.25))
         if keep:
             k.put(x1 + 1, y, "\u2190 \u9009", _mix(GREEN, 0.8))
-    k.put(k.bx0, min(k.by1, k.by0 + 3 + rows), "\u6309\u7ed3\u675f\u65f6\u95f4\u6392\u5e8f\uff0c"
-                                                "\u80fd\u63a5\u4e0a\u5c31\u63a5\uff1a\u8d2a\u5fc3\u4e0d\u56de\u5934",
+    k.put(k.bx0, min(k.by1, k.by0 + 3 + min(rows, len(ivs))),
+          f"\u6309\u7ed3\u675f\u65f6\u95f4\u6392\u5e8f\uff0c\u80fd\u63a5\u4e0a\u5c31\u63a5\uff1a"
+          f"\u9009\u51fa {len(picks)} \u4e2a\uff0c\u4e24\u4e24\u4e0d\u91cd\u53e0",
           _ui(0.5))
 
 
@@ -1549,7 +1579,24 @@ def c_ds_algo(k: _Kit, lt: float, dur: float) -> None:
     if h < 5:
         return
     if w >= 64 and h >= 18:
-        cols = k.columns(3, [10, 7, 9], mins=[40, 26, 30])
+        # **The minimums have to fit the pane the film actually has.** They were `[40, 26, 30]`, and
+        # `columns` needs `sum(need) + 2 * (n - 1)` = 100 columns before it will lay out three of them -
+        # while this pane's body is **95** at 197x52. So the three-column branch *never ran*: every frame
+        # of this pane in the whole film fell through to the stacked fallback below, which is the layout
+        # the docstring argues against, and the tree got eleven rows instead of twenty-eight. Dumped by
+        # batch 40 (`_dev/_b40_dump_ds.py`): the tree was one full-width band at y04-y14 and the two
+        # other drawings sat under it with six empty rows between.
+        #
+        # The minimums are what each drawing needs to be *legible*, not what it would like: the tree's
+        # width is the widest leaf row, and the two smaller ones fit narrower than they asked. At 95 the
+        # three now fit with room to spare, and at narrower sizes the fallback still catches it.
+        #
+        # **Each minimum is a number the drawing checks for itself.** `_ds_table` returns immediately
+        # when it has fewer than `12 + 2 * 9 = 30` columns, so a 26 here did not give the table a narrow
+        # column - it gave it *no column at all*, and the third of the pane came out empty. The first
+        # version of this fix had exactly that bug and the frame dump caught it; the minimums below are
+        # read off the guards inside the three drawings rather than guessed.
+        cols = k.columns(3, [10, 7, 9], mins=[34, 22, 30])
         if len(cols) == 3:
             for i, fn in enumerate((_ds_tree, _ds_curves, _ds_table)):
                 cx0, cx1 = cols[i]
@@ -1629,6 +1676,31 @@ def g_pareto(k: _Kit, lt: float, dur: float) -> None:
                 continue
             k.put(x, base - 1 - yy, "\u2588" * bw, _mix(BLUE, 0.55 + 0.02 * yy))
         k.put(x, base, labels[i][:bw], _ui(0.5))
+    # **The cumulative curve the legend has claimed all along.** The corner has read `cum 80% ──` - with
+    # a line glyph in it - since the pane was written, and a census of the rendered frame found **zero
+    # amber cells**: the one thing that makes a Pareto chart a Pareto chart was missing, and the label
+    # was pointing at nothing. The `──` was a legend for a curve that was never drawn.
+    #
+    # The numbers were always here: 42, 27, 15, 9, 5, 2 sums to 100, so the running total is
+    # 42 / 69 / 84 / 93 / 98 / 100 % and it crosses 80 % **on the third bar** - which is the reading the
+    # instrument exists to give ("these three defect classes are four fifths of everything"). Drawn over
+    # the bars, amber, one dot per bar and a dotted run between them, revealing with `u` like the bars.
+    run, pts = 0, []
+    for i, v in enumerate(bars):
+        x = k.bx0 + 2 + i * (bw + 1) + bw // 2
+        if x > k.bx1:
+            break
+        run += v
+        pts.append((x, base - 1 - int((h - 4) * min(1.0, run / 100.0))))
+    shown = max(1, int(len(pts) * min(1.0, k.u * 1.3)))
+    for i in range(shown):
+        x, y = pts[i]
+        if i:
+            xp, yp = pts[i - 1]
+            for xx in range(xp, x + 1):
+                t = (xx - xp) / max(1, x - xp)
+                k.put(xx, int(round(yp + (y - yp) * t)), "\u00b7", _mix(AMBER, 0.8))
+        k.put(x, y, "\u25cf", _mix(AMBER, 0.95))
     k.put(k.bx0, k.by0, "defect pareto", _ui(0.8))
     k.put(k.bx1 - 14, k.by0, "cum 80% \u2500\u2500", _mix(AMBER, 0.9) if k.u > 0.75 else _ui(0.3))
 
@@ -1711,6 +1783,18 @@ def g_fem(k: _Kit, lt: float, dur: float) -> None:
     y0 = k.by0 + 1
     rows = max(1, h - 3)
     denom = float(max(1, rows - 1))
+    # **Alternating edge rows: horizontal edges on one row, vertical edges on the next.** The caption
+    # says `mesh` and the census said otherwise - a rendered frame had **1052 horizontal rules and
+    # zero** `│` - so what the panel drew was a stack of dashes inside an aerofoil outline: the part's
+    # silhouette was right and the *mesh* was missing, which is the one thing this instrument is about.
+    # (Batch 40, by glyph census: `U+2500 x1052, U+2502 x0`.)
+    #
+    # A structured mesh in a cell grid is a lattice of crossings, and a crossing needs both directions.
+    # Drawing every row as `┼ ─ ─ ┼ ─ ─ ┼` gives horizontals but no verticals, because the rows are
+    # adjacent and a `│` would have to live *between* two rows that already have ink. Alternating solves
+    # it at no cost in ink: node rows carry `┼` at the nodes and `─` between them, and the rows between
+    # carry `│` at the nodes only - which, next to the `┼` above and below, reads as a continuous
+    # vertical edge through the crossing. Same cell count as before, and now it is a mesh.
     for r in range(rows):
         y = y0 + r
         if y > k.by1:
@@ -1722,12 +1806,20 @@ def g_fem(k: _Kit, lt: float, dur: float) -> None:
         mid = 0.45 + camber
         lo, hi = mid - thick, mid + thick
         dense = 3 <= r <= 5
+        edge_row = bool(r % 2)                       # vertical-edge row: nodes only
+        step = 3 if dense else 7
         for c in range(w - 2):
             fc = c / float(max(1, w - 3))
             if not (lo <= fc <= hi):
                 continue
+            node = c % step == 0
+            if edge_row and not node:
+                continue                             # the cell between two vertical edges stays empty
             inside = abs(fc - mid) < thick * 0.35
-            ch = "\u253c" if (c % (3 if dense else 7) == 0) else "\u2500"
+            if edge_row:
+                ch = "\u2502"
+            else:
+                ch = "\u253c" if node else "\u2500"
             k.put(k.bx0 + 1 + c, y, ch,
                   _mix(RED if (dense and inside) else (BLUE if dense else DIM),
                        0.7 if dense else 0.35))
