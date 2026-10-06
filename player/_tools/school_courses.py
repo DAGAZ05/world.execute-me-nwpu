@@ -52,6 +52,19 @@ ARROW_R, ARROW_L, ARROW_D, ARROW_U = "\u25b6", "\u25c0", "\u25bc", "\u25b2"
 DOT, BULLET = "\u00b7", "\u2022"
 SHADE = " \u2591\u2592\u2593\u2588"
 
+# The 8x8 ordered-dither threshold, the same matrix `school_fx` and `school_sculpture` use, so the
+# ramps in this file band the same way the photographs do. `_Kit.shade` is the only user.
+_BAYER8 = (
+    ( 0, 32,  8, 40,  2, 34, 10, 42),
+    (48, 16, 56, 24, 50, 18, 58, 26),
+    (12, 44,  4, 36, 14, 46,  6, 38),
+    (60, 28, 52, 20, 62, 30, 54, 22),
+    ( 3, 35, 11, 43,  1, 33,  9, 41),
+    (51, 19, 59, 27, 49, 17, 57, 25),
+    (15, 47,  7, 39, 13, 45,  5, 37),
+    (63, 31, 55, 23, 61, 29, 53, 21),
+)
+
 
 def _ui(level: float = 1.0):
     return CTX["ui"](level)
@@ -173,7 +186,14 @@ class _Kit:
     # ------------------------------------------------------------------ primitives
 
     def put(self, x: int, y: int, text: str, colour=None, level: float = 1.0) -> None:
-        """Clip to the pane: every diagram below is written for a rectangle of *some* size."""
+        """Clip to the pane: every diagram below is written for a rectangle of *some* size.
+
+        `level` scales the colour's brightness. **It used to be accepted and ignored** - six call sites
+        passed `1.0` and every other call site passed nothing, so a parameter that did nothing never
+        showed up as a bug (batch 35's audit found it by reading the signature against the body). It is
+        *implemented* rather than deleted because "this label, dimmer" is a thing these panes keep
+        wanting and currently express by picking a different `_ui` constant by hand.
+        """
         if not (self.by0 - 1 <= y <= self.y1):
             return
         if x < self.x0 or x >= self.x1 + 1:
@@ -181,7 +201,67 @@ class _Kit:
         room = max(0, self.x1 - max(x, self.x0))
         if room <= 0:
             return
-        self.s.put(max(x, self.x0), y, _clip(text, room), colour if colour is not None else _ui(0.85))
+        col = colour if colour is not None else _ui(0.85)
+        if level != 1.0:
+            col = _mix(col, max(0.0, min(1.0, level)))
+        self.s.put(max(x, self.x0), y, _clip(text, room), col)
+
+    # ------------------------------------------------------------------ pixel primitives
+    #
+    # Everything above this line draws *outlines*: a glyph, a rule, a frame. There was no way to draw a
+    # **value**, which is why twelve course drawings and six instruments all read as line art and the
+    # film has no grey in it anywhere. Batch 35's audit named it the deepest structural reason for
+    # "视觉单调": «`_Kit` 里没有任何像素原语 ... 灰度层次为零». These three are that way.
+    #
+    # They are ramps, not bitmaps: a terminal cell cannot hold a pixel, but it can hold one of five
+    # coverage glyphs, and an ordered dither between two of them reads as a continuous field. That is
+    # the same trick `school_fx.sprite` uses on the photographs, applied here to *functions*.
+
+    DITHER = 0.5                # how much of one ramp level the dither may move a cell
+
+    def shade(self, x: int, y: int, value: float, colour=None, dither: bool = True) -> None:
+        """One cell of a continuous field: `value` 0..1 → the ramp glyph that stands for it.
+
+        Dithered by default, because a five-level ramp quantises a smooth field into five flat bands and
+        the bands are what the eye notices instead of the field. `dither=False` is for a caller that
+        wants the bands on purpose (a legend, or a step function).
+        """
+        n = len(SHADE) - 1
+        v = max(0.0, min(1.0, value)) * n
+        if dither:
+            # the matrix is normalised by its own maximum: 0..63 -> -0.5..0.5, so `DITHER` is in *ramp
+            # levels*. Written as `- 0.5` the nudge is up to 62.5 levels and every cell saturates - the
+            # bug `school_fx.sprite` had carried since the batch that added dithering (batch 46).
+            v += (_BAYER8[y & 7][x & 7] / 63.0 - 0.5) * self.DITHER
+        self.put(x, y, SHADE[max(0, min(n, int(round(v))))], colour)
+
+    def shade_row(self, x: int, y: int, values, colour=None) -> None:
+        """A row of a field, one glyph per cell. `values` is any iterable of 0..1."""
+        for i, val in enumerate(values):
+            if x + i > self.bx1:
+                break
+            self.shade(x + i, y, val, colour)
+
+    def field(self, x0: int, y0: int, x1: int, y1: int, fn, colour=None) -> int:
+        """A rectangle of a scalar field: `fn(u, v)` with both in 0..1 → 0..1. Returns cells inked.
+
+        The return value is not decoration: a field is often *sparse* (the part, not the box), and the
+        caller usually wants to know whether anything landed before it draws a caption about it.
+        """
+        x0, x1 = max(x0, self.bx0), min(x1, self.bx1)
+        y0, y1 = max(y0, self.by0), min(y1, self.by1)
+        if x1 < x0 or y1 < y0:
+            return 0
+        w, h = x1 - x0 + 1, y1 - y0 + 1
+        n = 0
+        for j in range(h):
+            v = (j + 0.5) / h
+            for i in range(w):
+                val = fn((i + 0.5) / w, v)
+                if val > 0.06:
+                    n += 1
+                self.shade(x0 + i, y0 + j, val, colour)
+        return n
 
     def hline(self, x0: int, y: int, x1: int, ch: str = BOX_H, colour=None) -> None:
         if y < self.by0 or y > self.by1 or x1 < x0:
@@ -1888,17 +1968,14 @@ def g_attention(k: _Kit, lt: float, dur: float) -> None:
             if x0 + c > k.bx1:
                 break
             prob = p[c]
-            # the shade *is* the probability: 0.05 of the row's mass is one dot, the diagonal is solid
-            if prob >= 0.55:
-                v = 3
-            elif prob >= 0.25:
-                v = 2
-            elif prob >= 0.10:
-                v = 1
-            else:
-                v = 0
-            k.put(x0 + c, y, SHADE[v],
-                  _mix(AMBER if c == r else BLUE, 0.3 + 0.7 * min(1.0, prob * 2.2)))
+            # **the ramp is the probability**, dithered by `_Kit.shade`: this used to be four hard bands
+            # chosen by `prob >= 0.55 / 0.25 / 0.10`, which drew a heat map that could not show a
+            # gradient - the thing a heat map exists to show. The square root is not decoration: a
+            # softmax over eighteen keys puts a uniform row's mass at 1/18 = 0.056, so a *linear* map
+            # leaves everything but the diagonal blank (measured: 13 inked cells in the whole grid).
+            # `sqrt` spreads the small weights the way the eye reads them.
+            k.shade(x0 + c, y, min(1.0, prob ** 0.5),
+                    _mix(AMBER if c == r else BLUE, 0.3 + 0.7 * min(1.0, prob * 2.2)))
     k.put(k.bx0, k.by0, f"attention  head {head + 1}", _ui(0.8))
     # **A heat map needs a scale.** The cells are shaded by probability and nothing on the pane said what
     # a shade means, so the brightest cell and the dimmest were only "more" and "less" - the reader could
@@ -1906,7 +1983,7 @@ def g_attention(k: _Kit, lt: float, dur: float) -> None:
     # now carries the band it stands for. (Batch 44, the audit's "色阶 legend".)
     if k.by1 - 2 > k.by0:
         k.put(k.bx0, k.by1 - 2,
-              f"legend  {SHADE[1]}\u2265.10 {SHADE[2]}\u2265.25 {SHADE[3]}\u2265.55  "
+              f"legend  p: {SHADE[1]}{SHADE[2]}{SHADE[3]}{SHADE[4]} = 0\u21921"
               f"\uff08\u884c\u5f52\u4e00\uff09", _ui(0.45))
     # ...on `by1 - 1`, not `by1`: the shared gauge cursor (`_gauge_live`) draws its rule and its moving
     # triangle across the whole of the bottom row, so the readout printed there was erased every frame.
@@ -1928,7 +2005,13 @@ def g_fem(k: _Kit, lt: float, dur: float) -> None:
     w, h = k.bw, k.bh
     if h < 4:
         return
-    k.put(k.bx0, k.by0, "mesh  4820 nodes  9,318 elements", _ui(0.75))
+    # the field's scale rides in the header line: the drawing occupies every row down to `by1 - 1`
+    # (`rows = h - 3`), so a legend placed below it never fits - the first version guarded on
+    # `by1 - 1 > y0 + rows`, which is never true, and the legend silently did not exist. Same failure as
+    # the attention map's readout in batch 37, and found the same way: by asking the frame.
+    k.put(k.bx0, k.by0,
+          f"mesh  4820 nodes  9,318 elements   \u03c3 {SHADE[1]}{SHADE[2]}{SHADE[3]}{SHADE[4]}"
+          f"  0\u21921", _ui(0.75))
     y0 = k.by0 + 1
     rows = max(1, h - 3)
     denom = float(max(1, rows - 1))
@@ -1961,10 +2044,22 @@ def g_fem(k: _Kit, lt: float, dur: float) -> None:
             fc = c / float(max(1, w - 3))
             if not (lo <= fc <= hi):
                 continue
+            # **The stress field, under the mesh.** A finite-element post-processor draws the field and
+            # then the elements; this panel drew only the elements, so its own docstring - "a structured
+            # grid with a denser patch, and the stress field as shading" - described a field that was not
+            # in the picture. `dv` is the position across the thickness, `-1..1`; bending stress is
+            # largest at the surface (`|dv| → 1`) and toward the thick end.
+            dv = (fc - mid) / max(1e-6, thick)
+            sigma = (1.0 - f) ** 0.6 * (0.22 + 0.78 * abs(dv))
+            if dense:
+                sigma = min(1.0, sigma * 1.35 + 0.30)   # the concentration the refinement is for
+            inside = abs(dv) < 0.35
+            k.shade(k.bx0 + 1 + c, y, sigma,
+                    _mix(RED if (dense and inside) else (BLUE if dense else DIM),
+                         0.8 if dense else 0.55))
             node = c % step == 0
             if edge_row and not node:
                 continue                             # the cell between two vertical edges stays empty
-            inside = abs(fc - mid) < thick * 0.35
             if edge_row:
                 ch = "\u2502"
             else:

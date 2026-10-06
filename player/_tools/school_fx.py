@@ -269,7 +269,14 @@ def sprite(name: str, cols: int, rows: int, contrast: float = 1.0, flip: str = "
                 # It used to be `b * DITHER / n_lev` *without* the 2, i.e. a second division by two -
                 # the comment claimed "half a level" while the code did 0.234 of one, so the dither was
                 # on and all but invisible. (Batch 35's audit found it by reading the two lines together.)
-                b = BAYER8[y & 7][c & 7] - 0.5
+                # **The matrix is normalised by its own maximum.** It holds integers 0..63, and the
+                # first version of this line read `BAYER8[...] - 0.5` - which is a nudge of -0.5..62.5,
+                # i.e. up to **15.6 ramp levels** when one level is 0.25, so `min(1.0, …)` pinned almost
+                # every cell to the top of the ramp. Measured on the mascot sprite (batch 46): 93.8 % of
+                # its cells sat at level 4. That is not a dither, it is a blow-out, and it had been in
+                # every frame since batch 35 - the batch that added it - because no probe looked at the
+                # *distribution* of ramp levels, only at whether the pane rendered.
+                b = BAYER8[y & 7][c & 7] / 63.0 - 0.5
                 v = min(1.0, max(0.0, v + b * DITHER * 2.0 / n_lev))
                 return int(round(min(1.0, v) * n_lev))
             yt, yb = 2 * r, 2 * r + 1

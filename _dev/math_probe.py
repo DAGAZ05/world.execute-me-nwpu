@@ -359,6 +359,37 @@ def main() -> None:
     if not legend or not all(g in legend for g in "\u2591\u2592\u2593"):
         bad.append("pane_gauge_attention's heat map does not explain what its shades mean")
 
+    # ---- 8. a ramp has to cover its levels ------------------------------------------------
+    #
+    # **The invariant nothing was checking.** `school_fx.sprite`'s ordered dither had been a blow-out
+    # since the batch that added it: the Bayer matrix holds integers 0..63 and the code nudged by
+    # `value - 0.5` instead of `value / 63 - 0.5`, so the nudge was up to **15.6 ramp levels** when one
+    # level is 0.25 - `min(1.0, …)` pinned **93.8 %** of every photograph to the brightest level. The
+    # same line was in `school_sculpture.halfblock`. No probe looks at the *distribution* of levels;
+    # they all ask whether the drawing rendered. So: if one level holds most of a sprite, the ramp is
+    # not a ramp and the picture has no tone.
+    import collections as _col
+
+    import school_fx as _fx8          # noqa: E402
+
+    print(f"\nthe ramps cover their levels:")
+    for name, size in (("mascot", (65, 44)), ("y20", (90, 30))):
+        got = _fx8.sprite(name, *size)
+        if not got:
+            continue
+        hist = _col.Counter(cell[1] for row in got[0] for cell in row if cell)
+        tot = sum(hist.values()) or 1
+        frac = {k: v / tot for k, v in hist.items()}
+        top = max(frac.values())
+        used = len([k for k, v in frac.items() if v > 0.02])
+        print(f"  sprite('{name}')  levels " + " ".join(f"{k}:{frac.get(k, 0):.2f}" for k in range(5))
+              + f"   most-used {top:.0%}, {used} levels in use")
+        if top > 0.75:
+            bad.append(f"the ramp of sprite('{name}') is piled on one level ({top:.0%}) - "
+                       "the ordered dither is not dithering")
+        if used < 3:
+            bad.append(f"sprite('{name}') uses fewer than three ramp levels ({used})")
+
     print()
     if bad:
         print("FAIL:")

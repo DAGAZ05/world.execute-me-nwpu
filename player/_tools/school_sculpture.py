@@ -242,7 +242,10 @@ def halfblock(name: str, cols: int, rows: int):
         # this path (对话, 校徽, memory) were showing. Half a level either way, decided by the cell's place
         # in the matrix, turns the boundary between two levels into a checkerboard instead of a hard edge.
         # This is `lru_cache`d per (name, cols, rows), so the dither costs nothing per frame.
-        return int(round(v + (_BAYER8[y & 7][c & 7] - 0.5) * DITHER))
+        # ...and the matrix is normalised by its own maximum (0..63 -> -0.5..0.5). Without the `/ 63.0`
+        # the nudge is up to 31 *levels* and every cell lands on the top of the ramp - the same bug
+        # `school_fx.sprite` had, found by measuring the ramp histogram rather than by looking (batch 46).
+        return int(round(v + (_BAYER8[y & 7][c & 7] / 63.0 - 0.5) * DITHER))
 
     block, colour = [], []
     for r in range(rows):
