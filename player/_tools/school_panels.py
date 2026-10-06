@@ -163,7 +163,7 @@ def _exec_rows() -> list[dict]:
             course = _CO.COURSES.get(pane, (pane,))[0]
             gauge_rows.append(dict(at=at + side * half, end=at + (side + 1) * half, name=pane,
                                    lyric=lyric, course=course,
-                                   ops=[course], her=False, exec_n=0, gauge=g + 1))
+                                   ops=[course], mascot=False, exec_n=0, gauge=g + 1))
 
     # 2. the free intervals the instruments left, and the courses spread evenly across them
     free = []
@@ -189,7 +189,7 @@ def _exec_rows() -> list[dict]:
             pane, course = EXEC_PANES[i + j]
             course_rows.append(dict(at=a + j * step, end=a + (j + 1) * step, name=pane,
                                     lyric="Execution", course=course, ops=[course],
-                                    her=False, exec_n=i + j + 1))
+                                    mascot=False, exec_n=i + j + 1))
         i += take
     return course_rows + gauge_rows
 
@@ -202,7 +202,8 @@ def _exec_rows() -> list[dict]:
 # the lyric band, the word-level typing and the ops ticker working without being reimplemented.
 #
 # `at` is the *lyric* time (input/lyrics.lrc). `name` is the pane in school_scenes; `ops` is what
-# the ticker scrolls under it; `her` is whether the left pane may show 航小天 instead of the chat.
+# the ticker scrolls under it; `mascot` is whether 航小天 (he) may take the left pane
+# instead of the chat - see `school_keeps_pane`.
 SHOT_ROWS: list[dict] = [
     # The opening, re-cut from six panes to four because two of them collided with the crest that
     # `LANDMARK_ROWS` pins to 0.03 s. Two rows at one timestamp is an overlap and the loser gets a
@@ -211,37 +212,37 @@ SHOT_ROWS: list[dict] = [
     # crest(0.03) -> power_on(1.33) -> protection(3.58) -> class(5.16), which is also the order the
     # lyric puts them in: the protection line comes *before* "object creation", not after it.
     dict(at=1.33, name="pane_power_on", lyric="Remember to put on protection",
-         ops=["POWER_ON", "VCC", "GND", "5V"], her=False),
+         ops=["POWER_ON", "VCC", "GND", "5V"], mascot=False),
     dict(at=3.58, name="pane_protection", lyric="Lay down your pieces",
-         ops=["ESD", "STRAP", "FUSE"], her=False),
+         ops=["ESD", "STRAP", "FUSE"], mascot=False),
     dict(at=5.16, name="pane_class", lyric="And let's begin object creation",
-         ops=["CLASS", "OBJECT", "INIT"], her=False),
+         ops=["CLASS", "OBJECT", "INIT"], mascot=False),
     dict(at=7.19, name="pane_parameters", lyric="Fill in my data parameters",
-         ops=["PARAM", "SET", "COMMIT"], her=False),
+         ops=["PARAM", "SET", "COMMIT"], mascot=False),
     dict(at=9.75, name="pane_motif_he_init", lyric="Initialization",
-         ops=["He 初始化", "REPLACE"], her=False),
+         ops=["He 初始化", "REPLACE"], mascot=False),
     dict(at=10.90, name="pane_three_arms", lyric="Set up our new world",
-         ops=["AERO", "ASTRO", "MARINE"], her=True),
+         ops=["AERO", "ASTRO", "MARINE"], mascot=True),
     dict(at=12.47, name="pane_countdown", lyric="And let's begin the simulation",
-         ops=["RUN", "SIM", "t=0"], her=False),
+         ops=["RUN", "SIM", "t=0"], mascot=False),
     # The gap is the campus, not the timetable. The user's audit (2026-10-03) found the four-year
     # curriculum list here, at 00:13-00:29, which is exactly the content the first act must not have:
     # the college is chosen at 02:11.9 and until then the film is about the *school*. The curriculum
     # moved to `pane_curriculum`'s new row after the gate, where it belongs (it is the answer to "so
     # what am I in for"), and the gap is now the bronze vessel's own character art and the crest.
     dict(at=13.20, name="pane_landmark_hezun", lyric="[gap]",
-         ops=["\u4f55\u5c0a", "\u5b57\u7b26\u753b", "1982"], her=False),
+         ops=["\u4f55\u5c0a", "\u5b57\u7b26\u753b", "1982"], mascot=False),
     # The instrumental gap (13.2-29.3) has no words, so the two campus marks alternate over it rather than
     # one of them holding for sixteen seconds: the vessel, then the crest, then back. Nothing is asserted
     # by either, which is what a gap screen is for.
     dict(at=17.00, name="pane_landmark_crest", lyric="[gap]",
-         ops=["\u6821\u5fbd", "1938"], her=False),
+         ops=["\u6821\u5fbd", "1938"], mascot=False),
     dict(at=21.00, name="pane_landmark_crest", lyric="[gap]",
-         ops=["\u6821\u5fbd", "1938", "\u516c\u8bda\u52c7\u6bc5"], her=False),
+         ops=["\u6821\u5fbd", "1938", "\u516c\u8bda\u52c7\u6bc5"], mascot=False),
     dict(at=25.14, name="pane_motif_phyllotaxis", lyric="[gap]",
-         ops=["叶序", "GROW"], her=False),
+         ops=["叶序", "GROW"], mascot=False),
     dict(at=29.28, name="pane_point_set", lyric="If I'm a set of point",
-         ops=["IF", "SET", "DIM"], her=False),
+         ops=["IF", "SET", "DIM"], mascot=False),
     # The IF/THEN passage is four couplets, not one: "a set of point / my dimension", "a circle / my
     # circumference", "a sine wave / all my tangents", "infinity / your limitations". One pane held for
     # all 12.6 s of it was the same fault the user found on the tomato pane - the right column stopped
@@ -249,9 +250,9 @@ SHOT_ROWS: list[dict] = [
     # superellipse (a circle is `n = 2` of it), then the sine and its envelope, which is also where the
     # pane's own third stage already was.
     dict(at=33.01, name="pane_polyhedra", lyric="If I'm a circle",
-         ops=["n \u2192 \u221e", "2\u03c0r", "CIRCLE"], her=False),
+         ops=["n \u2192 \u221e", "2\u03c0r", "CIRCLE"], mascot=False),
     dict(at=36.77, name="pane_motif_sine", lyric="If I'm a sine wave",
-         ops=["正弦", "ENVELOPE"], her=False),
+         ops=["正弦", "ENVELOPE"], mascot=False),
     # The overlay stops at the end of P1 and the film's own 97-shot table takes the column back from
     # here to the end of the song. That is not a gap left by accident: a school pane only exists where
     # the school content exists, and the alternative - holding the last pane on screen for 166 seconds
@@ -281,7 +282,7 @@ LANDMARK_ROWS: list[dict] = [
     # a zero-length span, so `pane_power_on` was never drawn at all. Caught by the sweep, which reports
     # non-positive spans rather than dropping them.
     dict(at=0.03, name="pane_landmark_crest", lyric="Switch on the power line",
-         ops=["NWPU", "1938", "1957"], her=False),
+         ops=["NWPU", "1938", "1957"], mascot=False),
     # `pane_power_on` is *not* repeated here: it is a `SHOT_ROWS` row. Listing it in both places is
     # what produced the collision this comment replaced - the crest and the board both wanted 0.03 s.
     # "unite" / "deeply" / "only God": the two hands - but at three *short* appearances, not three
@@ -294,62 +295,62 @@ LANDMARK_ROWS: list[dict] = [
     # of a day, the braid group σ₁), and it is drawn by `school_scenes.pane_exchange`. Four rows, one per
     # motif, on the line each belongs to rather than all four small at once for twelve seconds.
     dict(at=41.92, name="pane_exchange", lyric="Switch my current",
-         ops=["XOR", "F\u2192M", "3 bits"], her=False, args=dict(panel="bits")),
+         ops=["XOR", "F\u2192M", "3 bits"], mascot=False, args=dict(panel="bits")),
     dict(at=45.52, name="pane_exchange", lyric="To AC, to DC",
-         ops=["12h", "AM/PM"], her=False, args=dict(panel="clock")),
+         ops=["12h", "AM/PM"], mascot=False, args=dict(panel="clock")),
     dict(at=47.27, name="pane_exchange", lyric="And then blind my vision",
-         ops=["\u03c3\u2081", "BRAID"], her=False, args=dict(panel="braid")),
+         ops=["\u03c3\u2081", "BRAID"], mascot=False, args=dict(panel="braid")),
     dict(at=50.95, name="pane_exchange", lyric="Oh, we can travel",
-         ops=["|x|^n", "SUPERELLIPSE"], her=False, args=dict(panel="hyper")),
+         ops=["|x|^n", "SUPERELLIPSE"], mascot=False, args=dict(panel="hyper")),
     dict(at=54.74, name="pane_landmark_dialogue", lyric="And we can unite",
-         ops=["UNITE", "\u5bf9\u8bdd"], her=False),
+         ops=["UNITE", "\u5bf9\u8bdd"], mascot=False),
     dict(at=60.57, name="pane_motif_binary", lyric="Give you all the simulations",
-         ops=["0101", "模拟"], her=False),
+         ops=["0101", "模拟"], mascot=False),
     # 62.00-70.00 was the cat, held for eight seconds across five different lines - including "I will run
     # the execution", which is not a cat. The cat belongs on the two lines that *are* a cat (80.93,
     # below); here the hands carry "Then I can / satisfaction" and the conditional device carries
     # "If I can make you happy / I will run the execution", which is an `If ... then ...` like all the
     # others the device is for.
     dict(at=62.00, name="pane_motif_pixelsort", lyric="Then I can, then I can",
-         ops=["PIXELSORT", "排序"], her=False),
+         ops=["PIXELSORT", "排序"], mascot=False),
     dict(at=66.17, name="pane_motif_galaxy", lyric="If I can make you happy",
-         ops=["GALAXY", "星系"], her=False),
+         ops=["GALAXY", "星系"], mascot=False),
     dict(at=70.02, name="pane_motif_en_limit", lyric="Though we are trapped",
-         ops=["∃n", "LIMIT"], her=False),
+         ops=["∃n", "LIMIT"], mascot=False),
     # 万物皆点 is three couplets - eggplant, tomato, cat - and the film cuts on each one. All three panels
     # held for 11.07 s was the user's example of a performance that outlasts its lyric ("右边panel的西红柿
     # 那个光谱界面占了过长时间，和左侧歌词都不对应了"): the spectrum was still on screen while the words
     # had moved on to the cat. Now each panel gets its own couplet, and the cat - which had the wrong row
     # entirely - gets the two lines about a tabby.
     dict(at=73.53, name="pane_everything_point", lyric="If I'm an eggplant",
-         ops=["USDA", "\u8425\u517b\u6d41\u5411"], her=False, args=dict(panel="food")),
+         ops=["USDA", "\u8425\u517b\u6d41\u5411"], mascot=False, args=dict(panel="food")),
     dict(at=77.16, name="pane_everything_point", lyric="If I'm a tomato",
-         ops=["444nm", "472nm", "503nm"], her=False, args=dict(panel="tomato")),
+         ops=["444nm", "472nm", "503nm"], mascot=False, args=dict(panel="tomato")),
     dict(at=80.93, name="pane_landmark_cat", lyric="If I'm a tabby cat",
-         ops=["\u732b\u5b66\u957f", "\u5b57\u7b26\u753b", "\u53e0\u52a0\u6001"], her=False),
+         ops=["\u732b\u5b66\u957f", "\u5b57\u7b26\u753b", "\u53e0\u52a0\u6001"], mascot=False),
     # 84.6-110.4 is the last verse's "only God / switch my gender / trance" run: the switch lines belong to
     # the swap pane (a gender switch is the same three-bit flip as a current switch), the "if I can / feel
     # your vibrations" lines to the conditional device, and "finally be completion" to the Love class - the
     # expression completed. One pane per thought, instead of a hand and a crest held over all of it.
     dict(at=84.60, name="pane_motif_stardiff", lyric="If I'm the only God",
-         ops=["STAR", "衍射"], her=False),
+         ops=["STAR", "衍射"], mascot=False),
     dict(at=88.34, name="pane_motif_quantize", lyric="Switch my gender",
-         ops=["QUANTIZE", "3 bits"], her=False),
+         ops=["QUANTIZE", "3 bits"], mascot=False),
     dict(at=92.00, name="pane_motif_chladni", lyric="From AM to PM",
-         ops=["CHLADNI", "节点"], her=False),
+         ops=["CHLADNI", "节点"], mascot=False),
     dict(at=95.28, name="pane_motif_fork_bomb", lyric="Oh, my switch role",
-         ops=["FORK", "角色"], her=False),
+         ops=["FORK", "角色"], mascot=False),
     dict(at=98.93, name="pane_motif_lattice", lyric="So we can enter",
-         ops=["LATTICE", "TRANCE"], her=False),
+         ops=["LATTICE", "TRANCE"], mascot=False),
     dict(at=101.13, name="pane_motif_moire", lyric="The trance, the trance",
-         ops=["MOIRE", "TRANCE"], her=False),
+         ops=["MOIRE", "TRANCE"], mascot=False),
     dict(at=103.03, name="pane_motif_hyperellipse", lyric="If I can, if I can",
-         ops=["|x|^n", "超椭圆"], her=False),
+         ops=["|x|^n", "超椭圆"], mascot=False),
     dict(at=106.84, name="pane_motif_epicycles", lyric="Then I can, then I can",
-         ops=["EPICYCLE", "FOURIER"], her=False),
+         ops=["EPICYCLE", "FOURIER"], mascot=False),
     # "Challenging your God": the sword, as the accusation
     dict(at=125.33, name="pane_landmark_sword", lyric="Challenging your God",
-         ops=["\u94f8\u5251", "CHALLENGE"], her=False),
+         ops=["\u94f8\u5251", "CHALLENGE"], mascot=False),
     # "Fill in my data parameters": the vessel is drawn *inside* `pane_parameters` rather than taking
     # the pane itself - the parameter table is what the lyric says, and 何尊 is the source annotation
     # on one of its rows. It has no row here for that reason: two rows at 7.19 would be two panes in
@@ -360,41 +361,41 @@ LANDMARK_ROWS: list[dict] = [
     # (02:41.5 to the end), which is where the last two panes above stop. They are the four moments
     # `02b_图像对位与可视化表达.md` §4.3-4.6 names, and each is pinned to the lyric it belongs to rather
     # than to a share of the time.
-    dict(at=162.23, name="pane_converge", lyric="If I can, if I can",         ops=["DFD", "ER", "\u6d3b\u52a8\u56fe", "\u72b6\u6001\u56fe", "\u2192", "CLASS"], her=False),
+    dict(at=162.23, name="pane_converge", lyric="If I can, if I can",         ops=["DFD", "ER", "\u6d3b\u52a8\u56fe", "\u72b6\u6001\u56fe", "\u2192", "CLASS"], mascot=False),
     dict(at=166.05, name="pane_motif_byrne", lyric="Be your only execution",
-         ops=["BYRNE", "PLATE"], her=False),
+         ops=["BYRNE", "PLATE"], mascot=False),
     dict(at=169.61, name="pane_backlog", lyric="If I can have you back",
-         ops=["SCRUM", "TODO", "DOING", "DONE"], her=False),
+         ops=["SCRUM", "TODO", "DOING", "DONE"], mascot=False),
     # The four AI motifs. They are laid out around `shot_collapse` (174.90-177.50), which the TUI draws
     # full-bleed *in this variant too* - the film's picture collapses into a line and a dot, and there is
     # no chrome left to draw a pane in. The first version of this table put `pane_ai_rl` at 175.31, where
     # the column is empty for its whole life and the pane is simply not on screen. Two motifs before the
     # collapse and two after it also gives that moment something to divide.
     dict(at=171.31, name="pane_ai_cnn", lyric="If I can have you back",
-         ops=["CONV", "KERNEL", "FEATURE MAP"], her=False),
+         ops=["CONV", "KERNEL", "FEATURE MAP"], mascot=False),
     dict(at=173.10, name="pane_ai_attention", lyric="Though we are trapped",
-         ops=["Q", "K", "V", "SOFTMAX"], her=False, end=174.90),
+         ops=["Q", "K", "V", "SOFTMAX"], mascot=False, end=174.90),
     # the film's own collapse, 174.90-177.50, with no pane behind it: `shot_collapse` is drawn
     # full-bleed in this variant too, so a name here would be a pane nobody can see
-    dict(at=174.90, name=None, lyric="Though we are trapped", ops=["COLLAPSE"], her=False,
+    dict(at=174.90, name=None, lyric="Though we are trapped", ops=["COLLAPSE"], mascot=False,
          end=177.50),
     dict(at=177.50, name="pane_ai_rl", lyric="I've studied, I've studied",
-         ops=["POLICY", "ROLLOUT", "ADVANTAGE"], her=False),
+         ops=["POLICY", "ROLLOUT", "ADVANTAGE"], mascot=False),
     dict(at=179.30, name="pane_ai_diffusion", lyric="I've studied, I've studied",
-         ops=["NOISE", "DENOISE", "\u6b65\u6570"], her=False),
+         ops=["NOISE", "DENOISE", "\u6b65\u6570"], mascot=False),
     dict(at=181.20, name="pane_knowledge", lyric="I've studied, I've studied",
-         ops=["STUDIED", "\u77e5\u8bc6\u56fe\u8c31"], her=False),
+         ops=["STUDIED", "\u77e5\u8bc6\u56fe\u8c31"], mascot=False),
     # The curriculum, moved here from 00:13 where the audit found it: this is the answer to the college
     # the student just chose, so it belongs on the far side of the gate and not before it.
     dict(at=136.90, name="pane_curriculum", lyric="[after the gate]",
-         ops=["YEAR1", "YEAR2", "YEAR3", "YEAR4"], her=False, end=147.52),
+         ops=["YEAR1", "YEAR2", "YEAR3", "YEAR4"], mascot=False, end=147.52),
     dict(at=184.33, name="pane_love_class", lyric="I know the algebraic expression of lo-o-ove",
-         ops=["LOVE", "CLASS", "UML"], her=False),
+         ops=["LOVE", "CLASS", "UML"], mascot=False),
     # The last verse is two thoughts, not one: "the algebraic expression of love", and then "though you
     # are free / I am trapped / trapped in lo-o-ove". The Love class draws the first; the hands - the
     # film's own work - draw the second, which is what the two hands not touching have always meant.
     dict(at=187.97, name="pane_motif_bessel", lyric="Though you are free",
-         ops=["BESSEL", "振动"], her=False),
+         ops=["BESSEL", "振动"], mascot=False),
     # MEMORY: one more layer on every "You have left", then down to one, then none.
     #
     # This is the one place in the film where a pane is drawn *differently* on lines that are otherwise
@@ -412,27 +413,27 @@ LANDMARK_ROWS: list[dict] = [
     # `pane_fragments` takes the erase. MEMORY is on screen for 7.4 s of the stretch instead of 15, and
     # no single row of it is longer than 3.2 s.
     dict(at=110.40, name="pane_memory", lyric="Though you have left",
-         ops=["MEMORY", "x2"], her=False, args=dict(layers=2)),
+         ops=["MEMORY", "x2"], mascot=False, args=dict(layers=2)),
     dict(at=111.98, name="pane_memory", lyric="You have left",
-         ops=["MEMORY", "x3"], her=False, args=dict(layers=3)),
+         ops=["MEMORY", "x3"], mascot=False, args=dict(layers=3)),
     dict(at=112.89, name="pane_memory", lyric="You have left",
-         ops=["MEMORY", "x4"], her=False, args=dict(layers=4)),
+         ops=["MEMORY", "x4"], mascot=False, args=dict(layers=4)),
     dict(at=113.75, name="pane_memory", lyric="You have left",
-         ops=["MEMORY", "x5"], her=False, args=dict(layers=5)),
+         ops=["MEMORY", "x5"], mascot=False, args=dict(layers=5)),
     dict(at=114.75, name="pane_memory", lyric="You have left",
-         ops=["MEMORY", "x6"], her=False, args=dict(layers=6)),
+         ops=["MEMORY", "x6"], mascot=False, args=dict(layers=6)),
     # "You have left me in isolation": the field emptying, one point left
     dict(at=115.90, name="pane_isolation", lyric="You have left me in isolation",
-         ops=["ISOLATION", "\u4e00\u4e2a\u70b9"], her=False),
+         ops=["ISOLATION", "\u4e00\u4e2a\u70b9"], mascot=False),
     # ...and then the sculpture once more, as the single word that point became
     dict(at=117.95, name="pane_memory", lyric="If I can, if I can",
-         ops=["MEMORY", "x1"], her=False, args=dict(layers=1)),
+         ops=["MEMORY", "x1"], mascot=False, args=dict(layers=1)),
     # "Erase all the pointless fragments": the instruction carried out, cell by cell
     dict(at=119.81, name="pane_fragments", lyric="Erase all the pointless fragments",
-         ops=["ERASE", "\u788e\u7247"], her=False),
+         ops=["ERASE", "\u788e\u7247"], mascot=False),
     # closing: the crest alone
     dict(at=193.46, name="pane_landmark_crest", lyric="[gap] \u5c3e\u58f0",
-         ops=["NWPU", "\u516c\u8bda\u52c7\u6bc5"], her=False),
+         ops=["NWPU", "\u516c\u8bda\u52c7\u6bc5"], mascot=False),
 ]
 
 # how many rows of the right-hand column each pane wants, and the least it can be drawn in. The film
@@ -497,7 +498,7 @@ def shot_rows() -> list[dict]:
 
 
 def school_shots() -> dict:
-    """`{index: {name, pane, ops, her, u}}` for the row covering each point in the song.
+    """`{index: {name, pane, ops, figure, u}}` for the row covering each point in the song.
 
     The player asks this once per frame through `school_entry`; it is cheap because the table is
     ten rows long and sorted once.
@@ -506,8 +507,8 @@ def school_shots() -> dict:
     out = {}
     for i, r in enumerate(rows):
         out[i] = dict(index=i, total=len(rows), name=r["name"], pane=r["name"],
-                      ops=r["ops"], her=r.get("her", False), alert=None, alert_own=None,
-                      start=r["at"], end=r["end"], run=0, last_her=False, lyric=r["lyric"])
+                      ops=r["ops"], figure=bool(r.get("mascot", False)), alert=None, alert_own=None,
+                      start=r["at"], end=r["end"], run=0, last_figure=False, lyric=r["lyric"])
     return out
 
 
@@ -529,7 +530,7 @@ def school_entry(t: float, base: dict | None) -> dict | None:
     """The film's own entry for t, with the school overlay applied.
 
     Everything the player needs per frame lives on the film's entry (index, total, start, end, ops,
-    alert, her, u, the shot object). This keeps all of it and changes only what the variant owns -
+    alert, figure, u, the shot object). This keeps all of it and changes only what the variant owns -
     which pane the right column draws and what the ticker scrolls - so `draw_body`'s geometry, the
     cut machinery and the footer's shot label all keep working unchanged.
     """
@@ -541,7 +542,7 @@ def school_entry(t: float, base: dict | None) -> dict | None:
     e = dict(base)
     need, _least = PANE_MIN.get(row["name"], (10, 4))
     e.update(pane=row["name"], pane_need=need, ops=row["ops"],
-             her=bool(row.get("her", False)), school=True, lyric=row["lyric"],
+             figure=bool(row.get("mascot", False)), school=True, lyric=row["lyric"],
              pane_args=row.get("args"))
     e["start"] = row["at"]
     # The row's own span, not `min(row end, film shot end)`: the film's shot under a school pane can be
@@ -591,7 +592,7 @@ def school_keeps_pane(_ent: dict | None) -> bool:
 
     The film lets the clear figure take the pane on a handful of shots. This variant's story is *in*
     the window - the student's questions and 航小天's answers are the narrative - so the window never
-    gives the pane up. `her=True` on a row means the pane *may* show the figure, which the `c` key
+    gives the pane up. `mascot=True` on a row means the pane *may* show the figure, which the `c` key
     still toggles; the default is the window.
     """
     return False

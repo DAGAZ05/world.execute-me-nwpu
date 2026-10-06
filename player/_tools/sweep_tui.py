@@ -85,21 +85,21 @@ else:
         print(f"    {T.FP.chapter_start('EXECUTION'):7.2f}            solid red: 07 EXECUTION, "
               f"alert_own=err")
         print(f"    {T.FP.chapter_start('EVAL'):7.2f}            red characters: 08 EVAL: LOVE onward")
-        last_her = next((e for e in reversed(eng.table) if e["her"]), None)
+        last_her = next((e for e in reversed(eng.table) if e["figure"]), None)
         if last_her:
             print(f"    {last_her['start']:7.2f}-{last_her['end']:7.2f}  solid blue: the last shot she "
                   f"is in ({last_her['name']})")
         from collections import Counter
-        tally = Counter(T.her_style(e) for e in eng.table if e["her"])
+        tally = Counter(T.her_style(e) for e in eng.table if e["figure"])
         tot = sum(e["end"] - e["start"] for e in eng.table)
         for (how, tint), n in sorted(tally.items()):
             secs = sum(e["end"] - e["start"] for e in eng.table
-                       if e["her"] and T.her_style(e) == (how, tint))
+                       if e["figure"] and T.her_style(e) == (how, tint))
             print(f"    -> {how}/{tint}: {n} shots, {secs:.1f} s of {tot:.1f} s ({100 * secs / tot:.0f} %)")
 
 # what the film does with her pane, per shot, straight out of the table
-her_shots = [e for e in eng.table if e["her"]]
-noher = [e for e in eng.table if not e["her"]]
+her_shots = [e for e in eng.table if e["figure"]]
+noher = [e for e in eng.table if not e["figure"]]
 tot = sum(e["end"] - e["start"] for e in eng.table)
 
 # ---------------------------------------------------------------- the school variant's own census
@@ -151,7 +151,7 @@ for e in eng.table:
         k = "caret  "
     elif P.dsh_inside(mid) and (SCHOOL or T.her_style(e)[0] != "half"):
         k = "window "
-    elif e["her"]:
+    elif e["figure"]:
         k = "her    "
     else:
         k = "empty  "
@@ -228,7 +228,7 @@ for name, t in probes:
     dump = s.text_dump()
     box = T.WINDOW_TITLE in dump
     hers = "/dev/me" in dump
-    film_her = bool(ent and ent["her"])
+    film_her = bool(ent and ent["figure"])
     film_win = P.dsh_inside(t) and not P.dsh_gone(t)
     if SCHOOL:
         flag = ""

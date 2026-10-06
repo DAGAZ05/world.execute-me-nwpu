@@ -51,7 +51,7 @@ def main() -> None:
     s = PANELS.read_text(encoding="utf8")
     done = 0
     for at, name, ops in PLAN:
-        # the row is `dict(at=9.75, name="pane_polyhedra", lyric=..., ops=[...], her=False)`
+        # the row is `dict(at=9.75, name="pane_polyhedra", lyric=..., ops=[...], mascot=False)`
         pat = re.compile(r"dict\(at=" + re.escape(f"{at:.2f}") + r", name=\"([a-z_0-9]+)\"")
         m = pat.search(s)
         if not m:

@@ -35,7 +35,7 @@ from bisect import bisect_right
 # the school's own page theme: the film re-themes itself per chapter and the window follows
 # (`dsh_text.theme_of` returns (bg-base, brand-primary, border-l1)). 航小天's palette: a cold navy
 # page, the school-blue accent, a low-contrast border. The accent is *not* the film's 大肥鱼 blue -
-# ME_TEXT stays hers, and nothing in this variant pretends the two are the same character.
+# ME_TEXT stays the film's, and nothing in this variant pretends the two are the same character.
 THEME = ("#070d1c", "#5a86d8", "#1d2c4a")
 
 NAME = "航小天"

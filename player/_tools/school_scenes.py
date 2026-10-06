@@ -1,6 +1,6 @@
 """The school variant's right-hand column: what the machine is running, shot by shot.
 
-The film's right column holds her world - the corpus river, the loss curve, the causal mask, the KV
+The film's right column holds the film's own world - the corpus river, the loss curve, the causal mask, the KV
 cache wall, the EXECUTION hits. This module holds 西工大's, and the one rule it is written under is
 that it must read as **one machine the whole way through**: the same three bands, the same border
 weight, the same palette, and content that goes from a first-year's board to a third-year's project

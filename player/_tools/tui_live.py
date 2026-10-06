@@ -1380,7 +1380,9 @@ HER_RENDER = "auto"
 RENDER_MODES = ("auto", "h3", "half", "glyph")
 # rows for the /dev/me pane. It is offered the band's comfortable height first and the band's
 # minimum second, so a shorter window gives up log lines before it gives up her.
-HER_MIN_H, HER_MAX_H, BAND_MIN_H = 14, 34, 11
+# The pane that may hold the figure (航小天 in the school variant, 大肥鱼 in the original) and the
+# lyric band's own minimum, in rows.
+FIG_MIN_H, FIG_MAX_H, BAND_MIN_H = 14, 34, 11
 
 # scenes_userleft.py:448 - the real listing the film draws for `ls -la ~/memory/you/`
 MEM_FILES = ["goodnight.txt", "first_hello.txt", "typo_you_made.txt", "laugh_2026-03-14.wav",
@@ -1415,7 +1417,7 @@ class Engine:
     def her_drawn(self, t: float) -> bool:
         """Whether the film draws her pane at t - asked of v2, not guessed from the source text.
 
-        `film_panels.shots()["her"]` is a regex over scene bodies: it cannot see `OWN` and it cannot
+        `film_panels.shots()["figure"]` is a regex over scene bodies: it cannot see `OWN` and it cannot
         see `HIDE_HER`, and reading it as an answer is what made her pane vanish in the middle of
         chorus 1 (`shot_if_i_can`, `shot_happy`) and over `shot_collapse`. The two tables can.
         """
@@ -1455,7 +1457,7 @@ class Engine:
                 alert = d["alert"]
             run = seen[name] = seen.get(name, -1) + 1
             e = dict(index=i, total=len(self.v2.ALL), name=name, start=shot.start, end=shot.end,
-                     ops=ops, alert=alert, her=self.her_drawn((shot.start + shot.end) / 2),
+                     ops=ops, alert=alert, figure=self.her_drawn((shot.start + shot.end) / 2),
                      run=run, shot=shot)
             # `alert` carries forward because the ticker does (kit.py:203); `alert_own` is what this
             # shot's own scene set, and that is the one that answers "is the system red *now*".
@@ -1468,9 +1470,9 @@ class Engine:
         # The last shot in the film that draws her at all. `--render auto` gives that one the clear
         # blue figure: the song ends with her sinking and then not being on screen again, so the
         # last moment she exists is the place to see her.
-        last = next((e["name"] for e in reversed(self.table) if e["her"]), None)
+        last = next((e["name"] for e in reversed(self.table) if e["figure"]), None)
         for e in self.table:
-            e["last_her"] = e["name"] == last
+            e["last_figure"] = e["name"] == last
 
         # Her cells carry a one-off ~0.4 s of set-up: the ink box is measured over the whole film
         # and `dancer._flow_table()` integrates the lyric flow at every one of the film's 5,088
@@ -1509,7 +1511,7 @@ class Engine:
         if e is None:
             return None
         return dict(e, u=min(1.0, max(0.0, (t - e["start"]) / max(1e-6, e["end"] - e["start"]))),
-                    her=self.her_drawn(t),
+                    figure=self.her_drawn(t),
                     call=self.v2.call_of(shot))
 
     def at(self, t: float):
@@ -1548,7 +1550,7 @@ def her_style(ent: dict | None) -> tuple:
     if ent.get("name") in FP.portrait_shots():
         # the film's own choice, and its own colour: `color=RED` on the EXECUTION hits
         return "half", FP.portrait_shots()[ent["name"]]
-    if ent.get("last_her"):
+    if ent.get("last_figure"):
         return "half", "blue"
     start = ent.get("start", 0.0)
     if ent.get("alert_own") == "err" and start >= FP.chapter_start("EXECUTION"):
@@ -3493,8 +3495,9 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
         pane_x0, pane_x1 = lx + 1, x1
     sp_bottom = min(top + 8, bottom - 4)      # border + 7 bands
 
-    # her pane, above the stdout band, when the column can hold a legible portrait - and only on the
-    # shots whose scene really asks for her (film_panels.shots()["her"])
+    # The figure's pane, above the stdout band, when the column can hold a legible portrait - 航小天's
+    # in the school variant, 大肥鱼's in the original - and only on the shots whose scene asks for it
+    # (`film_panels.shots()["figure"]` for the film; the school rows carry `mascot=` and the window wins)
     #
     # The band is given the height its content actually wants and her pane takes the rest. A log
     # that has finished printing is an empty rectangle, but a portrait handed three more rows is
@@ -3502,22 +3505,22 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
     # across her eyes.
     main_h = bottom - top + 1
     band_want = 16 if t < SIM_START else (12 if t < SIM_END else 15)
-    her = bool(eng is not None and ent is not None and ent["her"] and cols >= 96)
+    figure = bool(eng is not None and ent is not None and ent["figure"] and cols >= 96)
     # the school variant's right-hand column is fed by its own pane table rather than by the film's
     # shot names, so the column is at least as tall as the pane wants; `SP.school_entry` put the
     # requirement on the entry. A pane that cannot get its minimum hands the rows back to the ticker.
     if SP is not None and VAR[0] == "school" and ent is not None and ent.get("pane"):
         band_want = max(4, band_want - 2)
-    her_h = 0
+    fig_h = 0
     for need in (band_want, BAND_MIN_H):
-        her_h = min(HER_MAX_H, main_h - need)
-        if her_h >= HER_MIN_H:
+        fig_h = min(FIG_MAX_H, main_h - need)
+        if fig_h >= FIG_MIN_H:
             break
-    her = her and her_h >= HER_MIN_H
+    figure = figure and fig_h >= FIG_MIN_H
     # and the film's own window takes the pane whenever it is on screen - the clear 大肥鱼 the user
     # asked for is the only thing that outranks it (her_style == "half"), which is exactly the
     # priority the film itself uses on the page (dsh_her.py:237-260 replaces the pane's drawing).
-    room = bool(ent is not None and cols >= 96 and her_h >= HER_MIN_H)
+    room = bool(ent is not None and cols >= 96 and fig_h >= FIG_MIN_H)
     # who owns the left pane. `FP` is the film's answer and `SP` the school variant's: the film's
     # window is a list of spans that opens at 5.0 s and closes twice, the variant's is always on. The
     # two questions are asked through the same names on whichever module is active, so `draw_dsh` and
@@ -3531,8 +3534,8 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
     # pane is redrawn inside a smaller rect each time, with the walls it lost left behind as outlines.
     walls = FP.kv_inset(ent["u"]) if (ent is not None
                                       and ent["name"] in ("shot_trapped", "shot_red_trapped")) else 0
-    hx0, hy0, hx1, hy1 = chat_x0, top, chat_x1, top + her_h - 1
-    if walls and (her or chat):
+    hx0, hy0, hx1, hy1 = chat_x0, top, chat_x1, top + fig_h - 1
+    if walls and (figure or chat):
         for j in range(walls):
             s.box(chat_x0 + j * 6, top + j, chat_x1 - j * 6, hy1 - j, "", 0.15)
         hx0, hy0, hx1, hy1 = (chat_x0 + walls * 6, top + walls,
@@ -3549,8 +3552,8 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
         WINDOW[0] = "cursor"
         CLEAR.append((hx0, hy0, hx1, hy1))
         draw_cursor(s, hx0, hy0, hx1, hy1, t)
-    elif her:
-        WINDOW[0] = "her"
+    elif figure:
+        WINDOW[0] = "figure"
         draw_her(s, d, ent, hx0, hy0, hx1, hy1, t)
     else:
         WINDOW[0] = "-"
@@ -3568,7 +3571,7 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
             SP.school_window_fx(s, hx0, hy0, hx1, hy1, t)
         except Exception as exc:
             print(f"warning: the window's own layer failed ({exc})", file=sys.stderr, flush=True)
-    band_top = top + (her_h if (her or chat or cursor) else 0)
+    band_top = top + (fig_h if (figure or chat or cursor) else 0)
 
     # --------------------------------------------------------------- stdout band
     BAND_BOX[:] = [chat_x0, band_top, chat_x1, bottom]
@@ -4067,7 +4070,7 @@ def main() -> None:
     if args.shots:
         for e in Engine().table:
             alert = f"  alert={e['alert']}" if e["alert"] else ""
-            her = "  her" if e["her"] else ""
+            her = "  her" if e["figure"] else ""
             print(f"{e['index'] + 1:3d}  {e['start']:8.3f} {e['end']:8.3f}  {e['name']:<20}"
                   f"{'  '.join(e['ops'])}{alert}{her}")
         return

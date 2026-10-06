@@ -96,7 +96,8 @@ def main() -> None:
         md.append(f"- 歌词行：{r['lyric']!r}" + (f"；区间内 {len(lyr)} 行" if lyr else ""))
         if lyr:
             md.append(f"- 区间内歌词：{'; '.join(lyr)}")
-        md.append(f"- ops：{'/'.join(map(str, r['ops']))}；her={r['her']}")
+        md.append(f"- ops：{'/'.join(map(str, r['ops']))}"
+                  + ("；mascot=航小天可占左栏" if r.get("mascot") else ""))
         if what:
             md.append(f"- 画面：{what}")
         if text:
