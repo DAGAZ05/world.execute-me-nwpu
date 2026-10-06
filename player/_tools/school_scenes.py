@@ -962,15 +962,25 @@ def _landmark(name: str, s, x0: int, y0: int, x1: int, y1: int, u: float, title:
     return k, ox, oy
 
 
-def pane_landmark_dialogue(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
+def pane_landmark_dialogue(s, x0, y0, x1, y1, t, lt, dur, u, phase=None, max_phase=2) -> None:
     """`对话` - the machine hand and the human hand, not yet touching.
 
-    Three lyric lines use this one work and each asks for a different crop of it, which is why the
-    pane takes a `phase` rather than being three panes: `unite` shows both hands approaching, `deeply`
-    shows the star between them, and `only God` shows the star alone with the hands gone.
+    Three lyric lines use this one work and each asks for a different crop of it: `unite` shows both
+    hands approaching, `deeply` shows the star between them, and `only God` shows the star alone with
+    the hands gone.
+
+    **The third act lives on its own line now.** The three used to be phases of a single row, chosen by
+    how far into that row the clock was (`lt < 1.2`, `< 2.4`), so the whole work played across
+    54.74-60.57 - which put "只剩那颗星" under `If I can, if I can` at ~57 s, while `02b §3.3` pins it to
+    `If I'm the only God`. The user's ruling: *the third act belongs at 84.60*. So the row keeps acts 1
+    and 2 (`max_phase=1` from the schedule) and act 3 is its own row on its own lyric, selected by
+    `phase=2` - the same mechanism `pane_memory` uses to be six drawings: the schedule says which one,
+    rather than the drawing guessing from the clock.
     """
     import school_courses as _C
-    phase = 0 if lt < 1.2 else (1 if lt < 2.4 else 2)
+    if phase is None:
+        phase = 0 if lt < 1.2 else (1 if lt < 2.4 else 2)
+    phase = max(0, min(int(phase), int(max_phase)))
     titles = ("\u5bf9\u8bdd \u00b7 we can unite", "\u5bf9\u8bdd \u00b7 so deeply",
               "\u5bf9\u8bdd \u00b7 the only God")
     caps = ("\u4e24\u53ea\u624b\u8fd8\u6ca1\u78b0\u5230", "\u624b\u6307\u4e4b\u95f4\u90a3\u9897\u661f",

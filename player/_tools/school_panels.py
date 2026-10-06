@@ -310,8 +310,12 @@ LANDMARK_ROWS: list[dict] = [
          ops=["\u03c3\u2081", "BRAID"], mascot=False, args=dict(panel="braid")),
     dict(at=50.95, name="pane_exchange", lyric="Oh, we can travel",
          ops=["|x|^n", "SUPERELLIPSE"], mascot=False, args=dict(panel="hyper")),
+    # Acts 1 and 2 only (`max_phase=1`): `unite` shows the hands approaching and `deeply` the star
+    # between them. **Act 3 - the star alone - is its own row at 84.60**, on the lyric `02b §3.3` pins
+    # it to; it used to be the tail of this row, which put "只剩那颗星" under `If I can, if I can` at
+    # ~57 s. See `pane_landmark_dialogue`.
     dict(at=54.74, name="pane_landmark_dialogue", lyric="And we can unite",
-         ops=["UNITE", "\u5bf9\u8bdd"], mascot=False),
+         ops=["UNITE", "\u5bf9\u8bdd"], mascot=False, args=dict(max_phase=1)),
     dict(at=60.57, name="pane_motif_binary", lyric="Give you all the simulations",
          ops=["0101", "模拟"], mascot=False),
     # 62.00-70.00 was the cat, held for eight seconds across five different lines - including "I will run
@@ -340,7 +344,13 @@ LANDMARK_ROWS: list[dict] = [
     # the swap pane (a gender switch is the same three-bit flip as a current switch), the "if I can / feel
     # your vibrations" lines to the conditional device, and "finally be completion" to the Love class - the
     # expression completed. One pane per thought, instead of a hand and a crest held over all of it.
-    dict(at=84.60, name="pane_motif_stardiff", lyric="If I'm the only God",
+    # ...and the third act of the hands on the line `02b §3.3` pins it to: the star alone, hands gone.
+    # The user's ruling on the placement question the audit raised ("02b §3.3 把它钉在 84.60"):
+    # **84.60, on `If I'm the only God`**. `stardiff` follows on the next line, where a star as the
+    # *proof of an existence* is the reading it was always meant to carry.
+    dict(at=84.60, name="pane_landmark_dialogue", lyric="If I'm the only God",
+         ops=["\u5bf9\u8bdd", "the only God"], mascot=False, args=dict(phase=2)),
+    dict(at=86.21, name="pane_motif_stardiff", lyric="Then you're the proof of my existence",
          ops=["STAR", "衍射"], mascot=False),
     dict(at=88.34, name="pane_motif_quantize", lyric="Switch my gender",
          ops=["QUANTIZE", "3 bits"], mascot=False),
@@ -398,8 +408,20 @@ LANDMARK_ROWS: list[dict] = [
          ops=["STUDIED", "\u77e5\u8bc6\u56fe\u8c31"], mascot=False),
     # The curriculum, moved here from 00:13 where the audit found it: this is the answer to the college
     # the student just chose, so it belongs on the far side of the gate and not before it.
+    #
+    # **Split at 144.50** (batch 44): this row was the film's longest single drawing at 10.62 s, and the
+    # stretch from the end of the 数据结构 exchange (~144.4) to the first "Execution" hit was carrying no
+    # picture of its own. The tail now shows the algorithm one of these courses actually computes.
     dict(at=136.90, name="pane_curriculum", lyric="[after the gate]",
-         ops=["YEAR1", "YEAR2", "YEAR3", "YEAR4"], mascot=False, end=147.52),
+         ops=["YEAR1", "YEAR2", "YEAR3", "YEAR4"], mascot=False, end=144.50),
+    # `Dijkstra 裂纹` - a least-cost path through a material, as the last image before the twelve hits.
+    # The user's note: the motif existed but **no row used it** ("dijkstra 没被使用的话，需要在学院部分
+    # 合适的地方加上"). It belongs in the college section because shortest path is the fourth pillar of
+    # 算法设计 - the pane next to this one in the schedule teaches 分治/动规/贪心, and this is the graph
+    # algorithm that the other three build toward. It is a real Dijkstra now, not a greedy walk (batch 43),
+    # so what it draws is the thing its caption claims.
+    dict(at=144.50, name="pane_motif_dijkstra", lyric="[after the gate]",
+         ops=["\u7b97\u6cd5\u8bbe\u8ba1", "Dijkstra \u6700\u77ed\u8def"], mascot=False, end=147.52),
     dict(at=184.33, name="pane_love_class", lyric="I know the algebraic expression of lo-o-ove",
          ops=["LOVE", "CLASS", "UML"], mascot=False),
     # The last verse is two thoughts, not one: "the algebraic expression of love", and then "though you

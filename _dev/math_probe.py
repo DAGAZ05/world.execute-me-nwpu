@@ -334,6 +334,31 @@ def main() -> None:
     elif starred and "同一实体的重复出现" not in se:
         bad.append("pane_exec_se marks a repeated entity and the legend does not explain the mark")
 
+    # ---- 7. a quantitative drawing needs a readable scale ---------------------------------------
+    #
+    # `_ds_curves` plots three growth rates and used to carry axis *names* and no numbers at all; the
+    # whole content of that drawing is the ordering and the magnitude of the three, and magnitude needs a
+    # scale. `g_attention` shaded cells by probability and never said what a shade meant.
+    print(f"\nthe quantitative drawings carry a scale:")
+    s = T.Screen(w + 6, h + 4)
+    CO.draw_course("pane_exec_ds", s, x0, y0, x1, y1, 1.0, 1.0, 0.8, 1.0, run=3, total=16)
+    dstxt = _text(s, w + 6, h + 4)
+    xticks = dstxt.count("\u252c")
+    yticks = dstxt.count("\u251c")
+    named = "n = 1" in dstxt and "10^k" in dstxt
+    print(f"  pane_exec_ds       x ticks {xticks}, y decade marks {yticks}, axes named: {named}")
+    if xticks < 2 or yticks < 2 or not named:
+        bad.append("pane_exec_ds is a quantitative plot with no readable scale "
+                   f"(x ticks {xticks}, y marks {yticks}, named {named})")
+
+    s = T.Screen(w + 6, h + 4)
+    CO.draw_gauge("pane_gauge_attention", s, x0, y0, x1, y1, 0.0, 0.4, 0.44, 1.0, run=3)
+    atxt = _text(s, w + 6, h + 4)
+    legend = next((r for r in _rows(s, w + 6, h + 4) if "legend" in r), "")
+    print(f"  pane_gauge_attention shade legend: {'yes' if legend else 'NO'}")
+    if not legend or not all(g in legend for g in "\u2591\u2592\u2593"):
+        bad.append("pane_gauge_attention's heat map does not explain what its shades mean")
+
     print()
     if bad:
         print("FAIL:")

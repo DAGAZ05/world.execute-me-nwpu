@@ -1190,7 +1190,7 @@ def c_dl(k: _Kit, lt: float, dur: float) -> None:
         y_prev = k.by0 + ch - 1 - int(pts[c - 1] * (ch - 2))
         y_now = k.by0 + ch - 1 - int(pts[c] * (ch - 2))
         k.put(k.bx0 + c, y_now, "\u00b7" if abs(y_now - y_prev) < 2 else "\u2571", _mix(BLUE, 0.85))
-    k.put(k.bx0, k.by0, f"loss {pts[max(0, shown - 1)]:.3f}", _mix(BLUE, 0.9))
+    k.put(k.bx0, k.by0, f"L(W\u2081,W\u2082)  {pts[max(0, shown - 1)]:.3f}", _mix(BLUE, 0.9))
     # ---- the graph: ops left to right, forward on top, backward underneath
     ytop = k.by0 + ch + 1
     if ytop + 4 > k.by1:
@@ -1441,12 +1441,19 @@ def _ds_curves(k: _Kit, u: float) -> None:
     """
     k.section(k.by0, "\u590d\u6742\u5ea6", 0.30)
     x0, x1 = k.bx0 + 2, k.bx1
-    y0, y1 = k.by0 + 3, k.by1 - 4
+    n = x1 - x0 + 1
+    # **The plot stops seven rows short of the pane's bottom, and the scale note sits above it.**
+    # `draw_course` draws the course's vocabulary footer *after* the drawing and across the full width,
+    # so anything the drawing leaves in the last few rows can be painted over. The first version of
+    # these captions was at `by1 - 4`/`by1 - 2` and the batch-44 probe found the x-axis one missing from
+    # the rendered frame while the y-axis one survived - one row apart. Keeping the whole scale above
+    # the plot costs four rows of curve height and removes the coupling entirely.
+    k.put(k.bx0, k.by0 + 1, f"n = 1\u2026{n}   \u7eb5\u8f74 10^k \u6b21\u64cd\u4f5c", _ui(0.5))
+    y0, y1 = k.by0 + 3, k.by1 - 7
     if x1 - x0 < 5 or y1 - y0 < 4:
         return
     k.vline(x0 - 1, y0, y1, BOX_V, _ui(0.35))
     k.hline(x0 - 1, y1, x1, BOX_H, _ui(0.35))
-    n = x1 - x0 + 1
     grown = max(2, int(n * min(1.0, 0.20 + 0.80 * u)))
     span = y1 - y0
     denom = math.log2(1.0 + float((n + 1) ** 2))
@@ -1461,8 +1468,26 @@ def _ds_curves(k: _Kit, u: float) -> None:
             k.put(x0 + c, y, "\u00b7", _mix(col, 0.9))
             last = y
         k.put(min(x0 + grown + 1, k.bx1 - _cells(lab)), max(y0, last - 1), lab, _mix(col, 0.95))
-    k.put(k.bx0, k.by1 - 2, "\u6a2a\u8f74 = \u5143\u7d20\u4e2a\u6570 n", _ui(0.5))
-    k.put(k.bx0, k.by1 - 1, "\u7eb5\u8f74 = \u64cd\u4f5c\u6b21\u6570\uff08\u53d6\u5bf9\u6570\uff09", _ui(0.5))
+    # ---- and the axes get **numbers**. The captions above name the two axes and used to stop there: a
+    # plot whose axes say "元素个数 n" and "操作次数（取对数）" and carry no numbers cannot be read, and
+    # the whole content of this drawing is the *ordering and the magnitude* of three growth rates.
+    # Magnitude needs a scale. (Batch 44 - the audit's "补真实坐标轴数值刻度"; this is the pane in the
+    # set whose subject is quantitative rather than structural.)
+    for c in range(0, n, max(1, n // 4)):
+        tick = x0 + c
+        if tick > x1:
+            break
+        k.put(tick, y1 + 1, "\u252c", _ui(0.4))
+        k.put(tick, y1 + 2, str(c + 1)[:2], _ui(0.45))
+    # the vertical scale is `log2(1 + ops)`, so a decade sits at `log2(1 + 10**kk)`
+    for kk in range(4):
+        frac = math.log2(1.0 + 10.0 ** kk) / denom
+        if frac > 1.0:
+            break
+        yy = y1 - int(span * frac)
+        k.put(x0 - 1, yy, "\u251c", _ui(0.45))
+        if x0 - 2 >= k.bx0:
+            k.put(x0 - 2, yy, str(kk), _ui(0.5))
 
 
 def _ds_shapes(k: _Kit, top: int, u: float) -> None:
@@ -1875,6 +1900,14 @@ def g_attention(k: _Kit, lt: float, dur: float) -> None:
             k.put(x0 + c, y, SHADE[v],
                   _mix(AMBER if c == r else BLUE, 0.3 + 0.7 * min(1.0, prob * 2.2)))
     k.put(k.bx0, k.by0, f"attention  head {head + 1}", _ui(0.8))
+    # **A heat map needs a scale.** The cells are shaded by probability and nothing on the pane said what
+    # a shade means, so the brightest cell and the dimmest were only "more" and "less" - the reader could
+    # not tell a 55 % weight from a 12 % one, which is the only question a heat map is asked. Each glyph
+    # now carries the band it stands for. (Batch 44, the audit's "色阶 legend".)
+    if k.by1 - 2 > k.by0:
+        k.put(k.bx0, k.by1 - 2,
+              f"legend  {SHADE[1]}\u2265.10 {SHADE[2]}\u2265.25 {SHADE[3]}\u2265.55  "
+              f"\uff08\u884c\u5f52\u4e00\uff09", _ui(0.45))
     # ...on `by1 - 1`, not `by1`: the shared gauge cursor (`_gauge_live`) draws its rule and its moving
     # triangle across the whole of the bottom row, so the readout printed there was erased every frame.
     # The batch-37 probe caught it - the line was in the code and never on the screen.
