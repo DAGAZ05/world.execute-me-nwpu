@@ -3740,7 +3740,9 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
     else:
         ops_bottom = bottom
     GEOM.update(avail=avail, pane=pane, pane_h=pane_h, n_tick=n_tick, tick_rows=share,
-                ops_top=ops_top, ops_bottom=ops_bottom, h=ops_bottom - ops_top + 1)
+                ops_top=ops_top, ops_bottom=ops_bottom, h=ops_bottom - ops_top + 1,
+                pane_x0=pane_x0, pane_x1=pane_x1, pane_y0=sp_bottom + 1,
+                pane_y1=sp_bottom + pane_h if pane_h else sp_bottom)
     draw_ops(s, pane_x0, ops_top, pane_x1, ops_bottom, t, tick, ent["alert"] if ent else None,
              machine)
 

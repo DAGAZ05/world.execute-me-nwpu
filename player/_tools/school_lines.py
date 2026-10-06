@@ -30,7 +30,7 @@ ACT_ONE: list[tuple[float, str, str, str]] = [
     (0.03, "Switch on the power line", "meta", "\u7528\u65f6 1.2 \u79d2|00:01"),
     (1.33, "Remember to put on protection", "user", "\u90a3\u6211\u5f97\u5148\u51c6\u5907\u4ec0\u4e48\uff1f"),
     (1.33, "Remember to put on protection", "ai", "\u5148\u505a\u597d\u9632\u62a4 \u2014\u2014 \u9759\u7535\u624b\u73af\u3001\u62a4\u76ee\u955c\uff0c\u4e00\u6837\u90fd\u4e0d\u80fd\u7701\u3002"),
-    (1.33, "Remember to put on protection", "sub", "\u6821\u8bad\u662f\u516c\u8bda\u52c7\u6bc5\uff0c\u4f5c\u98ce\u662f\u4e09\u5b9e\u4e00\u65b0\u3002\u4e24\u53e5\u8bdd\u4f60\u4f1a\u5728\u6bcf\u4e00\u9762\u5899\u4e0a\u770b\u5230\u3002"),
+    (1.33, "Remember to put on protection", "sub", "\u6821\u8bad\u662f\u516c\u8bda\u52c7\u6bc5\uff0c\u6821\u98ce\u662f\u4e09\u5b9e\u4e00\u65b0\u3002\u4e24\u53e5\u8bdd\u4f60\u4f1a\u5728\u6bcf\u4e00\u9762\u5899\u4e0a\u770b\u5230\u3002"),
     (1.33, "Remember to put on protection", "meta", "\u7528\u65f6 1.9 \u79d2|00:02"),
     (3.58, "Lay down your pieces", "user", "\u521a\u624d\u4eae\u8d77\u6765\u7684\u4e1c\u897f\u2026\u2026\u662f\u6821\u5fbd\u5417\uff1f"),
     (3.58, "Lay down your pieces", "ai", "\u662f\u30021938 \u5e74\u5230\u73b0\u5728\uff0c\u5b83\u6362\u8fc7\u4e24\u6b21\u3002"),
@@ -157,7 +157,7 @@ ACT_ONE: list[tuple[float, str, str, str]] = [
     # ---- P5 互换: the school's own switches
     (88.34, "Switch my gender", "user", "\u90a3\u5b66\u6821\u5462\uff0c\u6539\u8fc7\u540d\u5417\uff1f"),
     (88.34, "Switch my gender", "ai", "\u6539\u8fc7\u4e24\u6b21\u30021938 \u56fd\u7acb\u897f\u5317\u5de5\u5b66\u9662\uff0c1950 \u897f\u5317\u5de5\u5b66\u9662\uff0c1957 \u897f\u5317\u5de5\u4e1a\u5927\u5b66\u3002"),
-    (88.34, "Switch my gender", "sub", "\u540c\u4e00\u6761\u5b57\u5f62\uff0c\u6539\u4e86\u4e09\u6b21\u3002"),
+    (88.34, "Switch my gender", "sub", "\u540c\u4e00\u6761\u5b57\u5f62\uff0c\u6539\u4e86\u4e24\u6b21\u3002"),
     (88.34, "Switch my gender", "meta", "\u7528\u65f6 2.8 \u79d2|01:28"),
     (91.44, "And then do whatever", "user", "\u90a3\u6211\u4eec\u5462\uff1f\u6211\u4eec\u80fd\u81ea\u5df1\u51b3\u5b9a\u4ec0\u4e48\uff1f"),
     (91.44, "And then do whatever", "ai", "\u62a5\u540d\u3001\u5165\u793e\u56e2\u3001\u8ddf\u8c01\u4e00\u8d77\u71ac\u591c\u3002"),

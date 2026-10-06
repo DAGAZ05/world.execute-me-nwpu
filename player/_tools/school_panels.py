@@ -114,9 +114,16 @@ EXEC_PANES = [
 
 GAUGES = list(_CO.GAUGE_PANES)
 
-# the three countdown numbers: each is a lyric line of its own, and each carries two instruments
-GAUGE_SLOTS = [(148.79, 149.66, "ein, dos"), (149.66, 150.45, "trios, ne"),
-               (150.45, 151.51, "fem, liu")]
+# the three countdown numbers: each is a lyric line of its own, and each carries two instruments.
+#
+# These three windows were 148.79 / 149.66 / 150.45 - exactly **10.00 s early** - which put the six
+# instruments over the "Execution" hits and the three numbers (`Ein, dos` 159.20, `Trios, ne` 159.79,
+# `Fem, liu` 160.66 in `input/lyrics.lrc`) on top of three *course* panes. `02b_图像对位与可视化表达.md`
+# §4.2 pins them at 02:38.79-02:41.51, i.e. these numbers. Batch 31's timing audit found it by lining the
+# schedule up with the lyric timeline (`_dev/timeline_table.py`); the old `EXEC_AT` below still holds the
+# twelve hit times, and it is kept as the record of where the hits are.
+GAUGE_SLOTS = [(158.79, 159.66, "ein, dos"), (159.66, 160.45, "trios, ne"),
+               (160.45, 161.51, "fem, liu")]
 EXEC_FROM, EXEC_TO = 147.52, 162.23      # the first "Execution" hit to the end of the reprise
 
 
@@ -151,9 +158,12 @@ def _exec_rows() -> list[dict]:
         for side in (0, 1):
             j = g * 2 + side
             pane = GAUGES[j]
+            # the ticker reads the *course's* name, like every other row: `ops=[pane]` put the internal
+            # identifier `pane_gauge_burndown` on screen for these six rows (found by the batch-31 audit)
+            course = _CO.COURSES.get(pane, (pane,))[0]
             gauge_rows.append(dict(at=at + side * half, end=at + (side + 1) * half, name=pane,
-                                   lyric=lyric, course=_CO.COURSES.get(pane, (pane,))[0],
-                                   ops=[pane], her=False, exec_n=0, gauge=g + 1))
+                                   lyric=lyric, course=course,
+                                   ops=[course], her=False, exec_n=0, gauge=g + 1))
 
     # 2. the free intervals the instruments left, and the courses spread evenly across them
     free = []
@@ -220,14 +230,14 @@ SHOT_ROWS: list[dict] = [
     # moved to `pane_curriculum`'s new row after the gate, where it belongs (it is the answer to "so
     # what am I in for"), and the gap is now the bronze vessel's own character art and the crest.
     dict(at=13.20, name="pane_landmark_hezun", lyric="[gap]",
-         ops=["\u4f55\u5c0a", "\u5b57\u7b26\u753b", "1980"], her=False),
+         ops=["\u4f55\u5c0a", "\u5b57\u7b26\u753b", "1982"], her=False),
     # The instrumental gap (13.2-29.3) has no words, so the two campus marks alternate over it rather than
     # one of them holding for sixteen seconds: the vessel, then the crest, then back. Nothing is asserted
     # by either, which is what a gap screen is for.
     dict(at=17.00, name="pane_landmark_crest", lyric="[gap]",
-         ops=["\u6821\u5fbe", "1938"], her=False),
+         ops=["\u6821\u5fbd", "1938"], her=False),
     dict(at=21.00, name="pane_landmark_crest", lyric="[gap]",
-         ops=["\u6821\u5fbd", "1938", "\u516c\u8bda\u52c7\u6bc1"], her=False),
+         ops=["\u6821\u5fbd", "1938", "\u516c\u8bda\u52c7\u6bc5"], her=False),
     dict(at=25.14, name="pane_motif_phyllotaxis", lyric="[gap]",
          ops=["叶序", "GROW"], her=False),
     dict(at=29.28, name="pane_point_set", lyric="If I'm a set of point",

@@ -1688,7 +1688,7 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     #     the second one (01:24.70) is gone - "校门、校徽的大图出现了多次，仅保留第一次".
     (0.60, 3.30, flash, dict(name="gate", zoom=0.20, fill=1.45, caption="\u897f\u5317\u5de5\u4e1a\u5927\u5b66 \u00b7 1938")),
     # --- the crest, big, right after (its own pane is a watermark; this is the hit)
-    (3.60, 5.10, flash, dict(name="crest", caption="\u516c\u8bda\u52c7\u6bc1")),
+    (3.60, 5.10, flash, dict(name="crest", caption="\u516c\u8bda\u52c7\u6bc5")),
     # --- "Fill in my data parameters": 何尊, and therefore the earliest 中国. Drawn from the vector the
     # user supplied, at frame size, instead of the character art made from the scan - "何尊的字符画效果
     # 较差，我在参考及想法中准备了一张何尊svg，请使用它". The pane at 13.20 is the same drawing at pane size.
@@ -1752,7 +1752,7 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     #     from (see `emerge`). 176.30 is inside `shot_collapse`, which draws full-bleed in this variant
     #     too. This one is kept - the user asked for it in batch 20 - and kept *small*, so it is a mark
     #     rather than the emblem's second plate.
-    (176.30, 178.20, emerge, dict(name="crest", caption="\u516c\u8bda\u52c7\u6bc1")),
+    (176.30, 178.20, emerge, dict(name="crest", caption="\u516c\u8bda\u52c7\u6bc5")),
     (203.00, 206.20, flash, dict(name="sword", cols_n=80, rows_n=26,
                                  caption="\u5728\u94f8\u5251\u5417\uff1f")),
 ]

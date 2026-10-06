@@ -924,7 +924,8 @@ def pane_landmark_hezun(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     if k.bw > 46 and k.by0 + 1 <= k.by1:
         import school_courses as _C
         k.put(k.bx0 + 2, k.by0 + 1, "origin = \"\u5b85\u5179\u4e2d\u56fd\"", _mix(_C.AMBER, 0.85))
-        k.put(k.bx0 + 2, k.by0 + 2, "// \u4f55\u5c0a\u94ed\u6587\uff0c\u516c\u5143\u524d 1038", _ui(0.45))
+        k.put(k.bx0 + 2, k.by0 + 2, "// \u4f55\u5c0a\u94ed\u6587\uff0c\u7ea6\u516c\u5143\u524d 11 \u4e16\u7eaa"
+                                     "\uff08\u5468\u6210\u738b\u4e94\u5e74\uff09", _ui(0.45))
 
 
 def _kit(s, x0: int, y0: int, x1: int, y1: int, run: int = 0, title: str = ""):
@@ -960,7 +961,9 @@ def pane_landmark_cat(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     except Exception:
         art = ""
     lines = [ln for ln in art.splitlines() if ln.strip()]
-    k = _kit(s, x0, y0, x1, y1, max(3, (y1 - y0) // 2))
+    # no `run`: this pane is not one of the numbered course hits, and passing the band height here (as
+    # the first version did) put a bogus `EXEC 16/00` in the header rule - batch 31's audit caught it
+    k = _kit(s, x0, y0, x1, y1)
     if k is None:
         return
     k.section(k.by0, "\u732b\u5b66\u957f", 0.30)
@@ -979,7 +982,7 @@ def pane_landmark_cat(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         k.put(k.bx0, y, "\u732b\u5728\u4e0d\u5728\u91cc\u9762\uff0c\u8981\u6253\u5f00\u624d\u77e5\u9053",
               _mix(_C.GREEN, 0.8))
         k.put(k.bx0, min(k.by1, y + 1),
-              "|\u751f\u27e9 + |\u6b7b\u27e9) / \u221a2 \u2014\u2014 \u53e0\u52a0\u6001\u4e0d\u662f\u4e0d\u77e5\u9053\uff0c"
+              "(|\u751f\u27e9 + |\u6b7b\u27e9) / \u221a2 \u2014\u2014 \u53e0\u52a0\u6001\u4e0d\u662f\u4e0d\u77e5\u9053\uff0c"
               "\u662f\u4e24\u4e2a\u90fd\u5728", _ui(0.5))
 
 
@@ -1274,7 +1277,7 @@ def _ex_clock(k, t: float, u: float) -> None:
 def _ex_braid(k, t: float, u: float) -> None:
     """The braid group: σ₁ is two strands crossing, and its inverse undoes it."""
     import school_courses as _C
-    k.section(k.by0, "\u8fa9\u7fa4 \u03c3\u2081 \u00b7 \u53ef\u9006", 0.25)
+    k.section(k.by0, "\u8fab\u7fa4 \u03c3\u2081 \u00b7 \u53ef\u9006", 0.25)
     n = 3
     w = max(6, k.bw - 4)
     rows = max(6, min(18, k.by1 - k.by0 - 3))
