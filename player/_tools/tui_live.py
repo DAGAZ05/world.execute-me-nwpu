@@ -2748,7 +2748,12 @@ def draw_dsh(s: Screen, x0: int, y0: int, x1: int, y1: int, t: float, window=Non
     ar = (12 if school else 7) if tall else (5 if (y1 - y0) >= 14 else 3)
     av_max = 12 if school else (AVATAR_MAX_W + 1) // 2
     ar = min(ar, av_max, max(3, (y1 - y0) // 2 - 2))
-    aw = min(2 * av_max, max(6, inner // 6), 2 * ar)
+    # `aw = 2 * ar` and nothing else: the block is square *in pixels* because a cell is twice as tall
+    # as it is wide. The `inner // 6` cap that used to be here gave the school variant 14x7 on a
+    # 197-wide window - half the 24x12 the batch-19 record measured as the size where 航小天's face is
+    # recognisable, and the user's note in batch 32 is exactly that ("头像还是有点小了（有点模糊）").
+    # The name and state line need room, so that is the one other limit.
+    aw = min(2 * ar, max(6, inner - 30))
     ar = max(3, aw // 2)
     aw = 2 * ar
     if SP is not None and VAR[0] == "school":

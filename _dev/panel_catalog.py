@@ -114,20 +114,15 @@ def main() -> None:
     for r in rows:
         if r["name"]:
             times.setdefault(r["name"], []).append(f"{r['at']:.2f}")
-    bands: dict[str, list[str]] = {}
-    for r in rows:
-        m = [x for x in (SC.MOTIF_IN.get(r["name"]), SC.MOTIF_ALSO.get(r["name"])) if x]
-        if m:
-            bands[r["name"]] = m
     md = ["# panel 清单：日程 → 代码自己的说法 → 屏上真的写了什么 → 核验", "",
           "机器生成（`python _dev/panel_catalog.py`）。第四列是**渲染后从缓冲区读回**的文字（95×33，",
           "也就是 197×52 下面板的真实尺寸），所以它和第五列的核验是「声称 vs 实际」的两侧。", "",
-          "| panel | 出现（秒） | 同框母题带 | 代码自己的说法（docstring 首句） | 屏上文字（渲染读回） | 核验 |",
-          "| --- | --- | --- | --- | --- | --- |"]
+          "| panel | 出现（秒） | 代码自己的说法（docstring 首句） | 屏上文字（渲染读回） | 核验 |",
+          "| --- | --- | --- | --- | --- |"]
     for pane in sorted(times):
         c = claim_for(pane, claim)
-        md.append("| `{}` | {} | {} | {} | {} | {} |".format(
-            pane, "、".join(times[pane]), "、".join(bands.get(pane, [])) or "—",
+        md.append("| `{}` | {} | {} | {} | {} |".format(
+            pane, "、".join(times[pane]),
             c.replace("|", "\\|")[:220] or "—",
             text_of(pane, float(times[pane][0]) + 0.35).replace("|", "\\|")[:300] or "—",
             verdict.get(pane, "").replace("|", "\\|") or "—"))

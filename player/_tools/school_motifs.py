@@ -159,12 +159,12 @@ def byrne(k, t: float) -> None:
     clock while the pane's own reveal runs.
     """
     k.section(k.by0, "Byrne \u00b7 \u51e0\u4f55\u539f\u672c I.47", 0.28)
-    # the plate is placed from the top of the band, not centred in it: its triangle is (0,0), (3s,0),
-    # (0,4s) with y downward, so a centred origin drops 4s below the middle and the hypotenuse square
-    # runs off the bottom of the pane - which is what the first version did
-    s = max(2, min(7, (k.by1 - k.by0) // 5, k.bw // 12))
-    cx = k.bx0 + min(30, k.bw // 2)
-    cy = k.by0 + 2 + s
+    # The plate has to *fit*: the triangle is (0,0), (3s,0), (0,4s) and the hypotenuse square reaches
+    # 7s to the right and 7s down, so `s` is what the height allows - `(by1-by0)//5` was a third too
+    # generous and the plate and its labels ran off the band (batch 31's audit measured it).
+    s = max(2, min(6, (k.by1 - k.by0 - 4) // 7, k.bw // 16))
+    cx = k.bx0 + min(26, k.bw // 2)
+    cy = k.by0 + 3 + s
     a = 0.42 + 0.10 * math.sin(t * 0.8)          # the tilt, breathing
     ca, sa = math.cos(a), math.sin(a)
 
@@ -173,24 +173,39 @@ def byrne(k, t: float) -> None:
         y = int(cy + dx * sa * 0.5 + dy * ca)
         k.put(x, y, ch, lv)
 
-    # the triangle: 3-4-5, the one everyone knows, so the squares can be judged by eye
-    p = ((0, 0), (3 * s, 0), (0, 4 * s))
+    p = ((0, 0), (3 * s, 0), (0, 4 * s))          # the 3-4-5 right triangle
 
     def seg(p0, p1, ch, lv):
         steps = max(1, int(math.hypot(p1[0] - p0[0], p1[1] - p0[1])))
         for i in range(steps + 1):
             f = i / steps
             put(p0[0] + (p1[0] - p0[0]) * f, p0[1] + (p1[1] - p0[1]) * f, ch, lv)
+
+    def square_on(p0, p1, sign, hatch, lv):
+        """The square on the side `p0`-`p1`, *closed*: four edges, the outward quarter turn.
+
+        `sign` picks the outward side (the plate's own orientation decides which that is, so it is given
+        rather than guessed). The first version drew one interior line per leg square and no outline,
+        so the thing advertised as "the squares on the sides" was not on screen at all.
+        """
+        nx, ny = sign * -(p1[1] - p0[1]), sign * (p1[0] - p0[0])
+        c0, c1 = (p0[0] + nx, p0[1] + ny), (p1[0] + nx, p1[1] + ny)
+        for q0, q1 in ((p0, p1), (p0, c0), (p1, c1), (c0, c1)):
+            seg(q0, q1, "\u2500", lv)
+        for j in range(1, 3):                     # one dotted diagonal, Byrne's hatching
+            f = j / 3
+            seg((p0[0] + nx * f, p0[1] + ny * f), (p1[0] + nx * f, p1[1] + ny * f),
+                "\u00b7", hatch)
+
+    square_on(p[0], p[1], -1, _mix(_C.GREEN, 0.35), _mix(_C.GREEN, 0.75))     # the leg on the x axis
+    square_on(p[0], p[2], +1, _mix(_C.BLUE, 0.35), _mix(_C.BLUE, 0.75))      # the leg on the y axis
+    square_on(p[1], p[2], -1, _mix(_C.AMBER, 0.35), _mix(_C.AMBER, 0.85))    # the hypotenuse
     for i in range(3):
         seg(p[i], p[(i + 1) % 3], "\u2500", _mix(_C.INK, 0.9))
-    # the square on the hypotenuse, hatched, and the two smaller ones on the legs
-    seg((0, 0), (-3 * s, 4 * s), "\u2500", _mix(_C.INK, 0.9))
-    for j in range(1, 4):
-        seg((-(j * 3 * s / 4), j * s), (3 * s - j * 3 * s / 4, j * s), "\u00b7", _mix(_C.BLUE, 0.5))
-    for j in range(1, 3):
-        seg((j * s, 0), (j * s, -3 * s), "\u00b7", _mix(_C.GREEN, 0.45))
-    k.put(cx + 2 * s, cy + 5 * s, "a\u00b2 + b\u00b2 = c\u00b2", _mix(_C.AMBER, 0.9))
-    k.put(cx - 4 * s, cy - 5 * s, "3 \u00b7 4 \u00b7 5", _ui(0.55))
+    # the two labels are placed in the band, not at screen offsets from a tilted origin - that is how
+    # they ended up outside the pane and clipped to "\u00b7\u00b7\u00b7" on a short window
+    k.put(k.bx0 + 1, k.by1 - 1, "a\u00b2 + b\u00b2 = c\u00b2    3 \u00b7 4 \u00b7 5",
+          _mix(_C.AMBER, 0.9))
 
 
 def quantize(k, t: float) -> None:
@@ -207,17 +222,22 @@ def quantize(k, t: float) -> None:
         return
     n = k.bw - 6
     k.put(k.bx0, y - 2, f"2\u2075\u00b3 = {2 ** 53}", _mix(_C.AMBER, 0.9))
+    # The axis is **compressed and says so**. A linear number line cannot show this at all: the gap is 2
+    # right after 2^53 and the next doubling is 2^53 further along, so 90 cells of linear axis show one
+    # octave and then nothing. What is drawn instead is the *spacing itself*, one segment per octave.
+    # The first version instead doubled the gap twelve times along a linear axis and labelled it as the
+    # number line (batch 31's audit: "not the double model"), which claimed something false about both.
+    seg = max(1, min(12, n // 7))
     for i in range(n):
         f = i / max(1, n - 1)
-        # before 2^53 the integers are one apart; after it the spacing doubles every octave, so the
-        # dots thin out - and the frame is the number line
-        gap = 1.0 if f < 0.35 else 2.0 ** int((f - 0.35) * 12)
+        gap = 2.0 ** min(12, int(f * seg))
         x = k.bx0 + 2 + i
         on = (i % max(1, int(gap))) == 0
         k.put(x, y, "\u2022" if on else "\u00b7", _mix(_C.BLUE if on else _C.DIM, 0.85 if on else 0.3))
-    k.put(k.bx0 + 2, y + 2, "1 \u00b7 2 \u00b7 3 \u2026" if k.bw > 40 else "1 2 3 \u2026", _ui(0.5))
-    k.put(k.bx0 + int(n * 0.42), y + 2, "\u2191 \u6b64\u540e\u6bcf\u9694\u4e00\u4e2a\u6570\u90fd\u4e0d\u80fd"
-                                        "\u7cbe\u786e\u8868\u793a", _mix(_C.RED, 0.8))
+    k.put(k.bx0 + 2, y + 2, "\u95f4\u8ddd 1 \u00b7 2 \u00b7 4 \u00b7 8 \u2026\uff08\u6a2a\u8f74\u5df2\u538b\u7f29\uff09",
+          _ui(0.5))
+    k.put(k.bx0 + int(n * 0.42), y + 2, "\u6bcf\u7ffb\u4e00\u500d\uff0c\u80fd\u7cbe\u786e\u8868\u793a\u7684\u6570"
+                                        "\u5c31\u7a00\u4e00\u500d", _mix(_C.RED, 0.8))
     # ...and a cursor walks the number line. This drawing had **no clock at all** while it was a band
     # under `pane_landmark_sword`, which was fine there - the host pane moved - and is not fine now that
     # `pane_motif_<name>` can be a pane of its own ("禁止重复" needed more drawings, so the motifs became
@@ -264,17 +284,24 @@ def epicycles(k, t: float) -> None:
     harmonic, which is the parallel animation the pane inside a pane can show at its clearest.
     """
     k.section(k.by0, "\u5085\u91cc\u53f6\u672c\u8f6e \u00b7 \u5fc3\u5f62\u7684\u5206\u89e3", 0.28)
-    # separate x and y scales: a terminal cell is about twice as tall as it is wide, so a curve drawn
-    # with one radius per axis comes out as a horizontal smear - and the first version's was 6 cells
-    # across in a 100-cell pane because it used the *height* for both
-    sx = max(3, min(22, k.bw // 8))
-    sy = max(2, min(9, (k.bh - 3) // 2))
+    # Separate x and y scales, in the ratio a cell actually has: a terminal cell is ~2x taller than it
+    # is wide, so `sy = sx / 2` draws the circles round *on screen* and the heart un-squashed. The first
+    # version used 11 and 4 (a 2.75:1 stretch) and took its width from `bw // 8` regardless of height.
+    sx = max(4, min(20, k.bw // 8, k.bh - 4))
+    sy = max(2.0, sx / 2.0)
     cx = k.bx0 + sx + 4
     cy = (k.by0 + k.by1) // 2 + 1
     # the heart, as a parametric sum of rotations: c_n ~ 1/|n| with a phase, which is what makes the
     # little circles worth drawing instead of a formula
-    terms = [(1.0, 1, 0.0), (0.55, -2, 0.9), (0.32, 3, 1.7), (0.20, -4, 0.4), (0.12, 5, 2.2)]
-    n_pts = 40
+    # The heart's **own** Fourier coefficients, not five numbers that look like a heart. `z(t) = x + iy`
+    # with the standard heart (`x = 16 sin³t`, `y = 13cos t - 5cos2t - 2cos3t - cos4t`) integrated over
+    # one period gives exactly these terms; the previous list (1.0/0.55/0.32/0.20/0.12 with made-up
+    # phases) drew a self-intersecting tangle while the title said "心形的分解" (batch 31's audit measured
+    # the crossing and the missing cusp). Scale = 1/23, the sum of |c_n|, so the curve spans ±1.
+    terms = [(0.5435, 1, -1.5708), (0.1087, 2, 1.5708), (0.1304, 3, 1.5708),
+             (0.0217, -1, -1.5708), (0.1087, -2, 1.5708), (0.0435, -3, -1.5708),
+             (0.0217, 4, 1.5708), (0.0217, -4, 1.5708)]
+    n_pts = 48
     path = []
     for i in range(n_pts + 1):
         th = 2 * math.pi * i / n_pts
@@ -349,15 +376,18 @@ def hearts9(k, t: float) -> None:
 
 
 def fork_bomb(k, t: float) -> None:
-    """The fork bomb, drawn as the H-tree it actually is: one process, then two, then 4096.
+    """The fork bomb, drawn as the doubling it actually is: one process, then two, then 4096.
 
-    `想法.md` asks for `:(){ :|:& };:` growing into a three-dimensional H-tree under 处决, and the
-    doubling is the whole drawing - what makes a fork bomb a fork bomb is not the code, it is that the
-    ninth generation is five hundred times the eighth. The count is printed, and the counter is the
-    thing that stops the frame: it is drawn to 4096 because 4096 processes is the joke.
+    `想法.md` asks for `:(){ :|:& };:` growing under 处决, and the doubling is the whole drawing - what
+    makes a fork bomb a fork bomb is that the count explodes. 4096 = 2\u00b9\u00b2, so the drawing needs
+    **twelve** generations and one row each; the first version spent two rows per generation and stopped
+    at six, so its own counter could never pass 64 while the title promised 4096 (batch 31's audit:
+    "never reaches the generation its title names"). Past ~32 children a row can no longer hold one dot
+    per process, so those generations are drawn as a bar whose length is the generation - the count on
+    the right is what carries the number, and it *is* the number.
     """
     k.section(k.by0, "fork \u70b8\u5f39 \u00b7 1 \u2192 4096", 0.28)
-    depth = max(1, min(6, (k.by1 - k.by0 - 2) // 2))
+    depth = max(1, min(12, k.by1 - k.by0 - 1))
     # the generation is the pane's own progress, not `t % 4`: the course panes live for 0.83 s and the
     # absolute clock put a different generation in each of them for no reason at all.
     #
@@ -371,20 +401,22 @@ def fork_bomb(k, t: float) -> None:
     x0, y0 = k.bx0, k.by0 + 1
     for g in range(gen + 1):
         n = 2 ** g
-        y = y0 + g * 2
-        step = max(1, w // (n * 2))
-        for i in range(n):
-            x = x0 + 2 + i * step * 2
-            if x > k.bx1 - 2:
-                break
-            k.put(x, y, "\u25cf", _mix(_C.GREEN if g == gen else _C.BLUE, 0.85))
-            if g:
-                for xx in range(x - step, x):        # the fork edge, back to the parent
-                    k.put(xx, y - 1, BOX_H, _ui(0.2))
-                k.put(x - step // 2, y - 1, "\u252c", _ui(0.3))
+        y = y0 + g
+        if y > k.by1 - 1:
+            break
+        if n * 2 <= w:                               # one dot per process still fits
+            step = max(1, w // (n * 2))
+            for i in range(n):
+                x = x0 + 2 + i * step * 2
+                if x > k.bx1 - 20:
+                    break
+                k.put(x, y, "\u25cf", _mix(_C.GREEN if g == gen else _C.BLUE, 0.85))
+        else:                                        # ...it does not: the generation as a bar
+            fill = max(1, int((k.bw - 24) * g / depth))
+            k.put(x0 + 2, y, "\u2588" * fill, _mix(_C.GREEN if g == gen else _C.BLUE, 0.7))
     k.put(k.bx1 - 18, k.by0 + 1, f"\u4ee3 {gen}", _mix(_C.AMBER, 0.9))
     k.put(k.bx1 - 18, k.by0 + 2, f"{2 ** gen:5d} \u8fdb\u7a0b", _mix(_C.RED, 0.9))
-    k.put(k.bx0, k.by1, ":(){ :|:& };:  \u2014\u2014 \u4e5d\u4ee3\u4e4b\u540e\u5c31\u662f 4096", _ui(0.5))
+    k.put(k.bx0, k.by1, ":(){ :|:& };:  \u2014\u2014 \u5341\u4e8c\u4ee3\u5c31\u662f 4096", _ui(0.5))
 
 
 def sine(k, t: float) -> None:
@@ -442,12 +474,17 @@ def chladni(k, t: float) -> None:
         return
     m = int(t * 0.35) % 4 + 1
     n = int(t * 0.22) % 5 + 2
+    # The plate is drawn on a **square** sample grid. Normalising x by the width and y by the height
+    # (which is what the first version did) stretches the figure to the band's own aspect - 95 cells wide
+    # by 11 rows is 95x22 px, so every figure came out four times wider than it was tall. A cell is 2 px
+    # tall, so a square of side `S` pixels is `S` cells wide and `S/2` rows tall.
+    S = max(w, 2 * h)
     for j in range(h):
         y = k.by0 + 1 + j
-        fy = (j + 0.5) / h
+        fy = (j + 0.5 - h / 2) * 2 / S
         for i in range(w):
             x = k.bx0 + i
-            fx = (i + 0.5) / w
+            fx = (i + 0.5 - w / 2) / S
             v = (math.cos(n * math.pi * fx) * math.cos(m * math.pi * fy)
                  - math.cos(m * math.pi * fx) * math.cos(n * math.pi * fy))
             a = min(1.0, abs(v))
@@ -478,6 +515,11 @@ def moire(k, t: float) -> None:
     ang = 0.05 + 0.16 * (0.5 + 0.5 * math.sin(t * 0.5))       # the second grating's angle
     ca, sa = math.cos(ang), math.sin(ang)
     pitch = 3.0
+    # ...and the fringe the formula predicts, in cells, printed with it. The audit measured the pane's
+    # column period as a constant 2*pitch (6.2 cells) - grating A's own period - because the fringe was
+    # drawn as "both gratings open", which is dominated by A. The fringe *is* where the two disagree, so
+    # it is drawn as the XOR, and the number beside the formula is the width it should have.
+    fringe = pitch / (2 * math.sin(ang / 2)) if ang > 1e-6 else 0.0
     for j in range(h):
         y = k.by0 + 1 + j
         if j % 2:                                 # every other row: see below
@@ -487,17 +529,18 @@ def moire(k, t: float) -> None:
             a = 1 if int((i / pitch) % 2) == 0 else 0          # the horizontal grating
             u_ = (i - w / 2) * ca - (j - h / 2) * sa
             b = 1 if int((u_ / pitch) % 2) == 0 else 0
-            # What the eye sees is where the *two* gratings are both open: that is the fringe. Drawing a
+            # What the eye sees is where the *two* gratings disagree: that is the fringe. Drawing a
             # cell for "either grating open" instead fills half the pane with a half-tone and the fringes
             # disappear into it; drawing every row at full strength then made the panel the loudest thing
             # in the frame, which is the clutter the user's note is about. Every other row, and the
             # fringes read the same.
-            if a and b:
+            if a != b:
                 k.put(x, y, "\u2588", _mix(_C.VIOLET, 0.62))
-            elif a or b:
+            else:
                 k.put(x, y, "\u00b7", _mix(_C.VIOLET, 0.14))
     k.put(k.bx0, k.by1, f"\u5939\u89d2 {math.degrees(ang):4.1f}\u00b0\uff1a"
-                        f"\u6761\u7eb9\u95f4\u8ddd = \u5149\u6805\u95f4\u8ddd \u00f7 2sin(\u03b8/2)",
+                        f"\u6761\u7eb9\u95f4\u8ddd = \u5149\u6805\u95f4\u8ddd \u00f7 2sin(\u03b8/2)"
+                        f" \u2248 {fringe:4.0f} \u683c",
           _mix(_C.AMBER, 0.7))
 
 
@@ -510,12 +553,14 @@ def galaxy(k, t: float) -> None:
     galaxy looks like at terminal resolution.
     """
     k.section(k.by0, "\u4e09\u65cb\u81c2 \u00b7 \u822a\u7a7a / \u822a\u5929 / \u822a\u6d77", 0.28)
-    cx = k.bx0 + min(26, k.bw // 2)
+    # A galaxy seen face-on is **round**, so the two radii have to be the same length *in pixels*: a cell
+    # is 2 px tall, so `rx = 2 * ry` in cells. The first version took `bw // 4` for rx and the band's own
+    # height for ry (23 cells against 4 rows at 95x11), which is a 2.9:1 ellipse - the arms came out as a
+    # nearly straight horizontal smear (batch 31's audit measured it).
+    ry = max(2, min(6, (k.by1 - k.by0) // 2 - 1))
+    rx = 2 * ry
+    cx = k.bx0 + rx + 2
     cy = (k.by0 + k.by1) // 2
-    rx = max(4, min(26, k.bw // 4))
-    ry = max(2, min(14, (k.by1 - k.by0) // 2 - 1))
-    if ry < 2:
-        return
     spin = t * 0.25
     for arm in range(3):
         base = arm * (2 * math.pi / 3)
@@ -533,9 +578,11 @@ def galaxy(k, t: float) -> None:
                       _mix((120, 180, 255) if arm == 0 else ((255, 200, 120) if arm == 1
                                                              else (140, 240, 200)), lv))
     k.put(cx - 2, cy, "\u25cf", _mix(_C.AMBER, 0.95))
-    k.put(k.bx0 + 2 * rx + 2, cy - 2, "\u822a\u7a7a \u00b7 \u822a\u5929 \u00b7 \u822a\u6d77", _ui(0.7))
-    k.put(k.bx0 + 2 * rx + 2, cy - 1, r=0) if False else None
-    k.put(k.bx0 + 2 * rx + 2, cy - 1, "r = a\u00b7e^{b\u03b8}\uff1a\u81c2\u4e0d\u662f\u76f4\u7684", _ui(0.5))
+    # the labels sit *outside* the round galaxy, in the room the wide band leaves
+    k.put(k.bx0 + 2 * rx + 4, cy - 2, "\u822a\u7a7a \u00b7 \u822a\u5929 \u00b7 \u822a\u6d77", _ui(0.7))
+    k.put(k.bx0 + 2 * rx + 4, cy - 1, "r = a\u00b7e^{b\u03b8}\uff1a\u81c2\u4e0d\u662f\u76f4\u7684", _ui(0.5))
+    k.put(k.bx0 + 2 * rx + 4, cy, "\u4e09\u6761\u81c2\uff0c\u5dee\u4e00\u4e2a\u4e09\u5206\u4e4b\u4e00\u5708",
+          _ui(0.45))
 
 
 def fragmentation(k, t: float) -> None:
@@ -587,18 +634,25 @@ def pixelsort(k, t: float) -> None:
         y = k.by0 + 1 + j
         seed = [((i * 2654435761 + j * 40503) >> 11) % 100 for i in range(w)]
         seed.sort()
-        # `passes` of an insertion sort, so the row is visibly *becoming* sorted rather than sorted
+        # `passes` passes of an **insertion** sort - which is what the caption and the comment here both
+        # say. The first version ran a bubble pass and, from the fourth pass on, jumped straight to
+        # `sorted(seed)`: the audit measured exactly one cell changing in 4.17 s, i.e. the pane that is
+        # supposed to be a sort in progress showed a finished one.
         srt = seed[:]
-        for _ in range(passes):
-            for i in range(1, len(srt)):
-                if srt[i] < srt[i - 1]:
-                    srt[i], srt[i - 1] = srt[i - 1], srt[i]
-        if passes >= 4:
-            srt = sorted(seed)
+        for p in range(passes):
+            v = srt[p]
+            q = p
+            while q > 0 and srt[q - 1] > v:
+                srt[q] = srt[q - 1]
+                q -= 1
+            srt[q] = v
         for i, v in enumerate(srt):
             ch = " \u2591\u2592\u2593\u2588"[min(4, v // 22)]
             k.put(k.bx0 + i, y, ch, _mix(_C.AMBER, 0.25 + 0.7 * v / 100))
-    k.put(k.bx0, k.by1, f"\u7b2c {passes} \u8d9f\uff1a\u989c\u8272\u8fd8\u5728\u5f80\u4e0a\u6d6e", _ui(0.5))
+    # ...and the caption describes what is on screen: the row is sorted *along itself* by the brightness
+    # key, so nothing "floats up" - which is what the first version's caption said.
+    k.put(k.bx0, k.by1, f"\u7b2c {passes} \u8d9f\uff1a\u4e00\u884c\u91cc\u7684\u989c\u8272\u6b63\u5728"
+                        f"\u6309\u4eae\u5ea6\u5f52\u4f4d", _ui(0.5))
 
 
 def powerdown(k, t: float) -> None:
@@ -820,6 +874,7 @@ def lattice(k, t: float) -> None:
     vpx = k.bx0 + w // 2
     vpy = k.by0 + max(1, h // 4)
     march = (t * 1.4) % 1.0
+    drawn: set[int] = set()
     for j in range(h):
         y = k.by0 + 1 + j
         f = (j + 0.5) / h                                    # 0 at the horizon, 1 at the near edge
@@ -829,10 +884,17 @@ def lattice(k, t: float) -> None:
             if k.bx0 <= x <= k.bx1:
                 k.put(x, y, "\u2502" if abs(i) > 1 else "\u2551",
                       _mix(_C.BLUE, 0.15 + 0.5 * (1 - f)))
-        # the horizontals: spaced by 1/z, and the `march` slides the whole set toward the viewer
-        zz = z + march * 4
-        if abs(zz - round(zz)) < 0.09:
-            k.put(k.bx0, y, "\u2500" * w, _mix(_C.VIOLET, 0.15 + 0.5 * (1 - f)))
+        # the horizontals: at depth z = k + march for k = 1, 2, 3 ..., and z = 1/f, so their rows are
+        # `h / (k + march)`. The first version asked, row by row, whether `1/f` was near an integer: on an
+        # 11-row band that fires on one or two rows and the caption's "横线按 1/z 变密" was not on screen
+        # (the audit measured 1-3 lines, all near the viewer). Placing the rows *from* the law gives the
+        # density the caption promises.
+        for kk in range(1, 4 * h + 8):                 # kk, not k: `k` is the kit
+            j = int(round(h / (kk + march))) - 1
+            if 0 <= j < h and j not in drawn:
+                drawn.add(j)
+                k.put(k.bx0, k.by0 + 1 + j, "\u2500" * w,
+                      _mix(_C.VIOLET, 0.15 + 0.5 * (1 - (j + 0.5) / h)))
     k.put(vpx - 3, vpy, "\u25c6", _mix(_C.INK, 0.9))
     k.put(k.bx0, k.by1, "\u6d88\u5931\u70b9\u5728\u90a3\u91cc\uff1a\u7eb5\u7ebf\u6536\u655b\uff0c"
                         "\u6a2a\u7ebf\u6309 1/z \u53d8\u5bc6", _ui(0.5))

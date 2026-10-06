@@ -520,7 +520,7 @@ def fly(s, cols: int, rows: int, t: float, u: float, name: str, y: float, rows_n
             s.put(tx, yy + mid, "\u00b7" if k % 2 else "\u2500",
                   (70 - k * 3, 170 - k * 7, 220 - k * 6))
     if caption and 0 <= x <= cols - len(caption) - 2:
-        s.put(x, min(rows - 1, yy + h + 1), caption, (160, 205, 245))
+        s.put(x, min(rows - FOOTER_KEEP, yy + h + 1), caption, (160, 205, 245))
 
 
 def dive(s, cols: int, rows: int, t: float, u: float, name: str, x: float = 0.5,
@@ -547,7 +547,7 @@ def dive(s, cols: int, rows: int, t: float, u: float, name: str, x: float = 0.5,
         if 0 <= bx < cols and 0 <= by < rows:
             s.put(bx, by, "\u02dc", (140, 180, 220 - k * 10))
     if caption:
-        s.put(max(0, min(cols - len(caption) - 1, xx + w // 2)), rows - 1, caption,
+        s.put(max(0, min(cols - len(caption) - 1, xx + w // 2)), rows - FOOTER_KEEP, caption,
               (160, 205, 245))
 
 
@@ -571,7 +571,7 @@ def approach(s, cols: int, rows: int, t: float, u: float, name: str, x: float = 
     yy = int(rows * y - h / 2 + math.cos(u * 3.0) * 2)
     paste(s, cells, xx, yy)
     if caption and u < 0.8:
-        s.put(max(0, min(cols - len(caption) - 1, xx + w // 2)), min(rows - 1, yy + h + 1), caption,
+        s.put(max(0, min(cols - len(caption) - 1, xx + w // 2)), min(rows - FOOTER_KEEP, yy + h + 1), caption,
               (160, 205, 245))
 
 
@@ -652,7 +652,7 @@ def flash(s, cols: int, rows: int, t: float, u: float, name: str, cols_n: int = 
     y0 = int((rows - h) * y)
     paste(s, cells, x0, y0, dim=dim * (0.42 if behind else 1.0) * fade)
     if caption:
-        s.put(max(1, (cols - len(caption)) // 2), min(rows - 1, max(0, y0) + min(h, rows) + 1), caption,
+        s.put(max(1, (cols - len(caption)) // 2), min(rows - FOOTER_KEEP, max(0, y0) + min(h, rows) + 1), caption,
               tuple(int(k * fade) for k in (255, 210, 120)))
 
 
@@ -706,7 +706,10 @@ def stand(s, cols: int, rows: int, t: float, u: float, name: str, side: str = "r
     `side` is which edge it is standing at; the figure is cropped by the frame rather than scaled to fit
     it, which is the whole difference between a sprite and a person standing there.
     """
-    h = size or max(14, int(rows * 0.86))
+    # The figure stands *on* the chrome rather than through it: at 0.86 of the rows its feet landed on
+    # the status line and the progress bar, which are drawn before this layer and never repainted (the
+    # batch-31 audit measured 126-158 cells of them painted over at 193.60-199.00).
+    h = size or max(14, int((rows - FOOTER_KEEP) * 0.93))
     w = max(8, int(h * CELL_ASPECT * _aspect(name)))
     cells = sprite(name, w, h)
     if not cells:
@@ -718,7 +721,9 @@ def stand(s, cols: int, rows: int, t: float, u: float, name: str, side: str = "r
     hop = int(round((p ** 1.5) * max(2, chh * 0.11)))
     landing = int(round((p ** 0.5) * 1.5)) if p < 0.25 else 0     # the dip just after the beat
     x = cols - cw - 6 if side == "right" else 6
-    y = rows - chh + rise // 2 + breathe - hop + landing
+    # ...two rows of margin, because `breathe` and the landing dip push it down again: at exactly
+    # `rows - FOOTER_KEEP` the feet still touched the progress box's top border.
+    y = (rows - FOOTER_KEEP - 2) - chh + rise // 2 + breathe - hop + landing
     paste(s, cells, x, y)
     if caption and 2 <= x <= cols - len(caption) - 3:
         s.put(x, max(0, y - 1), caption, (255, 220, 150))
@@ -747,7 +752,7 @@ def emerge(s, cols: int, rows: int, t: float, u: float, name: str, caption: str 
     _, w, h = cells
     paste(s, cells, max(0, (cols - w) // 2), max(0, (rows - h) // 2 - 1), dim=fade)
     if caption and u > 0.55:
-        s.put(max(1, (cols - len(caption)) // 2), min(rows - 1, (rows + h) // 2 + 1),
+        s.put(max(1, (cols - len(caption)) // 2), min(rows - FOOTER_KEEP, (rows + h) // 2 + 1),
               caption, tuple(int(k * fade) for k in (220, 230, 255)))
 
 
@@ -804,7 +809,7 @@ def plate(s, cols: int, rows: int, t: float, u: float, name: str, cols_n: int = 
                 ch_, lv = cell
                 s.put(ox + c, oy + r, ch_, tuple(int(v * dim * lv / 255) for v in (176, 206, 245)))
     if caption and u > 0.35:
-        s.put(max(1, (cols - len(caption)) // 2), min(rows - 1, (rows + ch) // 2 + 1), caption,
+        s.put(max(1, (cols - len(caption)) // 2), min(rows - FOOTER_KEEP, (rows + ch) // 2 + 1), caption,
               (255, 210, 120))
 
 
@@ -905,7 +910,7 @@ def lowpass(s, cols: int, rows: int, t: float, u: float, name: str, y: float = 0
                 if 0 <= dx_ < cols and 0 <= dy_ < rows:
                     s.put(dx_, dy_, "\u2591", _mix((170, 190, 215), 0.5))
     if caption and 0 <= x <= cols - len(caption) - 2:
-        s.put(x, min(rows - 1, yy + h + 1), caption, (170, 215, 250))
+        s.put(x, min(rows - FOOTER_KEEP, yy + h + 1), caption, (170, 215, 250))
 
 
 # the windows in which this variant shakes its own frame, as (start, end, strength). `tui_live.fx_shake`
@@ -1397,18 +1402,38 @@ def transition(s, cols: int, rows: int, t: float) -> str:
     if kind == "shatter":
         _shatter(s, cols, rows, t, q)
     elif kind == "slide":
-        _slide(s, cols, rows, q)
+        _slide(s, cols, rows, q, t)
     elif kind == "zoom":
-        _zoom(s, cols, rows, q)
+        _zoom(s, cols, rows, q, t)
     elif kind == "skew":
-        _skew(s, cols, rows, q)
+        _skew(s, cols, rows, q, t)
     elif kind == "page":
         _page(s, cols, rows, q)
     return kind
 
 
-def _box(cols: int, rows: int) -> tuple[int, int, int, int]:
-    """The right column, which is what a pane transition moves. The chrome is not a pane."""
+# Rows at the bottom of the frame that belong to the chrome: the status line and the progress box are
+# drawn *before* this layer and nothing repaints them, so a caption clamped to `rows - 1` writes over
+# them. Measured by the batch-31 audit: "运-20 掠空" inside the status line at 12.6 s, "直-20 下降" at
+# 49.8 s, the library's caption across the progress bar at 195.0 s.
+FOOTER_KEEP = 5
+
+
+def _box(cols: int, rows: int, t: float = 0.0) -> tuple[int, int, int, int]:
+    """The drawing column, which is what a pane transition moves. The chrome is not a pane.
+
+    The column swaps sides at `school_panels.SWAP_AT` (136.90): before it the drawing is the right-hand
+    half, after it the left. Always taking the right half - which is what this did - meant that from
+    136.90 on every transition moved the *chat window* and only grazed the pane (the audit measured
+    `skew` 91..196 at 148.16, `slide` 107..157 at 149.22, `zoom` 90..142 at 151.51).
+    """
+    try:
+        import school_panels as _SP
+        swap = float(getattr(_SP, "SWAP_AT", 1e9))
+    except Exception:
+        swap = 1e9
+    if t >= swap:
+        return 1, 2, max(2, int(cols * 0.54)), rows - 3
     return int(cols * 0.46), 2, cols - 1, rows - 3
 
 
@@ -1430,6 +1455,13 @@ def _carry(s, dy: int, dx: int, cell, wide: bool) -> None:
     cell now, so this is two lines instead of a rule every caller has to remember.
     """
     ch, fg, bg = cell
+    # ...and a cell that already holds exactly this is not written at all. A page turn moves a whole
+    # 100x47 box cell by cell, and most of it is the same character at the same colour (spaces on one
+    # background, the blank parts of a pane); skipping those is what keeps the worst frame of the song -
+    # a transition frame - inside the 41.7 ms budget (`_dev/frame_probe.py` measured 152.50 s).
+    w_here = s.wide[dy][dx]
+    if (not w_here) and cell == s.buf[dy][dx]:
+        return
     s.set_cell(dx, dy, ch if ch else " ", fg, bg)
 
 
@@ -1453,13 +1485,13 @@ def _shift(s, x0: int, y0: int, x1: int, y1: int, dx: int, dy: int = 0) -> None:
                 s.set_cell(x, y, " ", s.buf[y][x][1], s.buf[y][x][2])
 
 
-def _slide(s, cols: int, rows: int, q: float) -> None:
+def _slide(s, cols: int, rows: int, q: float, t: float = 0.0) -> None:
     """A parallax slide: the column arrives from the right and overshoots a little.
 
     The overshoot is the whole effect - a column that slides to its resting place at a constant rate
     reads as a loading animation, and one that comes in slightly too far and settles reads as motion.
     """
-    x0, y0, x1, y1 = _box(cols, rows)
+    x0, y0, x1, y1 = _box(cols, rows, t)
     v = 1.0 - (1.0 - q) ** 2
     d = int(16 * (1.0 - v) - 3 * math.sin(q * math.pi * 1.4))
     if d == 0:
@@ -1473,10 +1505,10 @@ def _slide(s, cols: int, rows: int, q: float) -> None:
                 s.put(x, y, ch if ch else " ", tuple(int(c * 0.35) for c in fg), bg)
 
 
-def _zoom(s, cols: int, rows: int, q: float) -> None:
+def _zoom(s, cols: int, rows: int, q: float, t: float = 0.0) -> None:
     """A scale: the column comes in from 1.14x and settles. Character cells cannot interpolate, so it
     samples - nearest neighbour on a grid, which at these sizes reads as a push rather than as noise."""
-    x0, y0, x1, y1 = _box(cols, rows)
+    x0, y0, x1, y1 = _box(cols, rows, t)
     sc = 1.0 + 0.14 * (1.0 - q) ** 2
     if sc <= 1.002:
         return
@@ -1495,14 +1527,14 @@ def _zoom(s, cols: int, rows: int, q: float) -> None:
                 s.set_cell(x, y, " ", s.buf[y][x][1], s.buf[y][x][2])
 
 
-def _skew(s, cols: int, rows: int, q: float) -> None:
+def _skew(s, cols: int, rows: int, q: float, t: float = 0.0) -> None:
     """A rotation, as far as a character grid can have one: a shear, plus the leading edge lit.
 
     Rotating a bitmap by a few degrees inside a cell grid is not possible; shearing each row sideways
     by `k * (y - y0)` is, and the eye reads a sheared rectangle as a rotated one as long as the edge
     that is moving is drawn.
     """
-    x0, y0, x1, y1 = _box(cols, rows)
+    x0, y0, x1, y1 = _box(cols, rows, t)
     k = 0.55 * (1.0 - q) ** 2
     if k < 0.01:
         return
@@ -1535,12 +1567,23 @@ def _page(s, cols: int, rows: int, q: float) -> None:
         return
     src = [row[:] for row in s.buf]
     lo = max(0, fx - peel)
+    # The peel is the widest thing any transition draws: 50 rows x 108 columns = 5400 `put`s a frame, and
+    # this is the frame `_dev/frame_probe.py` always reports as the worst in the song. Two things make it
+    # cheaper without changing a pixel: a blank cell that already has the paper it is being drawn on is
+    # skipped, and the dimmed ink of a colour is computed once per frame instead of once per cell.
+    dim_cache: dict = {}
     for y in range(y0, y1 + 1):
         for x in range(lo, fx):
             sx = 2 * fx - x
-            if 0 <= sx < cols:
-                ch, fg, bg = src[y][sx]
-                s.put(x, y, ch if ch else " ", tuple(int(c * 0.42) for c in fg), bg)
+            if not (0 <= sx < cols):
+                continue
+            ch, fg, bg = src[y][sx]
+            if (not ch or ch == " ") and bg == s.buf[y][x][2]:
+                continue
+            dimmed = dim_cache.get(fg)
+            if dimmed is None:
+                dimmed = dim_cache[fg] = tuple(int(c * 0.42) for c in fg)
+            s.put(x, y, ch if ch else " ", dimmed, bg)
         s.put(fx, y, "\u2551", (235, 240, 255))
         if fx + 1 < cols:
             s.put(fx + 1, y, "\u2502", (90, 110, 150))
@@ -1604,7 +1647,7 @@ def _shatter(s, cols: int, rows: int, t: float, q: float) -> None:
             if 0 <= bx < cols and 0 <= by < rows:
                 s.put(bx, by, "\u00b0" if k % 2 else "o", (90, 150, max(40, 200 - k * 8)))
         if x > 4 and 0 <= y + rn + 2 < rows:
-            s.put(max(2, x), min(rows - 1, y + rn + 2), "\u9c7c\u96f7", (150, 200, 235))
+            s.put(max(2, x), min(rows - FOOTER_KEEP, y + rn + 2), "\u9c7c\u96f7", (150, 200, 235))
     if leap_end <= q < hit_end:
         # the impact: a ring and a flash, on the frame it lands. Only *after* the leap - the first
         # version drew the ring for the whole event, so the torpedo crossed a frame that had already
@@ -1704,6 +1747,10 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     #     deliberately not a horizontal crossing: the user's note was "飞机不用只是横向飞"
     (49.20, 51.00, dive, dict(name="z20", x=0.70, caption="\u76f4-20 \u4e0b\u964d")),
     # --- 魔鬼鱼, once, swimming: a diagonal crossing at its own shape's size, rippling as it goes
+    # --- the fourth route: the design's four aircraft are 运-20 (the low pass), 歼-20 (the three-hit
+    #     fly), 直-20 (the descent) and ARJ21 - which had its file, its name and no event at all until
+    #     batch 31's audit counted them. It crosses the instrumental gap at 21 s, high and small.
+    (21.00, 23.40, fly, dict(name="arj21", y=0.28, size=0, rows_n=0, caption="ARJ21 \u00b7 \u652f\u7ebf\u5ba2\u673a")),
     (55.00, 57.40, fly, dict(name="manta", y=0.30, size=0, rows_n=0, wave=1.0, dy=0.16,
                              caption="\u9b54\u9b3c\u9c7c")),
     # --- the first chorus: 歼-20, once, on a diagonal

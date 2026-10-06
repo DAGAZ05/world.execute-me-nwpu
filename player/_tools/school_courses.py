@@ -653,7 +653,10 @@ def c_network(k: _Kit, lt: float, dur: float) -> None:
     # `CLIENT` goes to the *left* of its cell: written three cells in - beside the hexagon - the word ran
     # over the cell's own slants and over the letter inside it
     k.put(ax - 8, k.by0 + 1, "CLIENT", _mix(BLUE, 0.6))
-    k.put(bx + 3, k.by0 + 1, "", _mix(GREEN, 0.6))
+    # ...and the other end *has* a name: this was an empty string, so the server lifeline was unlabelled
+    # (there is no room to its right, so the label goes under its hexagon, on the row the messages do not
+    # reach until `by0 + head + 1`)
+    k.put(max(k.bx0, bx - 6), k.by0 + 2, "SERVER", _mix(GREEN, 0.6))
     msgs = [("SYN  seq=x", 0.04, ">", "\u4e09\u6b21\u63e1\u624b"),
             ("SYN+ACK  ack=x+1", 0.12, "<", "\u4e09\u6b21\u63e1\u624b"),
             ("ACK  ack=y+1", 0.20, ">", "\u4e09\u6b21\u63e1\u624b"),
@@ -685,7 +688,10 @@ def c_network(k: _Kit, lt: float, dur: float) -> None:
         seen.setdefault(phase, y)
         fwd = d == ">"
         x_from, x_to = (ax, bx) if fwd else (bx, ax)
-        span = x_to - x_from
+        # `x_to - x_from` is negative when the message travels right to left, and `label[:span - 3]`
+        # then cuts the label to nothing: five of the eleven messages (SYN+ACK, both 200 OK, ACK ack=u+1,
+        # FIN+ACK) had no text on screen at all while the pane's title said "三次握手" (batch 31's audit).
+        span = abs(x_to - x_from)
         col = _mix(BLUE if fwd else GREEN, 0.75)
         f = k.stair(at, 0.10)
         # `tip`, not `head`: the arrow's x position was called `head` here, and `head` is the *row* the
@@ -838,14 +844,23 @@ def c_co(k: _Kit, lt: float, dur: float) -> None:
     the register trace: A, Q and M in binary, the shifted carry, and a counter. The step index is a
     function of `lt`, so the multiplication walks rather than blinks - the point is the *sequence*.
     """
-    steps = 8
-    step = min(steps, int(lt * 2.2) + 1)
+    # **Four** steps, not eight: this is a four-bit multiply (A and Q are four bits each), and its own
+    # label says 13 x 11 = 143 - which four steps produce and eight do not (they give 171). The rate is
+    # set so the whole sequence happens inside the pane's own slot: at 2.2 steps/s an 0.83 s slot only
+    # ever reached step 2, so the drawing never showed the answer it claimed.
+    steps = 4
+    step = min(steps, 1 + int(lt * 6.0))
     a = 0
+    carry = 0
     q = 0b1101                                   # 13 * 11, the textbook example
     m = 0b1011
     for i in range(step - 1):
         if q & 1:
-            a = (a + m) & 0xFF
+            t_ = a + m
+            carry = (t_ >> 8) & 1                # the carry is real now; `(a + m) > 255` was never true
+            a = t_ & 0xFF
+        else:
+            carry = 0
         q = ((q >> 1) | ((a & 1) << 3)) & 0xFF
         a >>= 1
     # the clock keeps ticking after the reveal: the window slides and the bit leaving it is lit
@@ -859,7 +874,7 @@ def c_co(k: _Kit, lt: float, dur: float) -> None:
     # the bit about to leave the window, on the song's clock: the register trace keeps ticking after the
     # reveal has finished, which is the difference between a snapshot and a machine
     k.put(k.bx0 + 5 + (7 - shift), y + 3, "\u25b2", _mix(RED, 0.9))
-    k.put(k.bx0, y + 4, f"C    {1 if (a + m) > 255 else 0}   step {step}/{steps}", _ui(0.6))
+    k.put(k.bx0, y + 4, f"C    {carry}   step {step}/{steps}", _ui(0.6))
     if k.bh > 7:
         k.put(k.bx0, y + 6, "\u25b8 若 Q0=1：A \u2190 A+M；否则跳过", _ui(0.65))
         k.put(k.bx0, y + 7, "\u25b8 算术右移 (C,A,Q) 一位", _ui(0.65))
@@ -1014,10 +1029,24 @@ def c_test(k: _Kit, lt: float, dur: float) -> None:
     hy = min(k.by1, y0 + rows + 1)
     if hy <= k.by1:
         k.put(k.bx0, hy, "defects", _ui(0.5))
-        nfail = max(1, len([i for i in fail if i < done]))
-        for b in range(min(12, cols)):
-            h = (nfail * (b + 2) // (b + 3)) % 4
-            k.put(k.bx0 + 9 + b * 2, hy, SHADE[min(4, h + 1)], _mix(RED, 0.8))
+        # the bars are the *actual* failures, binned by column: `(nfail * (b+2) // (b+3)) % 4` was a
+        # sawtooth off one total, so every bar was a function of `nfail` alone (batch 31's audit)
+        nfail = len([i for i in fail if i < done])
+        nb = min(12, cols)
+        per = [0] * nb
+        for i in sorted(fail):
+            if i < done and nb:
+                per[min(nb - 1, (i % cols) * nb // max(1, cols))] += 1
+        top = max(per) or 1
+        for b, cnt in enumerate(per):
+            h = int(round(4 * cnt / top))
+            k.put(k.bx0 + 9 + b * 2, hy, SHADE[min(4, h + 1)] if cnt else "\u00b7",
+                  _mix(RED, 0.8) if cnt else _ui(0.25))
+        # ...and the coverage the matrix above really shows, on the row under it
+        if hy + 1 <= k.by1:
+            k.put(k.bx0, hy + 1, f"cov {(done - nfail) * 100 // max(1, done):3d} %  "
+                                 f"({nfail} failed of {done})",
+                  _mix(GREEN, 0.85))
 
 
 def c_dl(k: _Kit, lt: float, dur: float) -> None:
@@ -2071,9 +2100,6 @@ def draw_course(name: str, s, x0: int, y0: int, x1: int, y1: int,
     foot = 1
     draw_y1 = y1 - foot - 1
     k = _Kit(s, x0, y0, x1, draw_y1, title, run, total, u, t=t)
-    if motif and k.bh >= 26:
-        band = max(10, int(k.bh * 0.42))
-        k = _Kit(s, x0, y0, x1, draw_y1 - band - 1, title, run, total, u, t=t)
     if pair:
         _split(k, list(pair))
     else:
@@ -2084,11 +2110,6 @@ def draw_course(name: str, s, x0: int, y0: int, x1: int, y1: int,
         _live(k.sub(k.bx0, row, k.bx1, row), t, LIVE[name])
     else:
         _activity(k.sub(k.bx0, row, k.bx1, row), t, run)
-    if motif:
-        import school_motifs as _M
-        mk = k.sub(k.bx0, k.by1 + 2, k.bx1, y1 - 2)
-        _M.draw_motif(motif, mk, t)
-        return True
     detail = DETAIL.get(name, ())
     if detail:
         used = _last_ink(s, k.bx0, k.bx1, k.by0, k.by1)

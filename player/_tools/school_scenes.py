@@ -164,6 +164,11 @@ def pane_protection(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         s.put(x0 + 2, y0, "\u26a0 ESD", _mix(ANOM, 0.5 + 0.5 * closed))
     if h >= 4:
         s.put(x0 + 2, y0 + h - 1, "fuse 0.5A", _mix(SILK, 0.5 * closed))
+    # ...and the board is live: a signal runs the bus on the song clock. Without it this pane is a still
+    # frame once its reveal is over, which the motif band underneath used to hide (batch 32 removed the
+    # bands, so every pane has to carry its own clock).
+    pulse = x0 + 1 + int((t * 11.0) % max(1, w - 3))
+    s.put(pulse, y0 + 1, "\u25cf", _mix(ANOM, 0.55 + 0.35 * math.sin(t * 6.0)))
 
 
 def pane_pieces(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
@@ -220,6 +225,10 @@ def pane_class(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         line = src[i][: max(0, w - 2)]
         col = _mix(ME_TEXT, 0.95) if i == 0 else _ui(0.85)
         s.put(x0 + 1, y0 + i, line, col)
+    # a cursor walking the listing on the song clock: the class is *being* written, and a pane that stops
+    # moving after its reveal is the failure `_dev/clock_probe.py` exists to catch
+    cur = int(t * 1.6) % max(1, n)
+    s.put(x0 + 2 + len(src[cur][: max(0, w - 2)]), y0 + cur, "\u258c", _mix(ANOM, 0.85))
 
 
 def pane_parameters(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
@@ -250,6 +259,9 @@ def pane_parameters(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
             s.put(x0 + 12, y0 + i, v[: max(0, w - 16)], _mix(ME_TEXT, 0.9))
         if w >= 24:
             s.put(x1 - len(src) - 1, y0 + i, src, _ui(0.4))
+    # the table is being filled: a cursor walks its rows on the song clock (see `pane_class`)
+    if n:
+        s.put(x0, y0 + int(t * 2.0) % n, "\u25b8", _mix(ANOM, 0.7))
     # the source of the oldest value in the table, drawn beside it: 何尊 is where "中国" is first
     # written down, so it annotates the table rather than replacing it (see `LANDMARK_ROWS`)
     if w >= 34 and h >= 8:
@@ -261,6 +273,11 @@ def pane_parameters(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
                 got = SC.glyph_cells("he_zun", box[2] - box[0] + 1, box[3] - box[1] + 1)
                 if got:
                     cells, cw, ch = got
+                    # ...and only if there is ink in it: at the 18x8 box this leaves, the carried 何尊
+                    # measured 0 of 144 cells - a picture that is not there, drawn anyway
+                    inked = sum(1 for r in range(ch) for c in range(cw) if cells[r][c] is not None)
+                    if inked < max(8, cw * ch // 20):
+                        return
                     for r in range(ch):
                         for c in range(cw):
                             cell = cells[r][c]
@@ -273,54 +290,56 @@ def pane_parameters(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
 
 
 def pane_polyhedra(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
-    """`Initialization` (9.75 s): the five Platonic solids, and V-E+F=2 on each.
+    """`If I'm a circle` / `Then I will give you my circumference` (33.01-36.77): n sides, and the limit.
 
-    "Initialization" is a maths word before it is a code word, and this is the film's own kind of
-    panel: a drawn figure with the number under it. The solids are wireframes in characters, so they
-    are drawn as the *graph* they are - vertices and edges - rather than as sprites.
+    This pane used to draw five "Platonic solids" that were **the same diamond glyph five times** - the
+    geometry did not depend on the index, only the labels changed - parked on the line about a circle,
+    with the ops ticker promising `|x|^n / n=2 / CIRCLE` that was nowhere on screen (batch 31's audit:
+    "the whole pane has no circle in it"). The couplet is about a circle and its circumference, so it is
+    drawn as what it is: regular polygons of 3, 4, 5, 6, 8 and 36 sides, each *labelled with its own n*,
+    all inscribed in one radius - and each one's perimeter written under it, converging on 2πr, which
+    is the circumference the second line gives away. `n` walks on the song clock, so it is never still.
     """
-    names = ["Tetra", "Cube", "Octa", "Dodeca", "Icosa"]
-    vef = ["4-6+4", "8-12+6", "6-12+8", "20-30+12", "12-30+20"]
     w, h = x1 - x0, y1 - y0
-    # the solids need room for their own label *below* them, so a pane without that room gets fewer of
-    # them rather than a label written past the bottom edge - which is what the probe caught first at
-    # 118x9 (six rows of wireframe plus two of label do not fit in nine) and then at 34x5.
-    lab = 2 if h >= 9 else 0
-    need = 5 + lab
-    if h < need and h >= 5:
-        lab = 0
-        need = 5
-    if h < 5:
+    if w < 20 or h < 5:
         return
-    # centre the whole block - wireframe plus label - rather than the wireframe alone
-    top = y0 + max(0, (h - need) // 2)
-    cy = top + 2
-    cols = max(1, min(len(names), (w - 2) // 12))
-    pitch = max(10, (w - 12) // max(1, cols))
-    for i in range(cols):
-        at = 0.05 + 0.75 * (i / max(1, cols - 1))
+    ns = [3, 4, 5, 6, 8, 36]
+    lab = 2 if h >= 8 else 0
+    pitch = max(7, min(14, (w - 4) // len(ns)))
+    cy = y0 + (h - lab) // 2
+    # One common radius for every polygon: that is the point of the drawing (all inscribed in one
+    # circle). A cell is twice as tall as it is wide, so `ry = rx / 2` makes them round on screen.
+    rx = max(2, min(pitch // 2, (h - lab) // 2))
+    ry = max(1, rx // 2)
+    step = (t * 0.6) % 1.0
+    for i, n_sides in enumerate(ns):
+        at = 0.05 + 0.75 * (i / max(1, len(ns) - 1))
         if u < at:
             continue
-        cx = x0 + 2 + i * pitch
-        # a wireframe: a diamond plus its own vertical axis is enough to read as "a solid"
-        for k in range(4):
-            s.put(cx + 2, cy - 2 + k, "\u2502", _mix(ME_TEXT, 0.8))
-        for dx, dy in ((0, -2), (2, 0), (0, 2), (-2, 0), (0, -2)):
-            s.put(cx + 2 + dx, cy + dy, "\u00b7", _mix(ME_TEXT, 0.95))
-        s.put(cx, cy - 1, "\u2571", _mix(ME_TEXT, 0.6))
-        s.put(cx + 4, cy - 1, "\u2572", _mix(ME_TEXT, 0.6))
-        s.put(cx, cy + 1, "\u2572", _mix(ME_TEXT, 0.6))
-        s.put(cx + 4, cy + 1, "\u2571", _mix(ME_TEXT, 0.6))
-        if lab and cy + 4 <= y1:
-            s.put(cx, cy + 3, names[i][:8], _ui(0.75))
-            s.put(cx, cy + 4, vef[i], _mix(ANOM, 0.7))
-    # He initialization, as the second half of the same panel
-    if h >= 8 and w >= 40:
-        s.put(x0 + 1, y0 + h - 3, "N(0, 2/n)   n=1000", _ui(0.6))
-        bar = "\u2581\u2582\u2583\u2584\u2585\u2586\u2587\u2588\u2587\u2586\u2585\u2584\u2583\u2582\u2581"
-        grow = max(1, int(len(bar) * min(1.0, u / 0.8)))
-        s.put(x0 + 1, y0 + h - 2, bar[:grow], _mix(ME_TEXT, 0.85))
-        s.put(x0 + 1, y0 + h - 1, "V-E+F = 2", _mix((120, 220, 160), 0.85))
+        cx = x0 + 3 + i * pitch + rx
+        if cx + rx > x1:
+            break
+        pts = []
+        for k in range(n_sides):
+            th = 2 * math.pi * k / n_sides - math.pi / 2
+            pts.append((cx + rx * math.cos(th), cy + ry * math.sin(th)))
+        # the last one walks its own sides on the clock; the rest are revealed with the pane
+        live = n_sides if n_sides <= 8 else max(3, int(n_sides * (0.35 + 0.65 * step)))
+        for k in range(live):
+            p0, p1 = pts[k % n_sides], pts[(k + 1) % n_sides]
+            steps = max(1, int(math.hypot(p1[0] - p0[0], p1[1] - p0[1]) * 2))
+            for q in range(steps + 1):
+                f = q / steps
+                s.put(int(p0[0] + (p1[0] - p0[0]) * f),
+                      int(round(p0[1] + (p1[1] - p0[1]) * f)),
+                      "\u2022" if n_sides >= 36 else "\u00b7",
+                      _mix(ME_TEXT, 0.8 if n_sides >= 36 else 0.95))
+        if lab and cy + ry + 2 <= y1:
+            s.put(cx - rx, cy + ry + 1, f"{n_sides:>2} \u8fb9" if n_sides < 36 else "\u5706", _ui(0.75))
+            s.put(cx - rx, cy + ry + 2, f"{2 * n_sides * math.sin(math.pi / n_sides):.3f} r",
+                  _mix(ANOM, 0.7))
+    s.put(x0 + 1, y1 - 1, "n \u8fb9\u5f62\u7684\u5468\u957f \u2192 2\u03c0r\uff1a\u8fb9\u6570"
+                          "\u8d8a\u591a\uff0c\u8d8a\u50cf\u5706", _ui(0.5))
 
 
 def pane_three_arms(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
@@ -379,8 +398,10 @@ def pane_countdown(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     if w < 10 or h < 3:
         return
     n = int(u / 0.20)                       # ~0.8 s of countdown, then running
-    digits = {3: ("\u2588\u2588\u2588\u2588", "\u2588   \u2588", "\u2588   \u2588",
-                  "    \u2588", "    \u2588"),
+    # `3` had both edges lit on rows 2-3 and no middle or bottom bar, so the countdown opened on a "Π"
+    # (batch 31's audit rendered it); a 3 is top bar, right edge, middle bar, right edge, bottom bar.
+    digits = {3: ("\u2588\u2588\u2588\u2588", "    \u2588", "\u2588\u2588\u2588\u2588",
+                  "    \u2588", "\u2588\u2588\u2588\u2588"),
               2: ("\u2588\u2588\u2588\u2588", "    \u2588", "\u2588\u2588\u2588\u2588",
                   "\u2588   ", "\u2588\u2588\u2588\u2588"),
               1: ("    \u2588", "    \u2588", "    \u2588", "    \u2588", "    \u2588")}
@@ -404,8 +425,11 @@ def pane_countdown(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         for i in range(span):
             s.put(x0 + 1 + i, y0 + 5 + i, "\u00b7", _mix(ANOM, 0.25 + 0.6 * (i / span)))
     if h >= 5:
-        # a flat line: nothing is happening yet, and that is the line's own joke
-        s.put(x0 + 1, y1 - y0 - 1, "\u2500" * max(1, w - 2), _ui(0.35))
+        # a flat line: nothing is happening yet, and that is the line's own joke.
+        # `y1 - y0 - 1` is a *height*, not a row: used as a row it drew 288 cells outside the pane (the
+        # only pane that leaked - batch 31's audit measured it landing inside the feature-bands box on a
+        # 44-row window). The row it wants is the pane's own last one.
+        s.put(x0 + 1, y1 - 1, "\u2500" * max(1, w - 2), _ui(0.35))
 
 
 def pane_curriculum(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
@@ -504,7 +528,8 @@ def pane_point_set(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     if w < 14 or h < 4:
         return
     half = max(6, (w - 3) // 2)
-    s.put(x0, y0, "\u250c" + "\u2500" * (half - 2) + "\u252c" + "\u2500" * (w - half - 2) + "\u2510",
+    # (half - 2) made the top border one cell shorter than the bottom one (95 against 96)
+    s.put(x0, y0, "\u250c" + "\u2500" * (half - 1) + "\u252c" + "\u2500" * (w - half - 2) + "\u2510",
           _mix(ME_TEXT, 0.7))
     s.put(x0 + 2, y0, "IF", _mix(ME_TEXT, 0.95))
     s.put(x0 + half + 2, y0, "THEN", _ui(0.45))
@@ -518,7 +543,10 @@ def pane_point_set(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         px = x0 + 1 + rnd.randrange(0, max(1, w - 2))
         py = y0 + 3 + rnd.randrange(0, max(1, h - 3))
         if py <= y1:
-            s.put(px, py, "\u00b7", _mix(ME_TEXT, 0.30 + 0.55 * min(1.0, u / 0.6)))
+            # ...and each point breathes on the song clock: a point *set* that never changes is a still
+            # picture, and this pane's only motion used to come from the motif band under it
+            s.put(px, py, "\u00b7", _mix(ME_TEXT, 0.30 + 0.55 * min(1.0, u / 0.6)
+                                          + 0.15 * math.sin(t * 2.0 + px * 0.7)))
 
 
 PANE_BY_NAME = {
@@ -542,22 +570,28 @@ def pane_converge(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     """`all the execution` -> `only execution` (02:44.07-02:47.75): seven diagrams into one class.
 
     `02b` §4.3 calls this the core action of the software-engineering courseload, and it is also the
-    song's own figure: "give them all" arrives, and what is left is "your only". Six small diagrams are
-    laid out in a two-by-three, each one drawn small enough to read as its own notation (a box diagram,
-    an ER pair, an activity, a state chart, a sequence, a requirement), and then they collapse into a
-    single UML class in the middle. The collapse is on `u`, so seeking into the pane lands mid-collapse
-    in the same place playing into it would.
+    song's own figure: "give them all" arrives, and what is left is "your only". **Seven** small diagrams
+    - the seven the chat window names on this very line (`需求 · DFD · ER · 盒图 · 活动图 · 状态图 ·
+    时序图`) - are laid out three to a row, each drawn small enough to read as its own notation, and then
+    they collapse into a single UML class in the middle. The collapse is on `u`, so seeking into the pane
+    lands mid-collapse in the same place playing into it would.
+
+    The seventh arrived late: the pane drew six while the dialogue beside it listed seven, which batch 31's
+    audit caught by counting the boxes and the words in the same frame.
     """
     import school_courses as _C
     w, h = x1 - x0, y1 - y0
     if w < 16 or h < 5:
         return
-    titles = ["\u9700\u6c42", "DFD", "ER", "\u76d2\u56fe", "\u6d3b\u52a8\u56fe", "\u72b6\u6001\u56fe"]
-    collapse = max(0.0, min(1.0, (u - 0.55) / 0.40))       # 0 while the six are apart, 1 when merged
-    cw = max(6, (w - 4) // 3)
-    ch = max(2, (h - 2) // 2)
+    titles = ["\u9700\u6c42", "DFD", "ER", "\u76d2\u56fe", "\u6d3b\u52a8\u56fe", "\u72b6\u6001\u56fe",
+              "\u65f6\u5e8f\u56fe"]
+    cols = 3
+    rows = (len(titles) + cols - 1) // cols
+    collapse = max(0.0, min(1.0, (u - 0.55) / 0.40))       # 0 while the seven are apart, 1 when merged
+    cw = max(6, (w - 4) // cols)
+    ch = max(2, (h - (rows - 1)) // rows)
     for i, name in enumerate(titles):
-        r, c = divmod(i, 3)
+        r, c = divmod(i, cols)
         bx = x0 + 1 + c * (cw + 1)
         by = y0 + r * (ch + 1)
         if collapse >= 1.0:
@@ -578,7 +612,8 @@ def pane_converge(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
             s.put(bx, yy, _C.BOX_V, _C._mix(_C.BLUE, 0.5))
             s.put(bx + cw - 1, yy, _C.BOX_V, _C._mix(_C.BLUE, 0.5))
         s.put(bx + 2, by, f" {name} ", _C._ui(0.7))
-        s.put(bx + 2, by + 1, "\u00b7\u00b7\u00b7"[: cw - 4], _C._ui(0.4))
+        dots = ("\u00b7" * 16)[int(t * 3.0 + i * 2) % 8:][: max(0, cw - 4)]
+        s.put(bx + 2, by + 1, dots, _C._ui(0.4))
     if collapse > 0.75:
         # what is left: one class, drawn in the middle, at the weight the film gives a final drawing
         bw = min(w - 4, 34)
@@ -623,7 +658,10 @@ def pane_backlog(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         s.put(bx, y0, "\u250c", _C._mix(_C.BLUE, 0.6))
         s.put(min(bx + cw - 1, x1), y0, "\u2510", _C._mix(_C.BLUE, 0.6))
         s.put(bx + 2, y0, f" {name} ", _C._ui(0.75))
-        n = 1 + int(fill * 4 * (0.6 + 0.4 * abs(math.sin(lt * 1.3 + i))))
+        # The count has to *move*: `1 + int(fill * 4 * (0.6 + 0.4|sin|))` floors to a constant for both
+        # 0.18 and 0.42, so the board never changed - `clock_probe` called the whole pane STILL and the
+        # audit counted a constant three cards over sixty samples.
+        n = 1 + int(round(fill * 6 * (0.55 + 0.45 * abs(math.sin(lt * 1.3 + i)))))
         if i == 2:
             # Done never fills: one ghost card at most, and it is on its way back
             n = 0
@@ -635,6 +673,12 @@ def pane_backlog(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
             s.put(bx + 1, yy, label[: cw - 2], _C._mix(_C.BLUE if i == 1 else _C.DIM, 0.8))
         if i == 2 and h > 3:
             s.put(bx + 2, y0 + 2, "\u2014", _C._ui(0.3))
+    # ...and the card on its way back: it walks right-to-left across the board, one lap per 3.4 s, which
+    # is the gesture the lyric is about (the docstring has promised it since batch 1)
+    if h > 4:
+        f = (lt % 3.4) / 3.4
+        s.put(int(x0 + 2 + (w - 8) * (1.0 - f)), y1 - 2,
+              "\u25aa \u9700\u6c42"[: max(4, cw - 2)], _C._mix(_C.RED, 0.55 + 0.35 * f))
     if h > 3:
         s.put(x0, y1 - 1, "\u5361\u7247\u4e00\u76f4\u88ab\u63a8\u56de\u53bb", _C._mix(_C.RED, 0.8))
 
@@ -670,6 +714,11 @@ def pane_knowledge(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         s.put(x0 + 2 + c - 1, max(y0, yy) - 1, glyphs[i], _C._mix(_C.GREEN, 0.8))
         if h > 6:
             s.put(x0 + 2 + c - len(name) // 2, min(y1, yy + 1), name, _C._ui(0.6))
+    # a marker walking the curve on the song clock: the five stars are the syllabus, this is the term
+    # in progress - and without it the pane stops the moment its reveal ends
+    fm = (t * 0.12) % 1.0
+    s.put(x0 + 2 + int((n - 1) * fm), max(y0, y1 - 1 - int((h - 3) * (fm ** 1.6))),
+          "\u25b8", _C._mix(_C.RED, 0.9))
     s.put(x0, y0, "\u5927\u4e00 \u2192 \u5927\u4e09", _C._ui(0.5))
 
 
@@ -699,11 +748,16 @@ def pane_love_class(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     w, h = x1 - x0, y1 - y0
     if w < 12 or h < 3:
         return
+    # The kit is created **first** and the class is drawn under its header rule. `_Kit.__init__` writes a
+    # progress rule on `y0 + 1`; the class used to be drawn there and the kit made afterwards, so the rule
+    # painted over `class Love:` and the pane's own first line never reached the screen (batch 31's audit:
+    # "the pane erases its own first line").
+    k = _kit(s, x0, y0, x1, y1, 0, "")
     # the box is the lines that fit, not all of them: a short pane gets a shorter class rather than its
     # bottom line written outside it (caught by the probe at 60x7 and 34x5)
-    fit = max(1, min(len(lines), max(1, h // 2)))
+    fit = max(1, min(len(lines), max(1, (h - 3) // 2)))
     lines = lines[:fit]
-    bx, by = x0 + 1, y0
+    bx, by = x0 + 1, y0 + 2
     bw = min(w - 2, 46)
     for xx in range(bx, bx + bw):
         s.put(xx, by, _C.BOX_H, _C._mix(_C.AMBER, 0.8))
@@ -718,7 +772,6 @@ def pane_love_class(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     top = by + len(lines) + 2
     if y1 - top >= 5:
         import school_motifs as _M
-        k = _kit(s, x0, y0, x1, y1, 0, "")
         _M.hearts9(k.sub(k.bx0, top, k.bx1, y1), t)
 
 
@@ -921,6 +974,14 @@ def pane_landmark_hezun(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     k, ox, oy = _landmark("he_zun", s, x0, y0, x1, y1, u, "\u4f55\u5c0a",
                           "\u201c\u5b85\u5179\u4e2d\u56fd\u201d \u00b7 \u94ed\u6587\u91cc\u6700\u65e9\u7684"
                           "\u4e2d\u56fd\u4e8c\u5b57", dim=0.9, phase=lt)
+    # The vessel is a picture of a drawing, so its clock has to be the *light*: a highlight row walks
+    # down it on the song clock. `phase=lt` has been passed in since batch 1 and never honoured - the
+    # HTML-art route has no phase - so the pane used to freeze at u=1 (batch 31's audit).
+    hy = k.by0 + int((t * 3.0) % max(1, k.bh))
+    for xx in range(k.bx0, min(k.bx1 + 1, s.cols)):
+        ch, fg, _bg = s.buf[hy][xx]
+        if ch.strip():
+            s.put(xx, hy, ch, tuple(min(255, int(c * 1.45)) for c in fg))
     if k.bw > 46 and k.by0 + 1 <= k.by1:
         import school_courses as _C
         k.put(k.bx0 + 2, k.by0 + 1, "origin = \"\u5b85\u5179\u4e2d\u56fd\"", _mix(_C.AMBER, 0.85))
@@ -984,6 +1045,11 @@ def pane_landmark_cat(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         k.put(k.bx0, min(k.by1, y + 1),
               "(|\u751f\u27e9 + |\u6b7b\u27e9) / \u221a2 \u2014\u2014 \u53e0\u52a0\u6001\u4e0d\u662f\u4e0d\u77e5\u9053\uff0c"
               "\u662f\u4e24\u4e2a\u90fd\u5728", _ui(0.5))
+    # ...and something for the cat to watch: a dot circling its head on the song clock. The pane's only
+    # motion used to be the motif band under it, and the cat is the one drawing here that is *alive*.
+    ang = t * 1.5
+    k.put(int(k.bx0 + 5 + 4 * math.cos(ang)), int(k.by0 + 3 + 3 * math.sin(ang)),
+          "\u00b7", _mix(_C.GREEN, 0.7))
 
 
 def pane_everything_point(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
@@ -1062,8 +1128,10 @@ def _ev_food(k, t: float, u: float) -> None:
             if step >= 6:
                 drop = y + 4 + (int(t * 4.0) + i * 3) % (step - 5)
                 k.put(k.bx0 + bw // 2 + 1, drop, "\u25cf", _mix(_C.RED, 0.9))
+    # the numbers on the wires are 8 %, 14 % and 20 %, so what arrives is 0.92*0.86*0.80 = 63 % - the
+    # caption said "只剩一半" and the audit read the two against each other (batch 31, A-7)
     k.put(k.bx0, k.by1, "\u6bcf\u4e00\u6bb5\u90fd\u5728\u6389\uff1a"
-                        "\u4ece\u5730\u91cc\u5230\u7897\u91cc\u53ea\u5269\u4e00\u534a", _ui(0.5))
+                        "\u4ece\u5730\u91cc\u5230\u7897\u91cc\u53ea\u5269\u516d\u6210", _ui(0.5))
 
 
 def _ev_tomato(k, t: float, u: float) -> None:
@@ -1326,7 +1394,8 @@ def pane_landmark_crest(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     _landmark("crest", s, x0, y0, x1, y1, u,
               "\u897f\u5317\u5de5\u4e1a\u5927\u5b66",
               "\u516c\u8bda\u52c7\u6bc5 \u00b7 \u4e09\u5b9e\u4e00\u65b0" if closing else "",
-              dim=0.8 if not closing else max(0.3, 1.0 - (lt / max(1e-6, dur))),
+              dim=0.72 + 0.16 * math.sin(t * 1.1) if not closing
+              else max(0.3, 1.0 - (lt / max(1e-6, dur))),
               max_rows=None if closing else 15)
 
 
@@ -1377,7 +1446,10 @@ def pane_isolation(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     beat = 0.62 + 0.38 * abs(math.sin(t * 2.1))
     k.put(cx, cy, "\u25cf", _C._mix(_C.AMBER, beat))
     k.put(cx - 1, cy, "\u25cb", _C._mix(_C.AMBER, beat * 0.5))
-    k.put(k.bx0, k.by1 - 1, f"\u5269 {9 * len(rows) - gone - 1} / {9 * len(rows) - 1}", _C._ui(0.5))
+    # ...and the count has to agree with the point that is drawn: this read "剩 0 / 116" with the
+    # surviving dot right there (batch 31's audit: off-by-one in the denominator)
+    total = 9 * len(rows)
+    k.put(k.bx0, k.by1 - 1, f"\u5269 {total - gone} / {total}", _C._ui(0.5))
     k.put(k.bx0, k.by1, "\u4f60\u8d70\u4e86\uff0c\u5269\u4e0b\u7684\u90fd\u5728\u706d", _C._ui(0.55))
 
 
@@ -1601,35 +1673,17 @@ def draw_pane(name: str, s, x0: int, y0: int, x1: int, y1: int, t: float,
     drawing, so it has to come from the row in `school_panels` rather than be guessed from the time.
     A pane that takes no arguments ignores it.
 
-    After the pane draws, `MOTIF_IN` may put a second drawing in the rows it did not use - the graphics
-    `参考及想法/想法.md` lists for that lyric and that the pane itself never had room for. The band is
-    found by looking at the buffer, the same way `school_courses` finds room for a course's terms.
+    **There is no motif band any more** (batch 32). Until then this function split the box and drew one
+    of `school_motifs`' pictures in the lower part whenever the pane was listed in `MOTIF_IN`/`MOTIF_ALSO`
+    - and sixteen of those motifs *also* have a pane of their own (`pane_motif_<name>`), so the same
+    drawing played twice in one song. That is the repeat the user forbade ("除了校徽、铸剑雕塑外的演出禁止
+    重复"), and `_dev/repeat_probe.py` could not see it because it compares pane names in the schedule while
+    the band was a second drawing inside one pane's box. The motifs are panes now, and the panes that used
+    to borrow a band for motion have their own clock.
     """
     fn = PANE_BY_NAME.get(name)
     if fn is None:
         return False
-    motifs = [n for n in (MOTIF_IN.get(name), MOTIF_ALSO.get(name)) if n]
-    # A pane with a motif splits its box up front: the drawing gets the top and the motif the bottom.
-    #
-    # Measuring the band afterwards - which is what the course panes do for their vocabulary - does not
-    # work here, and the reason is worth writing down: these are the batch-1 panes, and in a thirty-row
-    # box one of them stretches its own geometry to fill it and another fills it with a sparse point
-    # field, so `_last_ink` answers "the last row" and the motif is never placed. Reserving is also what
-    # keeps the host honest: `pane_power_on` was drawn for eleven rows and in thirty-three it renders as
-    # a breadboard the size of the screen.
-    if motifs and y1 - y0 >= 14:
-        h = y1 - y0 + 1
-        share = MOTIF_SHARE.get(name, 0.55 if len(motifs) == 1 else 0.40)
-        host_y1 = y0 + max(6, int(h * share)) - 1
-        if args:
-            try:
-                fn(s, x0, y0, x1, host_y1, t, lt, dur, u, **args)
-            except TypeError:
-                fn(s, x0, y0, x1, host_y1, t, lt, dur, u)
-        else:
-            fn(s, x0, y0, x1, host_y1, t, lt, dur, u)
-        _motif(name, s, x0, host_y1 + 1, x1, y1, t, motifs)
-        return True
     if args:
         try:
             fn(s, x0, y0, x1, y1, t, lt, dur, u, **args)
@@ -1642,77 +1696,12 @@ def draw_pane(name: str, s, x0: int, y0: int, x1: int, y1: int, t: float,
     return True
 
 
-# Which motif belongs under which pane, from the section headings in `想法.md`: 开机 gets the weight
-# initialisation, 定义 gets Byrne's plate and the quantisation, and LOVE gets the two heart sheets.
-# A pane that is not in this table is drawn exactly as it was.
-MOTIF_IN = {
-    "pane_power_on": "he_init",
-    "pane_parameters": "rectifier",
-    "pane_protection": "phyllotaxis",
-    "pane_point_set": "byrne",
-    "pane_landmark_sword": "quantize",
-    "pane_memory": "dijkstra",
-    "pane_exec_os": "fork_bomb",
-    # the two `想法.md` motifs that a character grid draws better than anything else left on the list:
-    # 定义 gets the sine and its envelope (drawn, not written - the user's note for this batch), 互换
-    # gets the moiré gratings, and 振动 gets the Chladni plate with the sand on its nodal lines
-    "pane_class": "sine",
-    "pane_three_arms": "moire",
-    "pane_countdown": "chladni",
-    # the second round of `想法.md` motifs, each on the pane whose lyric it belongs to: the spiral on the
-    # line that names the school's three arms, the memory map on "Erase all the pointless fragments", the
-    # pixel sort on the crash, and the shutdown counter under the last crest
-    "pane_landmark_crest": "powerdown",
-    # the third round: the superellipse on the curve pane, the diffraction star on the one about light,
-    # the lattice over the closing convergence
-    "pane_polyhedra": "stardiff",
-    "pane_converge": "lattice",
-}
-# the second motif for the panes whose lyric has room for two: the heart sheet goes under the epicycles
-# in the LOVE pane, the spiral under the moiré on the line about the three arms, the memory map under the
-# cracks on "Erase all the pointless fragments", the pixel sort beside the quantisation on the crash, and
-# the circular plate beside the square one under the countdown.
-MOTIF_ALSO = {
-    "pane_three_arms": "galaxy",
-    "pane_memory": "fragmentation",
-    "pane_countdown": "bessel",
-    "pane_parameters": "hyperellipse",
-    "pane_point_set": "en_limit",
-    "pane_protection": "binary",
-}
-# How much of its box a pane keeps when it has a motif band under it. The default is a fair split - a
-# pane and a graphic sharing the column - but a pane whose subject is a *photograph of a sculpture*
-# cannot be read in 40 % of a box: 为国铸剑 was 13 rows of a 33-row pane with two motifs under it, and
-# the user's note was "铸剑的微缩字符画太小了，完全没看出是什么". So the sword declares its own share and
-# gives up its second motif (the pixel sort, which moved to 数据结构 · 排序, where sorting is the subject).
-MOTIF_SHARE = {
-    "pane_landmark_sword": 0.68,
-}
-
-
-def _motif(name: str, s, x0: int, y0: int, x1: int, y1: int, t: float, names=None) -> None:
-    """Draw this pane's motif, or motifs, in the band the pane gave up.
-
-    Two motifs means the band is split: the first takes the top of it and the second the bottom, so a
-    nine-second pane can carry both the epicycles and the contact sheet without either being a stamp.
-    """
-    import school_motifs as _M
-    import school_courses as _C
-    names = names or [n for n in (MOTIF_IN.get(name), MOTIF_ALSO.get(name)) if n]
-    if not names or y1 - y0 < 5:
-        return
-    k = _C._Kit.__new__(_C._Kit)
-    k.s = s
-    k.colour, k.u = _C.BLUE, 1.0
-    top = y0
-    for i, motif in enumerate(names):
-        band1 = y1 if i == len(names) - 1 else top + (y1 - top + 1) // len(names) - 1
-        k.x0, k.y0, k.x1, k.y1 = x0 + 1, top, x1 - 1, band1
-        k.w, k.h = x1 - x0 - 1, band1 - top + 1
-        k.bx0, k.by0, k.bx1, k.by1 = x0 + 1, top, x1 - 1, band1
-        k.bw, k.bh = max(1, x1 - x0 - 1), max(1, band1 - top + 1)
-        _M.draw_motif(motif, k, t)
-        top = band1 + 1
+# The motif bands are **gone** (batch 32). `MOTIF_IN` / `MOTIF_ALSO` / `MOTIF_SHARE` and the band
+# helper `_motif(name, s, ...)` drew one of `school_motifs`' pictures a second time underneath the pane
+# whose lyric it belonged to - while that same motif also had a pane of its own, registered below as
+# `pane_motif_<name>`. Sixteen motifs therefore played twice. `_motif(name)` - the *pane* factory just
+# below - is the one that stays, and the panes that used to borrow a band for motion now move on their own
+# clock, because a pane that stops moving is what `_dev/clock_probe.py` exists to catch.
 
 
 _palette()

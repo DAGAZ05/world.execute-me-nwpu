@@ -89,17 +89,14 @@ def main() -> None:
         d = [b for b in dial if at - 1e-6 <= b[0] < end - 1e-6]
         ev = [(s, e, fn.__name__, fx_brief(kw)) for s, e, fn, kw in FX.EVENTS
               if s < end - 1e-6 and e > at + 1e-6]
-        # the motif band `draw_pane` adds under some panes (a second drawing in the same box, when the
-        # box is 14 rows or more): it is part of what is on screen, so the table has to say so
-        bands = [m for m in (SC.MOTIF_IN.get(r["name"]), SC.MOTIF_ALSO.get(r["name"])) if m]
+        # the motif bands are gone as of batch 32 (they drew a motif a second time under the pane whose
+        # lyric it belonged to, and every one of those motifs has a pane of its own)
         what, text, verdict = cat.get(r["name"], ("", "", ""))
         md.append(f"\n## {at:7.2f} - {end:7.2f}  `{name}`\n")
         md.append(f"- 歌词行：{r['lyric']!r}" + (f"；区间内 {len(lyr)} 行" if lyr else ""))
         if lyr:
             md.append(f"- 区间内歌词：{'; '.join(lyr)}")
         md.append(f"- ops：{'/'.join(map(str, r['ops']))}；her={r['her']}")
-        if bands:
-            md.append(f"- 同框母题带（框 ≥14 行时）：{'/'.join(bands)}")
         if what:
             md.append(f"- 画面：{what}")
         if text:
@@ -144,15 +141,13 @@ def main() -> None:
         d = [b for b in dial if at - 1e-6 <= b[0] < end - 1e-6]
         ev = [(s, e, fn.__name__, fx_brief(kw)) for s, e, fn, kw in FX.EVENTS
               if s < end - 1e-6 and e > at + 1e-6]
-        bands = [m for m in (SC.MOTIF_IN.get(r["name"]), SC.MOTIF_ALSO.get(r["name"])) if m]
         what = cat.get(r["name"], ("", "", ""))[0] or (
             PC.claim_for(r["name"], claim) if r["name"] else "")
         cell = lambda s: str(s).replace("|", "\\|").replace("\n", " ")          # noqa: E731
         talk = "<br>".join(f"{ROLE_ZH.get(role, role)}：{txt}" for b in d for role, txt in b[2])
         layer = "<br>".join(f"{s:.2f}-{e:.2f} `{nm}` {br}" for s, e, nm, br in ev)
-        tbl.append("| {} | {:.2f}-{:.2f} | {} | {} | `{}`{} | {} | {} | {} |".format(
+        tbl.append("| {} | {:.2f}-{:.2f} | {} | {} | `{}` | {} | {} | {} |".format(
             i, at, end, cell(" / ".join(lyr)) or "—", cell(talk) or "—", name,
-            ("<br>母题带：" + "/".join(bands)) if bands else "",
             cell(what) or "—", cell("/".join(map(str, r["ops"]))), cell(layer) or "—"))
     (OUT / "shishu_biao.md").write_text("\n".join(tbl) + "\n", encoding="utf8")
     print(f"{OUT / 'shishu_biao.md'}")

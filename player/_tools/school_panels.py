@@ -249,7 +249,7 @@ SHOT_ROWS: list[dict] = [
     # superellipse (a circle is `n = 2` of it), then the sine and its envelope, which is also where the
     # pane's own third stage already was.
     dict(at=33.01, name="pane_polyhedra", lyric="If I'm a circle",
-         ops=["|x|^n", "n=2", "CIRCLE"], her=False),
+         ops=["n \u2192 \u221e", "2\u03c0r", "CIRCLE"], her=False),
     dict(at=36.77, name="pane_motif_sine", lyric="If I'm a sine wave",
          ops=["正弦", "ENVELOPE"], her=False),
     # The overlay stops at the end of P1 and the film's own 97-shot table takes the column back from
