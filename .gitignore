@@ -11,3 +11,6 @@ _dev/out/
 .idea/
 Thumbs.db
 desktop.ini
+
+# scratch: the commit message file is written and deleted by the commit step
+_commit_msg.txt
