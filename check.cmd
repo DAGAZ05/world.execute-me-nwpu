@@ -13,7 +13,7 @@ rem "'Run' is not recognized", "'verdict' is not recognized", and so on, for fou
 rem comments above it. The checks all still ran; the noise was the tell. Everything user-facing that
 rem is not ASCII lives in the Python tools this calls.
 rem
-rem   check.cmd          the fast set: ten probes, about a minute
+rem   check.cmd          the fast set: eleven probes, about a minute
 rem   check.cmd --full   and the two whole-song sweeps (a few minutes more)
 setlocal
 set FAIL=0
@@ -49,6 +49,10 @@ python _dev\timeline_doc.py --check || set FAIL=1
 echo.
 echo === ops_probe       the ops box: is a tall drawing answered with more than one line of words
 python _dev\ops_probe.py --step 2.0 || set FAIL=1
+
+echo.
+echo === layout_probe     panes whose declared layout silently degraded to a fallback
+python _dev\layout_probe.py || set FAIL=1
 
 echo.
 echo === math_probe      the maths panes: do they say true things about themselves
