@@ -38,6 +38,21 @@ def _mix(c, level: float = 1.0):
     return PANE_CTX["mix"](c, level)
 
 
+def _beat(t: float) -> float:
+    """The film's own beat pulse at `t`: 1 on the beat, decaying over 140 ms (`FP.pulse`).
+
+    Imported lazily and guarded, because this module is also loaded by probes that do not import the
+    film's clock. A pane that has to move on the beat and cannot find the clock falls back to a sine at
+    the beat's own rate rather than to a constant - a constant would make `_dev/clock_probe.py` call the
+    pane a still frame, and the sine at least keeps the *rate* honest in a probe context.
+    """
+    try:
+        import film_panels as _FP
+        return _FP.pulse(t)
+    except Exception:
+        return 0.5 + 0.5 * math.sin(2 * math.pi * t / 0.4615)
+
+
 ME_TEXT = (126, 152, 255)          # the film's own colours; resolved again at import if present
 ANOM = (255, 204, 0)
 RED = (255, 59, 48)
@@ -1452,9 +1467,18 @@ def pane_isolation(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         k.put(k.bx0, k.by1, "\u53ea\u5269\u4e00\u4e2a\u70b9", _C._ui(0.6))
         return
     step_x = max(4, k.bw // 9)
-    # the field: nine points a row, each one going out on its own beat. The order is by distance from
-    # the middle, so what is left at the end is the point the whole drawing is about - and it is a
-    # function of `u`, not of a random number, so it is the same every time the second is played.
+    # the field: nine points a row, erased in order of distance from the middle, so what is left at the
+    # end is the point the whole drawing is about - and the order is a function of `u` rather than of a
+    # random number, so it is the same every time the second is played.
+    #
+    # **The surviving point pulses on the beat**, which is what the comment here claimed and the code did
+    # not do. It was `0.62 + 0.38 * abs(sin(t * 2.1))` - a sine at 2.1 rad/s, i.e. a 3.0 s period against
+    # a 0.4615 s beat, so it was in phase with the song about once every seven beats and drifted the rest
+    # of the time. It read as "something is breathing" and never as "the machine is still counting". This
+    # is the same beat clock the film's boxes breathe on (`FP.pulse`: 1 on the beat, decaying over 140 ms)
+    # and the same one the course counter answers to now; the last point standing is one of the few places
+    # in the film where a single cell *is* the subject, so it is worth the one exponent.
+    beat = 0.55 + 0.45 * _beat(t)
     middle = len(rows) // 2
     gone = 0
     for i, y in enumerate(rows):
@@ -1467,10 +1491,13 @@ def pane_isolation(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
             if far <= int(u * 60):
                 gone += 1
                 continue
-            k.put(x, y, "\u00b7", _C._ui(0.30))
+            # ...and the points that are still there are being left in order, so the ones about to go
+            # are drawn dimmer than the ones with time left: the field is emptying *toward* the middle
+            # rather than blinking out, which is the difference between a countdown and a still image
+            near = far > int(u * 60) + 24
+            k.put(x, y, "\u00b7", _C._ui(0.40 if near else 0.22))
     cx = k.bx0 + 2 + 4 * step_x
     cy = k.by0 + 2 + middle * 2
-    beat = 0.62 + 0.38 * abs(math.sin(t * 2.1))
     k.put(cx, cy, "\u25cf", _C._mix(_C.AMBER, beat))
     k.put(cx - 1, cy, "\u25cb", _C._mix(_C.AMBER, beat * 0.5))
     # ...and the count has to agree with the point that is drawn: this read "剩 0 / 116" with the

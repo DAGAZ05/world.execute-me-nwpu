@@ -9,6 +9,18 @@ is a font question, not a taste question: the terminal's font has to have the gl
 already knows what a missing one costs (the waveform ramp rendered as `?` boxes until `tui_shot` sent
 everything past ASCII to msyh). So this renders each family with the fonts the player and the renderer
 use and reports whether the glyph came out empty or as a `.notdef` box.
+
+**Three things had to be fixed before this probe could answer anything** (batch 39 - it had never been
+run in this checkout, and `_dev/out/glyphs.png` did not exist to say so):
+
+  * it printed the glyphs themselves to stdout, and a Windows console is GBK by default: the very first
+    run died with `UnicodeEncodeError: 'gbk' codec can't encode character '\\u2580'`, i.e. the probe
+    crashed on the family it exists to measure. Output is now ASCII-only and the glyphs go to the PNG;
+  * `FONTS` was missing `consolab.ttf`, which is the monospace font the player itself names
+    (`tui_live._F_MONO_B`); `consola.ttf` is the *renderer's* ASCII font (`tui_shot`), so the probe was
+    measuring a different font from the one the film draws with;
+  * a load failure returns `-1` from `glyph_ink`, and the blank count only counted `0` - so a font that
+    could not be loaded at all was reported as "0 blank of N", i.e. perfect.
 """
 from __future__ import annotations
 
@@ -18,15 +30,18 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 FAMILIES = {
-    "blocks U+2580-259F": [chr(c) for c in range(0x2580, 0x25A0)],
-    "quadrants U+2596-259F": [chr(c) for c in range(0x2596, 0x25A0)],
-    "braille U+2800-28FF": [chr(c) for c in range(0x2800, 0x2900, 0x11)],
-    "sextants U+1FB00-1FB3B": [chr(c) for c in range(0x1FB00, 0x1FB3C, 5)],
-    "shade U+2591-2593": [chr(c) for c in (0x2591, 0x2592, 0x2593)],
-    "geometric U+25A0-25FF": [chr(c) for c in (0x25A0, 0x25AA, 0x25CF, 0x25CB, 0x25B2)],
+    "blocks": [chr(c) for c in range(0x2580, 0x25A0)],
+    "quadrants": [chr(c) for c in range(0x2596, 0x25A0)],
+    "braille": [chr(c) for c in range(0x2800, 0x2900, 0x11)],
+    "sextants": [chr(c) for c in range(0x1FB00, 0x1FB3C, 5)],
+    "shade": [chr(c) for c in (0x2591, 0x2592, 0x2593)],
+    "geometric": [chr(c) for c in (0x25A0, 0x25AA, 0x25CF, 0x25CB, 0x25B2)],
 }
-FONTS = ["C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/consola.ttf", "C:/Windows/Fonts/simsun.ttc",
-         "C:/Windows/Fonts/msyhbd.ttc", "C:/Windows/Fonts/SimHei.ttf"]
+# `consolab.ttf` first because it is the one the player names for its own monospace output; `consola`
+# is the renderer's ASCII face, and the CJK faces are what everything past ASCII falls back to.
+FONTS = ["C:/Windows/Fonts/consolab.ttf", "C:/Windows/Fonts/consola.ttf",
+         "C:/Windows/Fonts/msyh.ttc", "C:/Windows/Fonts/msyhbd.ttc",
+         "C:/Windows/Fonts/simsun.ttc", "C:/Windows/Fonts/SimHei.ttf"]
 
 
 def glyph_ink(font: ImageFont.FreeTypeFont, ch: str, size: int = 16) -> int:
@@ -42,7 +57,26 @@ def glyph_ink(font: ImageFont.FreeTypeFont, ch: str, size: int = 16) -> int:
     return sum(1 for b in data if b > 40)
 
 
+def verdict(inks: list[int]) -> str:
+    """One family's reading, in words. `-1` (the font could not draw it at all) counts as a failure."""
+    if any(i < 0 for i in inks):
+        return "FAILED to measure"
+    blank = sum(1 for i in inks if i == 0)
+    if blank == len(inks):
+        return "NO GLYPH (all blank)"
+    if len(set(inks)) == 1:
+        return "SAME INK for all (a fallback box)"
+    if blank:
+        return f"partial: {blank} blank of {len(inks)}"
+    return f"ok ({min(inks)}-{max(inks)} px)"
+
+
 def main() -> None:
+    # ASCII only: a Windows console is GBK and the glyphs are not in it. See the module docstring.
+    print("sub-cell glyph coverage, per font (ink pixels per glyph, 16px)")
+    print("families: " + ", ".join(f"{k}={len(v)}" for k, v in FAMILIES.items()))
+    print()
+    summary: dict[str, dict[str, str]] = {}
     for path in FONTS:
         p = Path(path)
         if not p.exists():
@@ -54,16 +88,16 @@ def main() -> None:
             print(f"{p.name:14s} cannot be loaded: {exc}")
             continue
         print(f"{p.name}")
+        summary[p.name] = {}
         for family, chars in FAMILIES.items():
             inks = [glyph_ink(font, c) for c in chars]
-            blank = sum(1 for i in inks if i == 0)
-            # a `.notdef` is the same ink for every character in the run, and it is a full box
-            same = len(set(inks)) == 1 and inks[0] > 0
-            note = "all identical (a fallback box?)" if same else f"{blank} blank of {len(chars)}"
-            sample = " ".join(f"{c}:{i}" for c, i in list(zip(chars, inks))[:6])
-            print(f"   {family:22s} {note:32s} {sample}")
+            v = verdict(inks)
+            summary[p.name][family] = v
+            lo = min(i for i in inks if i >= 0) if any(i >= 0 for i in inks) else -1
+            hi = max(inks)
+            print(f"   {family:10s} {v:34s} [{lo}..{hi}]")
         print()
-    # and what the renderer would actually show, as one PNG
+    # ...and what the renderer would actually show, as one PNG: this is where the glyphs themselves go
     im = Image.new("RGB", (760, 40 * len(FAMILIES) + 10), (10, 12, 18))
     d = ImageDraw.Draw(im)
     try:
@@ -73,12 +107,19 @@ def main() -> None:
     y = 5
     for family, chars in FAMILIES.items():
         d.text((6, y), "".join(chars[:24]), font=f, fill=(230, 236, 248))
-        d.text((640, y), family.split()[0], font=f, fill=(120, 140, 180))
+        d.text((640, y), family, font=f, fill=(120, 140, 180))
         y += 40
     out = Path(__file__).resolve().parent / "out" / "glyphs.png"
     out.parent.mkdir(parents=True, exist_ok=True)
     im.save(out)
     print(f"sample sheet -> {out}")
+
+    # a one-line answer to the question this was written for
+    print()
+    for family in ("quadrants", "braille", "sextants"):
+        good = [name for name, fam in summary.items() if fam.get(family, "").startswith("ok")]
+        print(f"{family:10s} usable in: {', '.join(good) if good else 'NONE'}")
+    raise SystemExit(0)
 
 
 if __name__ == "__main__":
