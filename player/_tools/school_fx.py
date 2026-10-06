@@ -704,7 +704,16 @@ def flash(s, cols: int, rows: int, t: float, u: float, name: str, cols_n: int = 
     # than be pushed against its left edge, or "bigger than the screen" reads as "off to one side"
     x0 = int((cols - w) * x)
     y0 = int((rows - h) * y)
-    paste(s, cells, x0, y0, dim=(dim if dim > 0.0 else (0.42 if behind else 1.0)) * fade)
+    # **A big plate takes the fast path.** `paste`'s slow path is a `Screen.put` per cell - a method call
+    # with a `CLEAR` span lookup and a wide-character repair in it - and the closing frames of the film
+    # carry three of these at once (the library backdrop, the crest plate and the mascot's whole body),
+    # which is what `_dev/stage_probe.py` measured as the song's most expensive frame at all. `fast=True`
+    # writes the buffer directly, vignette included, and skipping the `CLEAR` check is correct here for
+    # the reason written in `paste`: this layer is drawn over a finished frame, so there is no earlier
+    # drawing of *this* layer left to protect. The threshold is not a micro-optimisation: below a couple
+    # of thousand cells the two paths measure the same and the slow one keeps its repair.
+    paste(s, cells, x0, y0, dim=(dim if dim > 0.0 else (0.42 if behind else 1.0)) * fade,
+          fast=(w * h >= 1500))
     if caption:
         s.put(max(1, (cols - len(caption)) // 2), min(rows - FOOTER_KEEP, max(0, y0) + min(h, rows) + 1), caption,
               tuple(int(k * fade) for k in (255, 210, 120)))
@@ -793,7 +802,9 @@ def stand(s, cols: int, rows: int, t: float, u: float, name: str, side: str = "r
     # their own and any of the three could put a foot back into the chrome. The invariant this enforces is
     # the one the user asked for: the lowest inked row is `rows - FOOTER_KEEP - 1` at worst.
     y = max(0, min(y, rows - FOOTER_KEEP - 1 - chh))
-    paste(s, cells, x, y)
+    # the whole body is ~2860 cells and it is the layer's last item in the film's most expensive frame,
+    # so it takes the fast path for the same reason `flash`'s big plates do - see the note there
+    paste(s, cells, x, y, fast=(cw * chh >= 1500))
     if caption and 2 <= x <= cols - len(caption) - 3:
         s.put(x, max(0, y - 1), caption, (255, 220, 150))
 

@@ -52,6 +52,25 @@ TIMES = [5.0, 11.5, 20.0, 35.0, 50.0, 63.0, 80.0, 100.0, 120.0, 133.0, 148.0, 15
          155.0, 158.0, 163.0, 170.0, 176.5, 180.0, 190.0, 200.0, 210.0]
 
 
+def sample_times(with_cuts: bool = True) -> list[float]:
+    """`TIMES`, plus the middle of every cut's transition.
+
+    **This grid used to be the whole story, and it was under-sampling.** It reported "0 sizes over
+    budget" for batches while `_dev/stage_probe.py` - which samples the middle of each transition -
+    found the film's most expensive frame at 193.69 s at 41.9-51.0 ms, i.e. over the 41.7 ms budget.
+    193.46 is a row start, so 193.69 is exactly half a beat into that row's transition, and the nearest
+    point on this grid was 30 s away. A transition moves a whole column of cells, so it is precisely the
+    kind of frame a gate has to look at, and the gate was looking between them.
+    """
+    if not with_cuts:
+        return list(TIMES)
+    import school_fx as _fxc
+    out = set(TIMES)
+    for at, (_kind, dur) in _fxc._cuts().items():
+        out.add(round(at + dur * 0.5, 4))
+    return sorted(out)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -59,7 +78,12 @@ def main() -> None:
     ap.add_argument("--budget", type=float, default=41.7, help="ms per frame at 24 fps")
     ap.add_argument("--reps", type=int, default=3, help="warm passes; the per-time minimum is reported")
     ap.add_argument("--major", default="s", help="pre-answer the college gate")
+    ap.add_argument("--no-cuts", dest="cuts", action="store_false", default=True,
+                    help="skip the per-transition samples (faster, and it is the old grid)")
     a = ap.parse_args()
+    times = sample_times(a.cuts)
+    print(f"sampling {len(times)} times"
+          f"{' (the grid plus the middle of every cut)' if a.cuts else ''}")
 
     # exactly what the player does (`tui_live.main`), for the reason written there
     gc.disable()
@@ -85,7 +109,7 @@ def main() -> None:
         s = T.Screen(cols, rows)
         sink = io.StringIO()
         cold = []
-        for t in TIMES:
+        for t in times:
             t0 = time.perf_counter()
             T.draw(s, d, eng, t, True, 24.0)
             s.render_diff(sink)
@@ -93,7 +117,7 @@ def main() -> None:
         best: dict[float, float] = {}
         peak: dict[float, float] = {}
         for _ in range(max(1, a.reps)):
-            for t in TIMES:
+            for t in times:
                 t0 = time.perf_counter()
                 T.draw(s, d, eng, t, True, 24.0)
                 s.render_diff(sink)
