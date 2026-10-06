@@ -1505,6 +1505,36 @@ def _block_letter(k, x: int, y: int, ch: str, colour) -> None:
 
 # the landmark panes and the closing panes are added to the dispatch *after* their definitions: a dict
 # literal near the top of the file that named them would be evaluated before the functions existed.
+def _motif(name: str):
+    """A dispatch entry for one of `school_motifs`' twenty-two drawings, as a pane of its own.
+
+    The motifs were written as *bands* - a strip under the pane whose lyric they belong to - because
+    `想法.md` lists them as decoration for a drawing that already exists. The user's note this batch is
+    "有些演出重复了很多次，除了校徽、铸剑雕塑外的演出禁止重复，请依据歌词给出合适的图案演出", and that
+    asks for the opposite: more distinct drawings, one per lyric. Twenty-two motifs that already have a
+    title, an animation and a clock are exactly the vocabulary for that, so they are promoted here rather
+    than invented again.
+
+    They are still drawn as **bands**, though - a block of rows in the middle of the pane with the title
+    above and a caption below - and that is `density_probe`'s doing rather than a style choice: drawn to
+    fill a 95x33 box, `pixelsort` and the Chladni plate came out as walls of ink (its criterion for "this
+    stopped being a drawing and became texture" is a third of the cells, and both were well past it). A
+    band is what they were designed for; the pane gives them the room to be looked at.
+    """
+    import school_motifs as _M
+
+    def pane(s, x0, y0, x1, y1, t, lt, dur, u, args=None) -> None:
+        title, fn = _M.MOTIFS[name]
+        k = _kit(s, x0, y0, x1, y1, 0, title)
+        if k is None or k.bh < 5:
+            return
+        band = max(4, min(k.bh - 2, 15))
+        fn(k.sub(k.bx0, k.by0 + 1, k.bx1, k.by0 + band), t)
+
+    pane.__name__ = "pane_motif_" + name
+    return pane
+
+
 def _ai(name: str):
     """A dispatch entry for one of `school_courses`' four AI panes, in this module's calling shape.
 
@@ -1545,6 +1575,13 @@ PANE_BY_NAME.update({
     "pane_ai_rl": _ai("pane_ai_rl"),
     "pane_ai_diffusion": _ai("pane_ai_diffusion"),
 })
+
+# ...and every motif of `school_motifs`, each as a pane in its own right: `pane_motif_he_init`,
+# `pane_motif_byrne`, and so on. The schedule picks them by lyric - see `_motif`.
+import school_motifs as _MOT            # noqa: E402
+
+for _m in _MOT.MOTIFS:
+    PANE_BY_NAME["pane_motif_" + _m] = _motif(_m)
 
 # the same names, for the schedule in `school_panels` to hang on lyric times
 LANDMARK_PANES = ["pane_landmark_crest", "pane_landmark_dialogue", "pane_landmark_sword",

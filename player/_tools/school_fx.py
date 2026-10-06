@@ -291,7 +291,11 @@ DITHER = 0.5
 # than applied per frame: a 130x41 aircraft is 5300 cells and a second pass over them every frame is
 # 10 ms of a 41.7 ms budget for something that never changes.
 OUTLINE_RGB = (236, 243, 255)
-OUTLINED = ("y20", "j20", "z20", "arj21", "manta", "torpedo")
+# **Empty, and that is the user's call.** The outline was batch 26's ("各类飞机、魔鬼鱼的轮廓加上白框，这样
+# 图像清晰一些") and this batch takes it back: "我发现飞机这些加白色轮廓后不太好看，还是改回去". The
+# mechanism stays because it works and is built into the sprite cache; the list is what decides who wears it,
+# and nobody does. Adding a name back here is the whole change if it is ever wanted on one picture.
+OUTLINED: tuple = ()
 
 
 def _outline(grid, cols: int, rows: int):
@@ -1143,7 +1147,7 @@ def window_fx(s, cols: int, rows: int, t: float, box: tuple) -> int:
 # layer as the window they cover - see the note in `dunk`. They are declared here, after `dunk`, because
 # the table holds the function itself.
 WINDOW_EVENTS: list[tuple[float, float, object, dict]] = [
-    (58.65, 70.08, dunk, dict(caption="\u822a\u5c0f\u5929 \u00b7 \u6821\u56ed")),
+    (58.65, 70.08, dunk, dict()),
 ]
 
 
@@ -1726,9 +1730,13 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     #     the building actually is.
     (193.50, 197.50, flash, dict(name="library", fill=0.62, x=0.0, y=0.78, behind=True, dim=0.62,
                                  contrast=1.1, caption="\u56fe\u4e66\u9986 \u00b7 \u706f\u8fd8\u4eae\u7740")),
-    # --- 航小天's whole body, once, on the last line of the song: he has been a face in the window for
-    # three and a half minutes and this is the only place the film shows that he has legs
-    (193.60, 199.00, stand, dict(name="mascot", side="right", caption="\u822a\u5c0f\u5929")),
+    # --- the whole body, once, on the last line of the song: he has been a face in the window for three
+    #     and a half minutes and this is the only place the film shows that he has legs. He stands at the
+    #     **left** edge, on the machine's side: the panels swap at 02:16.9, so by now the right column is
+    #     the conversation, and the user's note is "交换位置后全身航小天应位于左侧". **No caption** either -
+    #     "航小天全身图旁也不要单独加一行'航小天'" - the figure is recognisable and the window above it has
+    #     his name on it already.
+    (193.60, 199.00, stand, dict(name="mascot", side="left")),
     # --- the closing crest is the **pane** at 193.46 and nothing else. The flash that used to be here
     #     (199.00, 48x20) was the emblem's third big appearance, and the user's note is that there is one:
     #     "校门、校徽的大图出现了多次，仅保留第一次".

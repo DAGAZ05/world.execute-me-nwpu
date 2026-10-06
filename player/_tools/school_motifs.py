@@ -218,6 +218,11 @@ def quantize(k, t: float) -> None:
     k.put(k.bx0 + 2, y + 2, "1 \u00b7 2 \u00b7 3 \u2026" if k.bw > 40 else "1 2 3 \u2026", _ui(0.5))
     k.put(k.bx0 + int(n * 0.42), y + 2, "\u2191 \u6b64\u540e\u6bcf\u9694\u4e00\u4e2a\u6570\u90fd\u4e0d\u80fd"
                                         "\u7cbe\u786e\u8868\u793a", _mix(_C.RED, 0.8))
+    # ...and a cursor walks the number line. This drawing had **no clock at all** while it was a band
+    # under `pane_landmark_sword`, which was fine there - the host pane moved - and is not fine now that
+    # `pane_motif_<name>` can be a pane of its own ("禁止重复" needed more drawings, so the motifs became
+    # panes). `_dev/clock_probe.py` is what asks, and a pane that never moves is a still frame.
+    k.put(k.bx0 + 2 + int((t * 7.0) % max(1, n)), y - 1, "\u25bc", _mix(_C.AMBER, 0.9))
 
 
 def dijkstra_cracks(k, t: float) -> None:
@@ -354,8 +359,12 @@ def fork_bomb(k, t: float) -> None:
     k.section(k.by0, "fork \u70b8\u5f39 \u00b7 1 \u2192 4096", 0.28)
     depth = max(1, min(6, (k.by1 - k.by0 - 2) // 2))
     # the generation is the pane's own progress, not `t % 4`: the course panes live for 0.83 s and the
-    # absolute clock put a different generation in each of them for no reason at all
-    gen = int(min(depth, k.u * (depth + 1)))
+    # absolute clock put a different generation in each of them for no reason at all.
+    #
+    # ...and it *rolls* on the song clock as well, which it did not have to while this was a band: as a
+    # pane it has to move for `_dev/clock_probe.py`, whose samples pin `u` and vary `t`, and a fork bomb
+    # that keeps re-forking every couple of seconds is what the drawing is about anyway.
+    gen = int(min(depth, ((t * 0.35) % 1.0) * (depth + 1)))
     w = k.bw - 22
     if w < 12:
         return

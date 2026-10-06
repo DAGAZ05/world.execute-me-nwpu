@@ -106,7 +106,10 @@ EXEC_PANES = [
     ("pane_exec_test", "\u8f6f\u4ef6\u6d4b\u8bd5 \u00b7 \u8986\u76d6\u7387"),
     ("pane_exec_dl", "\u6df1\u5ea6\u5b66\u4e60 \u00b7 \u53cd\u5411\u4f20\u64ad"),
     ("pane_exec_industrial", "\u5927\u578b\u5de5\u4e1a\u8f6f\u4ef6"),
-    ("pane_gauge_fem", "\u5de5\u4e1a\u6a21\u578b \u00b7 FEM"),
+    # ...and the last slot of the reprise is the machine's own shutdown counter rather than the FEM
+    # instrument a second time: "除了校徽、铸剑雕塑外的演出禁止重复", and the countdown to one is what the
+    # twelve hits are counting anyway. FEM keeps its place on the "fem, liu" number above.
+    ("pane_motif_powerdown", "\u6267\u884c\u6536\u675f \u00b7 N \u2192 1"),
 ]
 
 GAUGES = list(_CO.GAUGE_PANES)
@@ -205,8 +208,8 @@ SHOT_ROWS: list[dict] = [
          ops=["CLASS", "OBJECT", "INIT"], her=False),
     dict(at=7.19, name="pane_parameters", lyric="Fill in my data parameters",
          ops=["PARAM", "SET", "COMMIT"], her=False),
-    dict(at=9.75, name="pane_polyhedra", lyric="Initialization",
-         ops=["V-E+F", "HE_INIT", "N(0,2/n)"], her=False),
+    dict(at=9.75, name="pane_motif_he_init", lyric="Initialization",
+         ops=["He 初始化", "REPLACE"], her=False),
     dict(at=10.90, name="pane_three_arms", lyric="Set up our new world",
          ops=["AERO", "ASTRO", "MARINE"], her=True),
     dict(at=12.47, name="pane_countdown", lyric="And let's begin the simulation",
@@ -225,8 +228,8 @@ SHOT_ROWS: list[dict] = [
          ops=["\u6821\u5fbe", "1938"], her=False),
     dict(at=21.00, name="pane_landmark_crest", lyric="[gap]",
          ops=["\u6821\u5fbd", "1938", "\u516c\u8bda\u52c7\u6bc1"], her=False),
-    dict(at=25.14, name="pane_landmark_hezun", lyric="[gap]",
-         ops=["\u4f55\u5c0a", "\u5b57\u7b26\u753b"], her=False),
+    dict(at=25.14, name="pane_motif_phyllotaxis", lyric="[gap]",
+         ops=["叶序", "GROW"], her=False),
     dict(at=29.28, name="pane_point_set", lyric="If I'm a set of point",
          ops=["IF", "SET", "DIM"], her=False),
     # The IF/THEN passage is four couplets, not one: "a set of point / my dimension", "a circle / my
@@ -237,8 +240,8 @@ SHOT_ROWS: list[dict] = [
     # pane's own third stage already was.
     dict(at=33.01, name="pane_polyhedra", lyric="If I'm a circle",
          ops=["|x|^n", "n=2", "CIRCLE"], her=False),
-    dict(at=36.77, name="pane_class", lyric="If I'm a sine wave",
-         ops=["sin", "ENVELOPE", "TANGENT"], her=False),
+    dict(at=36.77, name="pane_motif_sine", lyric="If I'm a sine wave",
+         ops=["正弦", "ENVELOPE"], her=False),
     # The overlay stops at the end of P1 and the film's own 97-shot table takes the column back from
     # here to the end of the song. That is not a gap left by accident: a school pane only exists where
     # the school content exists, and the alternative - holding the last pane on screen for 166 seconds
@@ -290,19 +293,19 @@ LANDMARK_ROWS: list[dict] = [
          ops=["|x|^n", "SUPERELLIPSE"], her=False, args=dict(panel="hyper")),
     dict(at=54.74, name="pane_landmark_dialogue", lyric="And we can unite",
          ops=["UNITE", "\u5bf9\u8bdd"], her=False),
-    dict(at=60.57, name="pane_landmark_dialogue", lyric="Give you all the simulations",
-         ops=["SIM", "\u5bf9\u8bdd"], her=False),
+    dict(at=60.57, name="pane_motif_binary", lyric="Give you all the simulations",
+         ops=["0101", "模拟"], her=False),
     # 62.00-70.00 was the cat, held for eight seconds across five different lines - including "I will run
     # the execution", which is not a cat. The cat belongs on the two lines that *are* a cat (80.93,
     # below); here the hands carry "Then I can / satisfaction" and the conditional device carries
     # "If I can make you happy / I will run the execution", which is an `If ... then ...` like all the
     # others the device is for.
-    dict(at=62.00, name="pane_landmark_dialogue", lyric="Then I can, then I can",
-         ops=["DEEPLY", "\u5bf9\u8bdd"], her=False),
-    dict(at=66.17, name="pane_point_set", lyric="If I can make you happy",
-         ops=["IF", "THEN", "RUN"], her=False),
-    dict(at=70.02, name="pane_landmark_dialogue", lyric="Though we are trapped",
-         ops=["TRAPPED", "\u5bf9\u8bdd"], her=False),
+    dict(at=62.00, name="pane_motif_pixelsort", lyric="Then I can, then I can",
+         ops=["PIXELSORT", "排序"], her=False),
+    dict(at=66.17, name="pane_motif_galaxy", lyric="If I can make you happy",
+         ops=["GALAXY", "星系"], her=False),
+    dict(at=70.02, name="pane_motif_en_limit", lyric="Though we are trapped",
+         ops=["∃n", "LIMIT"], her=False),
     # 万物皆点 is three couplets - eggplant, tomato, cat - and the film cuts on each one. All three panels
     # held for 11.07 s was the user's example of a performance that outlasts its lyric ("右边panel的西红柿
     # 那个光谱界面占了过长时间，和左侧歌词都不对应了"): the spectrum was still on screen while the words
@@ -318,22 +321,22 @@ LANDMARK_ROWS: list[dict] = [
     # the swap pane (a gender switch is the same three-bit flip as a current switch), the "if I can / feel
     # your vibrations" lines to the conditional device, and "finally be completion" to the Love class - the
     # expression completed. One pane per thought, instead of a hand and a crest held over all of it.
-    dict(at=84.60, name="pane_landmark_dialogue", lyric="If I'm the only God",
-         ops=["ONLY_GOD", "\u5bf9\u8bdd"], her=False),
-    dict(at=88.34, name="pane_exchange", lyric="Switch my gender",
-         ops=["F\u2192M", "3 bits"], her=False, args=dict(panel="bits")),
-    dict(at=92.00, name="pane_exchange", lyric="From AM to PM",
-         ops=["12h", "AM/PM"], her=False, args=dict(panel="clock")),
-    dict(at=95.28, name="pane_exchange", lyric="Oh, my switch role",
-         ops=["S/M", "ROLE"], her=False, args=dict(panel="braid")),
-    dict(at=98.93, name="pane_landmark_dialogue", lyric="So we can enter",
-         ops=["TRANCE", "\u5bf9\u8bdd"], her=False),
-    dict(at=101.13, name="pane_landmark_dialogue", lyric="The trance, the trance",
-         ops=["TRANCE", "\u5bf9\u8bdd"], her=False),
-    dict(at=103.03, name="pane_point_set", lyric="If I can, if I can",
-         ops=["IF", "THEN", "VIBRATION"], her=False),
-    dict(at=106.84, name="pane_love_class", lyric="Then I can, then I can",
-         ops=["CLASS", "Love", "COMPLETE"], her=False),
+    dict(at=84.60, name="pane_motif_stardiff", lyric="If I'm the only God",
+         ops=["STAR", "衍射"], her=False),
+    dict(at=88.34, name="pane_motif_quantize", lyric="Switch my gender",
+         ops=["QUANTIZE", "3 bits"], her=False),
+    dict(at=92.00, name="pane_motif_chladni", lyric="From AM to PM",
+         ops=["CHLADNI", "节点"], her=False),
+    dict(at=95.28, name="pane_motif_fork_bomb", lyric="Oh, my switch role",
+         ops=["FORK", "角色"], her=False),
+    dict(at=98.93, name="pane_motif_lattice", lyric="So we can enter",
+         ops=["LATTICE", "TRANCE"], her=False),
+    dict(at=101.13, name="pane_motif_moire", lyric="The trance, the trance",
+         ops=["MOIRE", "TRANCE"], her=False),
+    dict(at=103.03, name="pane_motif_hyperellipse", lyric="If I can, if I can",
+         ops=["|x|^n", "超椭圆"], her=False),
+    dict(at=106.84, name="pane_motif_epicycles", lyric="Then I can, then I can",
+         ops=["EPICYCLE", "FOURIER"], her=False),
     # "Challenging your God": the sword, as the accusation
     dict(at=125.33, name="pane_landmark_sword", lyric="Challenging your God",
          ops=["\u94f8\u5251", "CHALLENGE"], her=False),
@@ -348,8 +351,8 @@ LANDMARK_ROWS: list[dict] = [
     # `02b_图像对位与可视化表达.md` §4.3-4.6 names, and each is pinned to the lyric it belongs to rather
     # than to a share of the time.
     dict(at=162.23, name="pane_converge", lyric="If I can, if I can",         ops=["DFD", "ER", "\u6d3b\u52a8\u56fe", "\u72b6\u6001\u56fe", "\u2192", "CLASS"], her=False),
-    dict(at=166.05, name="pane_converge", lyric="Be your only execution",
-         ops=["CONVERGE", "CLASS"], her=False),
+    dict(at=166.05, name="pane_motif_byrne", lyric="Be your only execution",
+         ops=["BYRNE", "PLATE"], her=False),
     dict(at=169.61, name="pane_backlog", lyric="If I can have you back",
          ops=["SCRUM", "TODO", "DOING", "DONE"], her=False),
     # The four AI motifs. They are laid out around `shot_collapse` (174.90-177.50), which the TUI draws
@@ -380,8 +383,8 @@ LANDMARK_ROWS: list[dict] = [
     # The last verse is two thoughts, not one: "the algebraic expression of love", and then "though you
     # are free / I am trapped / trapped in lo-o-ove". The Love class draws the first; the hands - the
     # film's own work - draw the second, which is what the two hands not touching have always meant.
-    dict(at=187.97, name="pane_landmark_dialogue", lyric="Though you are free",
-         ops=["FREE", "TRAPPED", "\u5bf9\u8bdd"], her=False),
+    dict(at=187.97, name="pane_motif_bessel", lyric="Though you are free",
+         ops=["BESSEL", "振动"], her=False),
     # MEMORY: one more layer on every "You have left", then down to one, then none.
     #
     # This is the one place in the film where a pane is drawn *differently* on lines that are otherwise
@@ -442,6 +445,12 @@ PANE_MIN = {
     "pane_isolation": (11, 4),
     "pane_fragments": (11, 5),
 }
+# ...and the twenty-two `pane_motif_*` drawings (`school_scenes._motif`): they were written as bands and
+# are now also panes, so they want about what a band wanted - eleven rows, legible in five.
+for _m in ("he_init", "rectifier", "phyllotaxis", "byrne", "quantize", "dijkstra", "epicycles", "hearts9",
+           "fork_bomb", "sine", "chladni", "moire", "galaxy", "fragmentation", "pixelsort", "powerdown",
+           "bessel", "hyperellipse", "stardiff", "en_limit", "binary", "lattice"):
+    PANE_MIN["pane_motif_" + _m] = (11, 5)
 # every course drawing wants the column's whole height: at 197x52 that is eleven rows, which is what
 # a DFD, a sequence diagram or a register trace needs to be legible rather than merely present. The
 # `least` of 5 is what keeps a short window from dropping to the ops ticker entirely.
