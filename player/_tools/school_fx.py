@@ -327,7 +327,8 @@ def _outline(grid, cols: int, rows: int):
     return tuple(out)
 
 
-def paste(s, cells, x0: int, y0: int, ink=None, dim: float = 1.0, box=None, flat: bool = False) -> None:
+def paste(s, cells, x0: int, y0: int, ink=None, dim: float = 1.0, box=None, flat: bool = False,
+          fast: bool = False) -> None:
     """Blit a sprite's cells onto the screen at `(x0, y0)`, clipped to `box` if given.
 
     The clip is what lets a plane fly *off* the edge rather than being cut into a rectangle, and what
@@ -337,16 +338,40 @@ def paste(s, cells, x0: int, y0: int, ink=None, dim: float = 1.0, box=None, flat
     micro-optimisation for its own sake: the basketball animation is 2800 cells and the ramp is three
     `int()` calls and a `min()` each, measured at 44 ms for that one frame against a 41.7 ms budget - the
     only frame in the film that went over it.
+
+    `fast` writes the cells straight into the buffer instead of calling `Screen.put` per cell, and it is
+    the same argument one order of magnitude up: the 运-20 low pass is 285x90 cells ("让其更大，允许超出
+    屏幕"), about 10 000 of them on screen, and `put` is a method call with a `CLEAR` lookup and a pair
+    repair in it - measured at **60.4 ms** for that frame, half again over budget, on the film's most
+    dramatic hit. What the fast path drops is the `CLEAR` check, and dropping it is *correct* here rather
+    than a shortcut: `CLEAR` protects cells that an earlier layer drew and this one is about to replace,
+    and the vignette is inlined instead. Only full-frame sprites ask for it.
     """
     if not cells:
         return
     grid, w, h = cells
     bx0, by0, bx1, by1 = box or (0, 0, s.cols - 1, s.rows - 1)
+    ramp_n = len(SHADE) - 1
     for r in range(h):
         y = y0 + r
         if y < by0 or y > by1:
             continue
         row = grid[r]
+        if fast:
+            brow, wrow, drow = s.buf[y], s.wide[y], s.dim[y]
+            for c in range(w):
+                x = x0 + c
+                if x < bx0 or x > bx1:
+                    continue
+                cell = row[c]
+                if cell is None:
+                    continue
+                ch, lv, rgb = cell
+                col = ink or rgb
+                k = drow[x] * dim * (0.72 + 0.42 * lv / ramp_n)
+                brow[x] = (ch, (int(col[0] * k), int(col[1] * k), int(col[2] * k)), BG)
+                wrow[x] = False
+            continue
         for c in range(w):
             x = x0 + c
             if x < bx0 or x > bx1:
@@ -796,22 +821,23 @@ def _ink_share(name: str) -> tuple[float, float, float]:
     return (1.0, 1.0, 0.5)
 
 
-def lowpass(s, cols: int, rows: int, t: float, u: float, name: str, y: float = 0.30,
-            peak: float = 1.05, caption: str = "", wave: float = 0.0, cover: float = 0.66) -> None:
+def lowpass(s, cols: int, rows: int, t: float, u: float, name: str, y: float = 0.42,
+            peak: float = 1.45, caption: str = "", wave: float = 0.0, cover: float = 0.66) -> None:
     """A low pass: the aircraft comes over the frame, is biggest in the middle of it, and goes.
 
-    The user asked for this one specifically - "运20需要展示掠空的冲击效果，其到达屏幕中间时需要占据全屏
-    2/3", and then again in this batch: "运20 我之前要求大图掠空，但现在依旧不够大，请让其在屏幕中间时至少
-    覆盖2/3的全屏幕" - so the size is not a fraction of the frame, it is a **coverage**: the size that makes
-    the aircraft's own ink cover `cover` of the frame's *area* at the centre of the pass.
+    The user asked for this one three times now - "运20需要展示掠空的冲击效果，其到达屏幕中间时需要占据全屏
+    2/3", then "运20 我之前要求大图掠空，但现在依旧不够大，请让其在屏幕中间时至少覆盖2/3的全屏幕", and then
+    "运20视觉冲击还是不够，让其更大，允许超出屏幕". So it is not a fraction of the frame and it is not a
+    coverage either: it is **both**, and the bigger of the two wins.
 
-    Why that is not the same thing, and why the first two attempts both looked too small: every aircraft
-    here is a photograph with sky around it, so "a sprite two thirds of the frame wide" is an aircraft
-    about 62 % of that wide and 54 % of that tall (measured by `_ink_share`) - a thin band across the
-    middle of the screen. Covering two thirds of the screen with a side-on aeroplane needs the sprite to
-    be about as wide as the frame is, because the subject's height is what is short. Solved for the size
-    rather than guessed, the y20 asks for 198 cells in a 197-cell frame: the wings meet both edges and
-    the hull is 34 rows tall, which is the 2/3 the user is asking for, and the frame takes the shock.
+      * `cover` solves the size that makes the aircraft's own ink cover that share of the frame's *area* -
+        the measurement that proved the first two attempts were drawing a thin band (see `_ink_share`);
+      * `peak` is now how much *wider than the frame* the sprite may be (1.45 of it, the same as the gate's
+        `fill`), and the sprite is clipped by the frame on both sides - which is the whole point of a low
+        pass: at the centre you are under it, not looking at a picture of it.
+
+    At 197x52 that is 285 cells of sprite, 90 rows of it, and a hull about 49 rows tall - taller than the
+    frame's mid-band and wider than the screen, on a shallow diagonal, with the frame shaking.
 
     It crosses on a shallow diagonal rather than a rail, and while it is over the frame the frame takes
     the hit: an expanding ring off the hull, a shock line across the whole width at its altitude, dust
@@ -828,7 +854,8 @@ def lowpass(s, cols: int, rows: int, t: float, u: float, name: str, y: float = 0
     # the sprite width whose *ink* covers `cover` of the frame's area - see the docstring
     want = math.sqrt(max(1e-6, cover * cols * rows * CELL_ASPECT * aspect
                          / max(0.05, share_w * share_h)))
-    size = max(16, int(min(cols * peak, want) * frac))
+    # ...and the frame may also simply be overflowed, which is the biggest of the two ("让其更大，允许超出屏幕")
+    size = max(16, int(max(want, cols * peak) * frac))
     if wave:
         # kept for symmetry with `fly`: a boat, not a plane, if one is ever put on this path
         pass
@@ -841,7 +868,7 @@ def lowpass(s, cols: int, rows: int, t: float, u: float, name: str, y: float = 0
     # placed by its *ink*, not by its box: at the peak this sprite is taller than the frame, and what has
     # to be at `y` is the aircraft rather than the sky above it
     yy = (int(rows * y - h * ink_cy) + int((0.5 - u) * rows * 0.20))   # a shallow diagonal, not a rail
-    paste(s, cells, x, yy)
+    paste(s, cells, x, yy, fast=True)
     cx, cy = x + w // 2, yy + h // 2
     d = abs(u - 0.5) / 0.34                                       # 0 at the centre, 1 at the edge of the hit
     if d < 1.0:

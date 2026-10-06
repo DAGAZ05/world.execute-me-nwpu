@@ -3636,51 +3636,51 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
         dur = ent["end"] - ent["start"]
         lt = ent["u"] * dur
         if pane == "corpus":
-            draw_corpus(s, px0, ops_top, x1, py1, t)
-        elif SP is not None and VAR[0] == "school" and SP_scene_pane(pane, s, px0, ops_top, x1, py1,
+            draw_corpus(s, px0, ops_top, pane_x1, py1, t)
+        elif SP is not None and VAR[0] == "school" and SP_scene_pane(pane, s, px0, ops_top, pane_x1, py1,
                                                                      t, lt, dur, ent["u"],
                                                                      args=ent.get("pane_args")):
             pass
         elif pane == "loss":
-            draw_loss(s, px0, ops_top, x1, py1, t, ent["u"])
+            draw_loss(s, px0, ops_top, pane_x1, py1, t, ent["u"])
         elif pane == "mask":
-            draw_mask(s, px0, ops_top, x1, py1, t)
+            draw_mask(s, px0, ops_top, pane_x1, py1, t)
         elif pane == "whale":
-            draw_whale(s, px0, ops_top, x1, py1, t)
+            draw_whale(s, px0, ops_top, pane_x1, py1, t)
         elif pane == "dualpipe":
-            draw_dualpipe(s, px0, ops_top, x1, py1, lt, dur)
+            draw_dualpipe(s, px0, ops_top, pane_x1, py1, lt, dur)
         elif pane == "moe":
-            draw_moe(s, px0, ops_top, x1, py1, t, lt, dur, ent["u"])
+            draw_moe(s, px0, ops_top, pane_x1, py1, t, lt, dur, ent["u"])
         elif pane == "love":
-            draw_love(s, px0, ops_top, x1, py1, lt)
+            draw_love(s, px0, ops_top, pane_x1, py1, lt)
         elif pane == "kv":
-            draw_kv(s, px0, ops_top, x1, py1, ent["u"],
+            draw_kv(s, px0, ops_top, pane_x1, py1, ent["u"],
                     RED if ent.get("alert_own") == "err" else None)
         elif pane == "expert":
-            draw_expert(s, px0, ops_top, x1, py1, t, ent["u"])
+            draw_expert(s, px0, ops_top, pane_x1, py1, t, ent["u"])
         elif pane == "rope":
-            draw_rope(s, px0, ops_top, x1, py1, t)
+            draw_rope(s, px0, ops_top, pane_x1, py1, t)
         elif pane == "sine":
-            draw_sine(s, px0, ops_top, x1, py1, t)
+            draw_sine(s, px0, ops_top, pane_x1, py1, t)
         elif pane == "tangent":
-            draw_tangent(s, px0, ops_top, x1, py1, lt, dur)
+            draw_tangent(s, px0, ops_top, pane_x1, py1, lt, dur)
         elif pane == "limit":
-            draw_limit(s, px0, ops_top, x1, py1, ent["u"], FP.FACTS.CTX)
+            draw_limit(s, px0, ops_top, pane_x1, py1, ent["u"], FP.FACTS.CTX)
         elif pane == "gpu":
-            draw_gpu(s, px0, ops_top, x1, py1, t, lt, FP.FACTS.GPU)
+            draw_gpu(s, px0, ops_top, pane_x1, py1, t, lt, FP.FACTS.GPU)
         elif pane == "conv":
-            draw_conv(s, px0, ops_top, x1, py1, ent["u"],
+            draw_conv(s, px0, ops_top, pane_x1, py1, ent["u"],
                       FP.KERNELS[FP.beat_index(t) % len(FP.KERNELS)])
         elif pane == "samples":
-            draw_samples(s, px0, ops_top, x1, py1, t, lt, dur, ent["u"])
+            draw_samples(s, px0, ops_top, pane_x1, py1, t, lt, dur, ent["u"])
         elif pane == "exec_all":
-            draw_samples(s, px0, ops_top, x1, py1, t, lt, dur, ent["u"], execute=True)
+            draw_samples(s, px0, ops_top, pane_x1, py1, t, lt, dur, ent["u"], execute=True)
         elif pane == "ifican":
-            draw_if_i_can(s, px0, ops_top, x1, py1, t, lt, dur)
+            draw_if_i_can(s, px0, ops_top, pane_x1, py1, t, lt, dur)
         elif pane == "logits":
-            draw_only_execution(s, px0, ops_top, x1, py1, lt, dur)
+            draw_only_execution(s, px0, ops_top, pane_x1, py1, lt, dur)
         else:
-            draw_memory(s, px0, ops_top, x1, py1, t)
+            draw_memory(s, px0, ops_top, pane_x1, py1, t)
         ops_top = py1 + 1
 
     # -------------------------------------------------------------- ops ticker
