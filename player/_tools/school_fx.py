@@ -331,8 +331,35 @@ def _outline(grid, cols: int, rows: int):
     return tuple(out)
 
 
+# The ramp every sprite is drawn through: `colour * dim * (LIFT + SPAN * level)`, where `level` is the
+# cell's own 0..4 ink. LIFT is what a photograph's *mid-tones* come out as, and it is the whole of "is this
+# thing visible against the frame" - the frame's ground is `(4,7,15)` and an aircraft is a dark photograph.
+#
+# The aircraft and the manta get their own pair ("尝试增大飞机的亮度，好与背景区分开"): +36 % at the floor and
+# a steeper span, so the hull's greys come up to where the eye can see them while the bright panels clip.
+# The photographs that are *supposed* to be backgrounds (the gate, the library, the hands) keep the lower
+# pair - brightening those would fight the text drawn over them.
+LIFT, SPAN = 0.72, 0.42
+AIRCRAFT_LIFT, AIRCRAFT_SPAN = 0.98, 0.55
+# the frame's own ground, which is what a sprite's cells fall back to behind a half-block glyph. It is
+# `tui_live.BG`; it is repeated rather than imported because `school_fx` is imported *by* `tui_live`.
+FRAME_BG = (4, 7, 15)
+
+
+def _mix(colour, level: float = 1.0):
+    """A colour at `level` of its own brightness - `school_courses._mix`, which reads the live palette.
+
+    This used to be called here without being defined, which is a `NameError` that the per-event `except`
+    in `draw` swallowed: the 运-20's **shock ring, shock line and floor dust never drew at all**, and the
+    only symptom was the aircraft looking flat. The user's two notes about it ("视觉冲击还是不够") were
+    looking at exactly that. `_mix` is a plain multiply here rather than a palette lookup because the
+    three colours it is used with are literals, not the themed UI greys.
+    """
+    return tuple(min(255, max(0, int(c * level))) for c in colour)
+
+
 def paste(s, cells, x0: int, y0: int, ink=None, dim: float = 1.0, box=None, flat: bool = False,
-          fast: bool = False) -> None:
+          fast: bool = False, lift: float = LIFT, span: float = SPAN) -> None:
     """Blit a sprite's cells onto the screen at `(x0, y0)`, clipped to `box` if given.
 
     The clip is what lets a plane fly *off* the edge rather than being cut into a rectangle, and what
@@ -372,8 +399,8 @@ def paste(s, cells, x0: int, y0: int, ink=None, dim: float = 1.0, box=None, flat
                     continue
                 ch, lv, rgb = cell
                 col = ink or rgb
-                k = drow[x] * dim * (0.72 + 0.42 * lv / ramp_n)
-                brow[x] = (ch, (int(col[0] * k), int(col[1] * k), int(col[2] * k)), BG)
+                k = drow[x] * dim * (lift + span * lv / ramp_n)
+                brow[x] = (ch, (int(col[0] * k), int(col[1] * k), int(col[2] * k)), FRAME_BG)
                 wrow[x] = False
             continue
         for c in range(w):
@@ -390,8 +417,8 @@ def paste(s, cells, x0: int, y0: int, ink=None, dim: float = 1.0, box=None, flat
             col = ink or rgb
             # brighter than the panes' own ramp: this layer is drawn *over* an already-finished frame,
             # so a sprite at the panels' weight reads as a dark grey smudge rather than as an aircraft.
-            # The floor is 0.72 instead of 0.45 for that reason.
-            s.put(x, y, ch, tuple(min(255, int(k * dim * (0.72 + 0.42 * lv / (len(SHADE) - 1))))
+            # The floor is `lift` instead of 0.45 for that reason.
+            s.put(x, y, ch, tuple(min(255, int(k * dim * (lift + span * lv / (len(SHADE) - 1))))
                                   for k in col))
 
 
@@ -485,7 +512,7 @@ def fly(s, cols: int, rows: int, t: float, u: float, name: str, y: float, rows_n
                 ch, lv, rgb = cell
                 row.append((ch, max(0, lv - 1), rgb))
         thin.append(tuple(row))
-    paste(s, (tuple(thin), w, h), x, yy)
+    paste(s, (tuple(thin), w, h), x, yy, lift=AIRCRAFT_LIFT, span=AIRCRAFT_SPAN)
     trail = max(0, min(16, int(16 * (1 - abs(v - 0.5) * 2) + 5)))
     for k in range(trail):
         tx = x + w + 2 + k * 2 if reverse else x - 2 - k * 2
@@ -513,7 +540,7 @@ def dive(s, cols: int, rows: int, t: float, u: float, name: str, x: float = 0.5,
     _, w, h = cells
     xx = int(cols * x - w / 2)
     yy = int(rows + h - (rows + 2 * h) * (1.0 - u) - h) if up else int(-h + (rows + 2 * h) * u)
-    paste(s, cells, xx, yy)
+    paste(s, cells, xx, yy, lift=AIRCRAFT_LIFT, span=AIRCRAFT_SPAN)
     for k in range(6):                                   # a rotor wash, so it is not just a slide
         bx = xx + w // 2 + int(math.sin(t * 3 + k) * (6 + k))
         by = yy + h - 2 if not up else yy + 2
@@ -557,7 +584,7 @@ def sweep(s, cols: int, rows: int, t: float, u: float, name: str, rows_n: int = 
         return
     x = int((cols + size) * (1 - u) - size)
     y = int((rows + rows_n) * (1 - u) * 0.7 + rows * 0.05)
-    paste(s, cells, x, y)
+    paste(s, cells, x, y, lift=AIRCRAFT_LIFT, span=AIRCRAFT_SPAN)
     if caption and 0 <= x <= cols - len(caption) - 2:
         s.put(x, max(0, y - 1), caption, (240, 180, 90))
 
@@ -872,7 +899,7 @@ def lowpass(s, cols: int, rows: int, t: float, u: float, name: str, y: float = 0
     # placed by its *ink*, not by its box: at the peak this sprite is taller than the frame, and what has
     # to be at `y` is the aircraft rather than the sky above it
     yy = (int(rows * y - h * ink_cy) + int((0.5 - u) * rows * 0.20))   # a shallow diagonal, not a rail
-    paste(s, cells, x, yy, fast=True)
+    paste(s, cells, x, yy, fast=True, lift=AIRCRAFT_LIFT, span=AIRCRAFT_SPAN)
     cx, cy = x + w // 2, yy + h // 2
     d = abs(u - 0.5) / 0.34                                       # 0 at the centre, 1 at the edge of the hit
     if d < 1.0:
@@ -1731,12 +1758,12 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     (193.50, 197.50, flash, dict(name="library", fill=0.62, x=0.0, y=0.78, behind=True, dim=0.62,
                                  contrast=1.1, caption="\u56fe\u4e66\u9986 \u00b7 \u706f\u8fd8\u4eae\u7740")),
     # --- the whole body, once, on the last line of the song: he has been a face in the window for three
-    #     and a half minutes and this is the only place the film shows that he has legs. He stands at the
-    #     **left** edge, on the machine's side: the panels swap at 02:16.9, so by now the right column is
-    #     the conversation, and the user's note is "交换位置后全身航小天应位于左侧". **No caption** either -
-    #     "航小天全身图旁也不要单独加一行'航小天'" - the figure is recognisable and the window above it has
-    #     his name on it already.
-    (193.60, 199.00, stand, dict(name="mascot", side="left")),
+    #     and a half minutes and this is the only place the film shows that he has legs. He stands on the
+    #     **right**, which is the chat window's side after the 02:16.9 swap - the user asked for the left
+    #     in the last batch and took it back in this one: "航小天全身体改回在右侧（不然会和图书馆重了）",
+    #     and they are right, the library backdrop is in the bottom-left corner at exactly these four
+    #     seconds. **No caption** either ("航小天全身图旁也不要单独加一行'航小天'").
+    (193.60, 199.00, stand, dict(name="mascot", side="right")),
     # --- the closing crest is the **pane** at 193.46 and nothing else. The flash that used to be here
     #     (199.00, 48x20) was the emblem's third big appearance, and the user's note is that there is one:
     #     "校门、校徽的大图出现了多次，仅保留第一次".
@@ -1787,10 +1814,23 @@ def draw(s, cols: int, rows: int, t: float) -> int:
         try:
             fn(s, cols, rows, t, u, **kw)
             n += 1
-        except Exception:
-            pass
+        except Exception as exc:
+            # ...whoever is watching gets a line, once per event. It used to be a bare `pass`, and that
+            # is how the 运-20 disappeared for a whole batch: `paste(fast=True)` referenced a name that
+            # does not exist in this module, the exception was swallowed here, and the frame simply had
+            # no aircraft in it - no warning, no trace, nothing on screen to explain it. `_BROKEN` keeps
+            # it to one line per event rather than one per frame at 24 fps.
+            if fn not in _BROKEN:
+                _BROKEN.add(fn)
+                import sys as _sys
+                print(f"warning: school_fx event {getattr(fn, '__name__', fn)} failed ({exc})",
+                      file=_sys.stderr, flush=True)
     # the character art is not on the event list: it is printed when its own pane is up
     return n
+
+
+# events that have already complained, so a broken one does not print 24 lines a second
+_BROKEN: set = set()
 
 
 # the supplied character art, drawn over its own frame. The cat is printed as the text it is; 何尊 is
