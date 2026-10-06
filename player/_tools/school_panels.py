@@ -82,9 +82,15 @@ def chapter_start(tag: str, default: float = 0.0) -> float:
 # otherwise be on screen for under 1.3 s. The durations are the hits themselves - `_hit` computes them
 # from the same lyric times the lyric band uses, so the picture changes exactly when the word is sung.
 #
-# Fourteen courses, twelve hits: 数据结构 and 算法设计 share a drawing because they share a *picture*
-# (a red-black tree whose heights prove the O(log n)), and 工业模型 / 大型工业软件 take two of the
-# three numbers in the countdown rather than being crammed into a hit that is already full.
+# Fifteen courses, twelve hits - and the count is not a detail, it is the whole reason `_exec_rows` has to
+# spread the drawings evenly instead of putting one on each hit (see its docstring).
+#
+# This comment said "fourteen courses" and "数据结构 and 算法设计 share a drawing": both stopped being true
+# in batch 12, when 算法设计 got its own pane and its own slot. The list below is what is real, and it is
+# **sixteen** entries - fifteen courses plus `pane_motif_powerdown`, which is the machine's own shutdown
+# counter rather than a sixteenth course. 工业模型 and 大型工业软件 are not in it at all: they are two of
+# the six **instruments** on the countdown numbers (`GAUGE_SLOTS`), not course drawings on a hit.
+# (Corrected by batch 38, whose subject was exactly this kind of drift between a comment and its code.)
 EXEC_AT = [147.52, 148.59, 149.78, 150.64, 151.53, 152.43,
            153.32, 154.31, 155.20, 156.18, 157.12, 158.02, 161.51]
 
@@ -130,11 +136,11 @@ EXEC_FROM, EXEC_TO = 147.52, 162.23      # the first "Execution" hit to the end 
 
 
 def _exec_rows() -> list[dict]:
-    """Fourteen courses and six instruments, laid out so that no two panes ever share a second.
+    """Fifteen courses, one shutdown counter and six instruments, disjoint by construction.
 
     The song gives twelve "Execution" hits 0.87-1.07 s apart and three countdown numbers, and this
-    variant has fourteen courses and six instruments. Fourteen plus six does not go into twelve plus
-    three, and two earlier attempts at forcing it both failed in ways worth recording:
+    variant has fifteen courses plus a counter and six instruments. Sixteen plus six does not go into
+    twelve plus three, and two earlier attempts at forcing it both failed in ways worth recording:
 
       * **one course per hit and the instruments on the numbers** left four courses with 0.5 s each
         after the numbers, and

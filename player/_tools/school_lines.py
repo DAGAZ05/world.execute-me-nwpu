@@ -215,7 +215,13 @@ ACT_ONE: list[tuple[float, str, str, str]] = [
     (119.81, "Erase all the pointless fragments", "ai", "\u4e0d\u5220\u3002\u6574\u7406\u4e00\u4e0b\u3002"),
     (119.81, "Erase all the pointless fragments", "sub", "\u788e\u7247\u6574\u7406\u4e0d\u662f\u5220\u9664\uff0c\u662f\u628a\u8fd8\u6d3b\u7740\u7684\u4e1c\u897f\u642c\u5230\u4e00\u8d77\u3002"),
     (119.81, "Erase all the pointless fragments", "meta", "\u7528\u65f6 2.4 \u79d2|02:00"),
-    (121.80, "Then maybe, then maybe", "ai", "\u300c\u4e5f\u8bb8\u300d\u8fd9\u4e2a\u8bcd\uff0c\u4f60\u521a\u624d\u7528\u4e86\u4e24\u6b21\u3002"),
+    # 「也许」这个词，你刚才用了两次。 <- a *meta* remark: it comments on the lyric's own wording while
+    # the lyric is being sung, so for those two seconds the window and the band are both talking about the
+    # word "maybe" and neither is about the song. Batch 38's lyrics audit flagged it as the film's
+    # clearest case of the conversation talking over the lyric. The AI answers the *question* the word
+    # asks - "maybe" is uncertainty - the way a machine would: it has no state for that, and it runs
+    # anyway. (This is the line `05_歌词会话对照_v2.md:163` asked for in the first place.)
+    (121.80, "Then maybe, then maybe", "ai", "\u6211\u6ca1\u6709\u300c\u4e5f\u8bb8\u300d\u8fd9\u4e2a\u72b6\u6001\u3002\u4f46\u6211\u4f1a\u7ee7\u7eed\u8dd1\u3002"),
     (121.80, "Then maybe, then maybe", "meta", "\u7528\u65f6 2.0 \u79d2|02:02"),
     (123.55, "You won't leave me so disheartened", "user", "\u4e5f\u8bb8\u4f60\u4e0d\u4f1a\u8ba9\u6211\u90a3\u4e48\u7070\u5fc3\u3002"),
     (123.55, "You won't leave me so disheartened", "ai", "\u6211\u4e0d\u4f1a\u8ba9\u4f60\u7070\u5fc3\u3002\u8fd9\u662f\u6211\u7684\u89c4\u683c\u3002"),

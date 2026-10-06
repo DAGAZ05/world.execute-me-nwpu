@@ -297,19 +297,21 @@ def check_coverage() -> list[str]:
     """Every lyric line must be handled; returns the ones that are not.
 
     `01_歌词分析.md` counts 82 timed lyric lines and 3 instrumental gaps. A line is *handled* either
-    by having its own exchange or by being the second half of a pair, and the second case is a rule
-    rather than a list because the song makes the rule: **every** unhandled line in the whole record
-    begins with `To ` or `Then ` - `To AC, to DC`, `Then I will give you my circumference`,
-    `Then you can be my limitations`. These are the completions of `Switch my current` and of
-    `If I'm a circle`, split across two lyric rows by the melody and by nothing else; giving each its
-    own entry would print the answer before the question is finished. The window prints them under
-    the entry that opened the pair, which is what the singer is doing too.
+    by having its own exchange or by being the second half of a pair.
 
-    The third case is `COVERED_BY_PICTURE`: lines whose window is filled by the basketball animation
-    instead of by text (the user: "其余受影响的内容删减或者与其他地方的融合一下"). Those rows were
-    *deleted*, not moved - the picture is over the window for all eleven seconds of them - and what they
-    said comes back in one merged line when the picture is gone ("你看到的那三条路、那只猫，都在这中间").
-    They are named here rather than dropped from the check, so the film still accounts for every line.
+    **...and the pairing rule is now checked rather than granted.** It used to be
+    `not ln.startswith(("To ", "Then "))` - a blanket exemption for any line beginning with those two
+    words - which made this function incapable of ever failing: with 98 timed lines, 83 own exchanges,
+    16 `To`/`Then` lines and the 4 `COVERED_BY_PICTURE` lines, the three sets account for every line by
+    construction, so it returned `[]` whatever the film did. Batch 38's lyrics audit called it "a
+    constructive green light" and it was right.
+
+    What the docstring *claims* is the real rule, and it is testable: every `To`/`Then` line is the
+    completion of the line that opened the pair, so its opener - the nearest earlier line that is not
+    itself a `To`/`Then` - must be handled. Measured (batch 38): all 16 satisfy it, so tightening the
+    check costs nothing today and makes it able to fail tomorrow. The 4 picture-covered lines are the
+    one exemption left, and it is a **named list** rather than a pattern, which is what
+    `COVERED_BY_PICTURE` was already for.
     """
     import re
     lrc = ROOT_LRC
@@ -319,9 +321,22 @@ def check_coverage() -> list[str]:
              if re.match(r"^\[\d+:\d+", ln)]
     lines = [ln for ln in lines if ln]
     have = {tag for _t, tag, _b in _DIALOGUE}
-    return [ln for ln in lines
-            if ln not in have and ln not in COVERED_BY_PICTURE
-            and not ln.startswith(("To ", "Then "))]
+    handled = have | set(COVERED_BY_PICTURE)
+    bad = []
+    for i, ln in enumerate(lines):
+        if ln in handled:
+            continue
+        if ln.startswith(("To ", "Then ")):
+            # the completion of a pair: its opener has to be handled, or the pair says nothing
+            j = i - 1
+            while j >= 0 and lines[j].startswith(("To ", "Then ")):
+                j -= 1
+            opener = lines[j] if j >= 0 else ""
+            if opener not in handled:
+                bad.append(f"{ln}  (its opener {opener!r} is not handled either)")
+            continue
+        bad.append(ln)
+    return bad
 
 
 # The four lines of the first chorus, which the animation covers: see `check_coverage`.

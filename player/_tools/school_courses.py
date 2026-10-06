@@ -24,6 +24,13 @@ from __future__ import annotations
 import math
 import unicodedata
 
+# The film's own beat clock. The twelve `Execution` hits are the densest structure in the song and this
+# module is what draws the sixteen drawings under them - see `_Kit._header` for why the beat is read here.
+try:
+    import film_panels as _FP
+except Exception:                       # the module is always importable in-process; this is a guard
+    _FP = None
+
 # resolved from `school_scenes.PANE_CTX` at first use, exactly like the panes in that module
 CTX: dict = {}
 
@@ -135,14 +142,33 @@ class _Kit:
 
     def _header(self, title: str, n: int, total: int) -> None:
         s, x0, y0, x1 = self.s, self.x0, self.y0, self.x1
-        s.put(x0, y0, "\u258f", _mix(self.colour, 0.9))
+        # **The beat, on the counter that is counting it.** The sixteen course drawings do not line up
+        # with the twelve `Execution` hits and cannot: sixteen does not divide into twelve plus three
+        # countdown slots, so `_exec_rows` spreads them evenly and the hit times drift in and out of phase
+        # with the pane boundaries. Measured (batch 38): the offsets run +0.00, -0.32, +0.43, -0.01, -0.11,
+        # -0.25, -0.40, +0.35, ... - i.e. **not** the "systematically 0.8 beat late" the lyrics audit
+        # reported, but a beat-against-step aliasing, worst |offset| 0.43 s. The audit's fix (shift every
+        # pane 0.37 s earlier) would have broken the five that are already dead on the hit.
+        #
+        # What makes every hit *land* regardless of the boundary is this: the counter is the one element
+        # whose meaning is "how many times has this run", so it is the one element that should answer the
+        # beat. `FP.pulse` is the film's own beat detector (1 on the beat, decaying over 140 ms), and it
+        # already drives the box breathing (`tui_live.beat_level`) - but that is applied to *every* box
+        # uniformly, so it cannot say "this hit landed". This can, and it costs one exponent and four cells.
+        p = 0.0
+        if n and _FP is not None:
+            try:
+                p = _FP.pulse(self.t)
+            except Exception:
+                p = 0.0
+        s.put(x0, y0, "\u258f", _mix(self.colour, 0.9 + 0.1 * p))
         s.put(x0 + 2, y0, _clip(title, max(0, self.w - 14)), _ui(0.92))
         if n:
             tag = f"EXEC {n:02d}/{total:02d}"
-            s.put(x1 - len(tag) - 1, y0, tag, _mix(self.colour, 0.85))
+            s.put(x1 - len(tag) - 1, y0, tag, _mix(self.colour, 0.55 + 0.45 * p))
         rule = x0 + 1 + int((self.w - 2) * self.u)
         s.put(x0 + 1, y0 + 1, BOX_H * max(0, self.w - 2), _ui(0.20))
-        s.put(x0 + 1, y0 + 1, BOX_H * max(0, rule - x0 - 1), _mix(self.colour, 0.65))
+        s.put(x0 + 1, y0 + 1, BOX_H * max(0, rule - x0 - 1), _mix(self.colour, 0.65 + 0.35 * p))
 
     # ------------------------------------------------------------------ primitives
 

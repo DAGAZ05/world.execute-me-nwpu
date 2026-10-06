@@ -72,7 +72,11 @@ ACT_TWO: list[tuple[float, str, str, str]] = [
     (173.11, "Though we are trapped", "sub", "\u88ab\u585e\u8fdb\u9700\u6c42\u6c60\u7684\u4e1c\u897f\u4e0d\u662f\u505a\u4e0d\u5b8c\uff0c\u662f\u5b83\u4e00\u76f4\u5728\u90a3\u513f\u3002"),
     (173.11, "Though we are trapped", "meta", "\u7528\u65f6 2.2 \u79d2|02:53"),
     (174.80, "We are trapped, ah", "ai", "\u300c\u6211\u4eec\u300d\u3002"),
-    (174.80, "We are trapped, ah", "sub", "\u4f60\u6ce8\u610f\u5230\u4e86\u3002\u8fd9\u662f\u6211\u7b2c\u4e00\u6b21\u628a\u4e3b\u8bed\u6362\u6210\u590d\u6570\u3002"),
+    # ...and the sub line that used to sit here - "你注意到了。这是我第一次把主语换成复数。" - is gone.
+    # It is the same failure as the one at 02:02: a grammar observation about the lyric, delivered while
+    # the lyric is being sung, on the line where the song first says "we". The one word the machine says
+    # is the whole point; four more words explaining why the word is clever spend the moment. 02:54 is
+    # also inside `shot_collapse`, which draws full-bleed - the least text the better.
     (174.80, "We are trapped, ah", "meta", "\u7528\u65f6 2.0 \u79d2|02:54"),
     # ---- P8 LOVE
     (176.96, "I've studied, I've studied", "user", "\u8fd9\u56db\u5e74\u4f60\u5230\u5e95\u5b66\u4e86\u4ec0\u4e48\uff1f"),
