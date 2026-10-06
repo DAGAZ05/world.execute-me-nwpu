@@ -3082,6 +3082,38 @@ def draw_black(s: Screen, x0: int, y0: int, x1: int, y1: int, t: float) -> None:
     s.put(x + 1, py, "\u2588", mix(ME_HI, lv), mix(ME_MID, 0.5 * lv))
 
 
+# The ops ticker's own bounds, in rows of content: three rows of box is a border plus two lines of words
+# (the cursor and its neighbour), and eight is the film's own cap - the film's ticker is 32 rows because
+# its right column is nothing but tickers, and here the drawing above it needs the rest.
+TICK_FLOOR, TICK_CAP = 3, 8
+
+# What the last `draw_body` did with the drawing column, for `_dev/ops_probe.py`. The probe's first
+# version read the box's height back off the finished screen by scanning for its corners, and that lied
+# twice: it looked for the closing corner in column 1 (which is another box's left edge whenever the
+# drawing column is on the right), and an FX overlay paints over a corner now and then. It reported the
+# box at two rows for 132 of 138 samples; the same scan fixed, run against the code before this change,
+# reads 3 rows for 142 of 143 - one line of words, which is what the user was looking at. The split is
+# arithmetic this file already has, so it publishes it rather than being guessed at from pixels.
+GEOM: dict = {}
+
+
+def tick_share(pane_h: int) -> int:
+    """Rows the ops ticker takes when the drawing it sits under is `pane_h` rows tall.
+
+    The user's note in batch 30 was that the box was pinned at one line and should follow the drawing
+    ("ops panel的高度不要只固定为1行，根据右侧panel图像的高度进行动态调整"). It was pinned because the
+    reservation was a constant: `tick_min` was 3 rows in the campus sections and 6 in the major one, so
+    the box came out at exactly that height all song - 3 rows, one line of words, under a 35-row drawing.
+
+    A quarter of the drawing, floored and capped. It is deliberately *not* the fixed point of
+    `t = (avail - t) / 4`: on a 33-row column that oscillates between six and seven, and a split that
+    depends on which pass you are on is worse than one that is monotone in the drawing's height.
+    """
+    if pane_h <= 0:
+        return TICK_FLOOR
+    return max(TICK_FLOOR, min(TICK_CAP, int(round(pane_h * 0.25))))
+
+
 def draw_ops(s: Screen, x0: int, y0: int, x1: int, y1: int, t: float, ops: list, alert,
              machine: dict | None = None) -> None:
     """engine.py:179-200 - the film's ops ticker, on the shot's own ops list.
@@ -3616,20 +3648,23 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
         # the pane fills over the shot, so a short column is a small pane, not a broken drawing
         pane, need, least = "love", 24, 10
     avail = bottom - sp_bottom
-    # The ticker is capped (see below), so the pane is no longer competing with it for every remaining
-    # row: the school variant can take the whole column, which is what makes a fourteen-course diagram
-    # legible instead of a sketch. The reservation is the panel's own minimum, and that minimum is a
-    # property of the *section*: the film's ticker reads in three rows, and a program listing needs its
-    # heading, two instructions and a register line - which is why the major section asks for one more
-    # row here and three more at the bottom of this function.
-    tick_min = 6 if (SP is not None and VAR[0] == "school"
-                     and t >= SP.MACHINE_FROM) else 3
-    if SP is not None and VAR[0] == "school":
-        pane_h = min(max(need, bottom - sp_bottom - tick_min), avail - tick_min)
+    # The ticker's height is a function of the drawing's, not a fixed reservation - that is the user's
+    # batch-30 note, and `tick_share` has the measurement that made the case for it. One pass, no fixed
+    # point: the ticker is a quarter of what the drawing would have if the ticker took only its floor, and
+    # then the drawing gets everything else. The two heights therefore always add up to `avail`, which is
+    # the invariant the old `tick_min` had and the reason the pane can never be drawn past the column.
+    school = SP is not None and VAR[0] == "school"
+    share = tick_share(avail - TICK_FLOOR) if school else 6
+    if school:
+        pane_h = min(max(need, avail - share), avail - share)
     else:
         pane_h = min(need, avail - 6)
     if not pane or pane_h < least:
         pane_h = 0
+    # ...and what the ticker asks for, remembered for the box at the bottom of this function: a constant
+    # here was exactly the bug (a single line of words under a thirty-row drawing). With no drawing up,
+    # the box is the ticker's own business again - which is what the original variant has always done.
+    n_tick = share if (school and pane_h) else TICK_FLOOR
     ops_top = sp_bottom + 1
     if pane_h:
         px0, py1 = pane_x0, ops_top + pane_h - 1
@@ -3685,24 +3720,27 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
 
     # -------------------------------------------------------------- ops ticker
     #
-    # The ticker takes the height its *content* wants rather than everything left over. It scrolls one
-    # word per half beat and the list is four or five long, so a tall ticker is the same four words with
-    # thirty empty rows under them - and those rows are exactly what the drawings above it needed. The
-    # film's own ticker is 32 rows because the film's right column is nothing but tickers; here it is
-    # capped at eight and hands the rest to the pane.
+    # `n_tick` is what the drawing above asked for (`tick_share`, at the top of this function), and this is
+    # only the content check on top of it: with no drawing up - a dropped pane, a column too narrow for one
+    # - the box is the ticker's own business again, and the film's program listing needs its heading,
+    # registers and three instructions, five rows of content, so the major section keeps a floor of six.
+    # The box is then whatever is really left (`height`), and the pane's share is the row budget it was
+    # given above, so the two never overlap.
     tick = (ent["ops"] if ent else ["IDLE"]) or ["IDLE"]
-    # From the first "Execution" hit the panel is a program listing, so its height is the listing's
-    # business: heading, registers and at least three instructions, which is five rows, capped at the
-    # same eight as the ticker so the pane above it keeps what the pane needs.
     machine = None
     if SP is not None and VAR[0] == "school":
         machine = SP.ops_machine(t, tick)
-    n_tick = 6 if machine else max(3, min(8, len(tick) * 2 + 1))
+    if not pane_h:
+        n_tick = max(TICK_FLOOR, min(TICK_CAP, len(tick) * 2 + 1))
+    if machine:
+        n_tick = max(n_tick, 6)
     height = bottom - ops_top + 1
     if height > n_tick:
         ops_bottom = ops_top + n_tick - 1
     else:
         ops_bottom = bottom
+    GEOM.update(avail=avail, pane=pane, pane_h=pane_h, n_tick=n_tick, tick_rows=share,
+                ops_top=ops_top, ops_bottom=ops_bottom, h=ops_bottom - ops_top + 1)
     draw_ops(s, pane_x0, ops_top, pane_x1, ops_bottom, t, tick, ent["alert"] if ent else None,
              machine)
 
@@ -3856,7 +3894,6 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
         try:
             import school_fx as _FX
             _FX.draw(s, cols, rows, t)
-            _FX.draw_glyphs(s, cols, rows, t)
             # and the transitions after even that: a page turn and a breaking screen move the chrome
             # too, which is the difference between a panel effect and a film transition
             _FX.transition(s, cols, rows, t)

@@ -751,25 +751,6 @@ def emerge(s, cols: int, rows: int, t: float, u: float, name: str, caption: str 
               caption, tuple(int(k * fade) for k in (220, 230, 255)))
 
 
-def glyphs(s, cols: int, rows: int, t: float, u: float, name: str, art: str) -> None:
-    """A piece of supplied character art, printed over the frame and lit line by line.
-
-    `猫学长_字符画.txt` is *already* terminal art - eleven lines - so it is printed rather than
-    characterised. The lines arrive from the top down, which is how a cat reads best: from its ears.
-
-    何尊 used to come through here too, from `何尊_字符画.txt`. It does not any more: the user's note was
-    that the vessel's character art is not good enough and that they had drawn an SVG of it to use
-    instead, so it is characterised from the vector like everything else on screen (`plate` below).
-    """
-    lines = [ln for ln in art.splitlines() if ln.strip()]
-    w = max(len(ln) for ln in lines) if lines else 0
-    x = max(0, (cols - w) // 2)
-    y0 = max(0, (rows - len(lines)) // 2)
-    shown = int(len(lines) * min(1.0, u * 1.6))
-    for i, ln in enumerate(lines[:shown]):
-        s.put(x, min(rows - 1, y0 + i), ln.replace("$", " "), (150, 170, 200))
-
-
 def plate(s, cols: int, rows: int, t: float, u: float, name: str, cols_n: int = 0, rows_n: int = 0,
           caption: str = "", dim: float = 1.0) -> None:
     """A campus work drawn over the whole frame as character art, lit from the top down.
@@ -1784,19 +1765,8 @@ SHOCKS.extend([
 ])
 
 
-@lru_cache(None)
-def _art(name: str) -> str:
-    """The supplied character art, read once. Empty string when the file is not there."""
-    spec = FILES.get(name)
-    if spec is None:
-        return ""
-    p = spec[0] / spec[1]
-    if not p.exists() or p.suffix != ".txt":
-        return ""
-    try:
-        return p.read_text(encoding="utf8")
-    except Exception:
-        return ""
+# events that have already complained, so a broken one does not print 24 lines a second
+_BROKEN: set = set()
 
 
 def draw(s, cols: int, rows: int, t: float) -> int:
@@ -1829,29 +1799,10 @@ def draw(s, cols: int, rows: int, t: float) -> int:
     return n
 
 
-# events that have already complained, so a broken one does not print 24 lines a second
-_BROKEN: set = set()
-
-
-# the supplied character art, drawn over its own frame. The cat is printed as the text it is; 何尊 is
-# drawn from its SVG through `plate` (it is on the event list, above) because the vessel's text art was
-# the thing the user replaced with a vector drawing.
-GLYPH_EVENTS: list[tuple[float, float, str, str]] = [
-    (66.30, 68.20, "cat", "\u732b\u5b66\u957f_字符画.txt"),
-]
-FILES["cat"] = (LANDMARKS, "\u732b\u5b66\u957f_\u5b57\u7b26\u753b.txt")
-FILES["hexun_art"] = (LANDMARKS, "\u4f55\u5c0a_\u5b57\u7b26\u753b.txt")
-
-
-def draw_glyphs(s, cols: int, rows: int, t: float) -> None:
-    """Print the supplied character art over the frame while its window is live.
-
-    Separate from `draw` only because these read a `.txt` instead of an image and their layout is
-    different (line-by-line, centred, no ramp) - they are the same kind of event.
-    """
-    for start, end, key, _f in GLYPH_EVENTS:
-        if not (start <= t < end):
-            continue
-        art = _art(key)
-        if art:
-            glyphs(s, cols, rows, t, (t - start) / max(1e-6, end - start), key, art)
+# There used to be a second layer here - `GLYPH_EVENTS` / `draw_glyphs` - which printed supplied character
+# art over the whole frame for a second and a half at a time: 何尊 first, then the cat at 66.30-68.20. 何尊
+# moved to `plate` (the user replaced the typed art with a vector drawing of the vessel), and the cat's
+# overlay is what the user saw in batch 30: "shot 31 还是 32 出现了一只意外的猫，请删除它". Shot 31 is
+# `shot_happy` (66.159-68.005), so the second cat landed on the chorus and not on the line that is about
+# the cat at all. It is gone; `school_scenes.pane_landmark_cat` - the cat's own pane at 80.93, on "If I'm a
+# tabby cat" - is now the cat's one appearance, which is what `05_歌词会话对照_v2.md` line 29 asks for.

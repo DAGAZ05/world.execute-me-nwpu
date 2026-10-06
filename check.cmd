@@ -13,7 +13,7 @@ rem "'Run' is not recognized", "'verdict' is not recognized", and so on, for fou
 rem comments above it. The checks all still ran; the noise was the tell. Everything user-facing that
 rem is not ASCII lives in the Python tools this calls.
 rem
-rem   check.cmd          the fast set: seven probes, about a minute
+rem   check.cmd          the fast set: eight probes, about a minute
 rem   check.cmd --full   and the two whole-song sweeps (a few minutes more)
 setlocal
 set FAIL=0
@@ -41,6 +41,10 @@ python _dev\row_probe.py || set FAIL=1
 echo.
 echo === density_probe   composition: all-ink walls and all-text panes fail, banding is reported
 python _dev\density_probe.py || set FAIL=1
+
+echo.
+echo === ops_probe       the ops box: is a tall drawing answered with more than one line of words
+python _dev\ops_probe.py --step 2.0 || set FAIL=1
 
 echo.
 echo === frame_probe     how long a frame takes, cold and warm, against the 24 fps budget

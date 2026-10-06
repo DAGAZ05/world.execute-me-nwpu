@@ -943,9 +943,10 @@ def pane_landmark_cat(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
 
     The user's note was that both the reference photographs *and* the two pieces of supplied character
     art should be used ("我参考的图像和字符画最好都用到"). The vessel has had a pane since batch 1; the cat
-    only ever appeared as a one-second overlay (`school_fx.GLYPH_EVENTS`, 66.30), which is not being
-    used, it is being mentioned. This is the cat's own pane, on the line it belongs to - the 万物皆点
-    section, where `想法.md` asks for 猫＝薛定谔叠加态.
+    used to appear twice - once as a one-second overlay (`school_fx.GLYPH_EVENTS`, 66.30) and once here.
+    The overlay is gone (batch 30: "shot 31 还是 32 出现了一只意外的猫，请删除它" - it landed on the chorus,
+    which is not about a cat), so this pane is the cat's one appearance, on the line it belongs to - the
+    万物皆点 section, where `想法.md` asks for 猫＝薛定谔叠加态.
 
     The art is eleven lines, so it is centred and lit top-down rather than scaled: character art that is
     already terminal art must not be resampled.
