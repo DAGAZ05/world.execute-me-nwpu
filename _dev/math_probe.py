@@ -185,6 +185,74 @@ def main() -> None:
             bad.append("pane_exec_ds lights a search path that does not reach the key being searched "
                        "for (the search for 8 stops before 8)")
 
+    # ---- 5. panes that contradict a number printed on the same pane ---------------------------
+    #
+    # Each of these was measured by rendering the pane and reading two of its own lines against each
+    # other. They belong here rather than in `pane_probe` for the same reason as section 4: every one of
+    # them renders perfectly.
+    print(f"\nthe panes that print a number and then disagree with it:")
+
+    # `c_os` prints `%Cpu(s): 6.2 us, 1.1 sy` and a per-process `%CPU` column. The column has to add up
+    # to the summary, or the table is claiming more CPU than the machine says it is using.
+    s = T.Screen(w + 6, h + 4)
+    CO.draw_course("pane_exec_os", s, x0, y0, x1, y1, 0.4, 0.4, 0.8, 1.0, run=8, total=16)
+    lines = _rows(s, w + 6, h + 4)
+    hdr = next((r for r in lines if "%Cpu(s)" in r), "")
+    m = re.search(r"([\d.]+)\s*us,\s*([\d.]+)\s*sy", hdr)
+    procs = [float(g.group(1)) for r in lines
+             for g in [re.match(r"\s*\d{4,5} root\s+20\s+0\s+([\d.]+)\s+0\.3", r)] if g]
+    if not m:
+        print("  pane_exec_os       no %Cpu(s) line found")
+        bad.append("pane_exec_os prints no %Cpu(s) summary line")
+    elif not procs:
+        print("  pane_exec_os       no process rows found")
+        bad.append("pane_exec_os prints a %Cpu(s) line and no process table")
+    else:
+        declared = float(m.group(1)) + float(m.group(2))
+        total = sum(procs)
+        print(f"  pane_exec_os       header {declared:.1f}% busy, {len(procs)} rows sum {total:.1f}%")
+        if abs(total - declared) > 0.6:
+            bad.append(f"pane_exec_os: the process column sums to {total:.1f}% while its own "
+                       f"%Cpu(s) line claims {declared:.1f}%")
+
+    # `_os_states` labels the transitions of the process state machine. A time slice expiring returns a
+    # process to **ready**, not to blocked; I/O is what sends it to blocked.
+    joined = " ".join(lines)
+    if "时间片到" in joined and "就绪" not in joined:
+        print("  pane_exec_os       'time slice expires' is labelled with no destination")
+        bad.append("pane_exec_os labels an edge 时间片到 without saying it returns to ready")
+    else:
+        print("  pane_exec_os       transition labels: ok")
+
+    # `g_burndown`'s legend names the glyphs the drawing uses - the ideal line is drawn with `·`.
+    s = T.Screen(w + 6, h + 4)
+    CO.draw_gauge("pane_gauge_burndown", s, x0, y0, x1, y1, 0.0, 0.4, 0.44, 1.0, run=1)
+    btxt = _rows(s, w + 6, h + 4)
+    legend = next((r for r in btxt if "ideal" in r), "")
+    print(f"  pane_gauge_burndown legend: {legend.strip()[:46]!r}")
+    if legend and "\u00b7" not in legend:
+        bad.append("pane_gauge_burndown's legend does not show the glyph its ideal line is drawn with")
+
+    # `g_assembly` - the header counts the parts and the boxes must not collide. Both were wrong: it said
+    # `BOM 41 parts` while drawing six, and at 95 columns the last two boxes shared a column.
+    for uu in (0.0, 1.0):
+        s = T.Screen(w + 6, h + 4)
+        CO.draw_gauge("pane_gauge_assembly", s, x0, y0, x1, y1, 0.0, 0.4, 0.44, uu, run=5)
+        at = _rows(s, w + 6, h + 4)
+        head = next((r for r in at if "BOM" in r), "")
+        mm = re.search(r"BOM (\d+) parts", head)
+        claimed = int(mm.group(1)) if mm else -1
+        labels = sorted((int(g.group(1)), g.start()) for r in at for g in re.finditer(r"P(\d+)", r))
+        print(f"  pane_gauge_assembly u={uu:.1f}: claims {claimed}, draws "
+              f"{[f'P{n}@{c}' for n, c in labels]}")
+        if claimed != len(labels):
+            bad.append(f"pane_gauge_assembly's header claims {claimed} parts and {len(labels)} "
+                       f"are drawn (u={uu})")
+        for (n1, c1), (n2, c2) in zip(labels, labels[1:]):
+            if c2 - c1 < 6:
+                bad.append(f"pane_gauge_assembly: P{n1} and P{n2} collide at u={uu}")
+                break
+
     print()
     if bad:
         print("FAIL:")

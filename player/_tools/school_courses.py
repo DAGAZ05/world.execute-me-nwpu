@@ -769,11 +769,28 @@ def c_os(k: _Kit, lt: float, dur: float) -> None:
     k.put(k.bx0, hdr_y, "  PID USER      PR  NI  %CPU  %MEM  STAT  COMMAND", _ui(0.6))
     names = ["systemd", "kworker/0:1", "sshd", "postgres", "python3", "bash", "gcc", "opencode"]
     rows = max(1, min(len(names), k.by1 - hdr_y - 1))
+    # **The table and the summary have to agree, and they did not.** The header prints
+    # `%Cpu(s): 6.2 us, 1.1 sy, 92.7 id`, i.e. **7.3 % busy**; each row was
+    # `cpu = 0.4 + 4.0 * abs(sin(...))`, so eight rows summed to 21.4-25.5 % (measured, batch 42) -
+    # the process table claimed three times the CPU the line above it reported. On a pane whose whole
+    # point is "this is the machine's own output, numbers move, nothing is asserted", a table that
+    # contradicts its own header is asserting something false.
+    #
+    # The busy share is now divided among the rows, and the **jitter conserves it**: the first version
+    # scaled each row by `0.82 + 0.18 * |sin|`, which shrank every row at once and made the column sum to
+    # 6.7 % under a header claiming 7.3 % (measured by the batch-42 probe). A table that contradicts its
+    # own summary by *rounding down a little* is the same defect as one that contradicts it by 3x - just
+    # harder to notice. Now the two busy rows split the reported `us + sy` in a breathing ratio whose two
+    # halves always add to one, so the sum is the summary by construction.
+    user_pct, sys_pct = 6.2, 1.1
+    busy = user_pct + sys_pct
+    ratio = 0.85 + 0.05 * math.sin(lt * 1.1)               # how the busy time splits user/system
+    share = [busy * ratio, busy * (1.0 - ratio)] + [0.0] * max(0, rows - 2)
     for i in range(rows):
         y = hdr_y + 1 + i
         tick = (int(lt * 1.6) + i) % len(names)
         nm = names[tick]
-        cpu = 0.4 + 4.0 * abs(math.sin(lt * 1.1 + i))
+        cpu = share[i] if i < len(share) else 0.0
         k.put(k.bx0, y, f"{4100 + i * 137:5d} root      20   0 {cpu:5.1f}  0.3",
               _mix(BLUE if i == 0 else INK, 0.75))
         k.put(k.bx0 + 38, y, nm, _mix(AMBER, 0.8) if i == 0 else _ui(0.6))
@@ -802,7 +819,13 @@ def _os_states(d: _Kit, lt: float) -> None:
     d.section(d.by0, "\u8fdb\u7a0b\u72b6\u6001", 0.25)
     states = (("new", "\u65b0\u5efa"), ("ready", "\u5c31\u7eea"), ("running", "\u8fd0\u884c"),
               ("blocked", "\u963b\u585e"), ("exit", "\u7ec8\u6b62"))
-    trans = ("fork", "\u8c03\u5ea6", "\u65f6\u95f4\u7247\u5230", "I/O \u8bf7\u6c42")
+    # **The four forward edges, labelled with what actually causes them.** The list used to be
+    # `("fork", "调度", "时间片到", "I/O 请求")` drawn under states 0..3, i.e. it named the edge
+    # running->blocked "时间片到" and the edge blocked->exit "I/O 请求". Both are wrong and both are the
+    # exam's first question: a time slice expiring sends `running` back to **ready**, and an I/O request
+    # sends `running` to `blocked` - not out of the process. (`exit` is reached by 终止/退出, not by I/O.)
+    # Measured against the sequence the pane draws (batch 42).
+    trans = ("fork", "\u8c03\u5ea6", "I/O \u8bf7\u6c42", "\u7ec8\u6b62")
     here = (0, 1, 2, 3, 1)[int(lt * 2.0) % 5]              # the state the pane is standing on
     step = max(2, (d.bh - 2) // len(states))
     for i, (en, zh) in enumerate(states):
@@ -814,7 +837,8 @@ def _os_states(d: _Kit, lt: float) -> None:
         if i < len(trans) and y + 1 <= d.by1 - 1:
             d.put(d.bx0 + 1, y + 1, BOX_V, _ui(0.3))
             d.put(d.bx0 + 3, y + 1, trans[i], _ui(0.42))
-    d.put(d.bx0, d.by1, "\u963b\u585e\u4e0d\u5360 CPU", _mix(GREEN, 0.75))
+    d.put(d.bx0, d.by1, "\u963b\u585e\u4e0d\u5360 CPU\uff1b\u65f6\u95f4\u7247\u5230\u2192\u5c31\u7eea\uff0c"
+                        "I/O \u5b8c\u6210\u2192\u5c31\u7eea", _mix(GREEN, 0.75))
 
 
 def _os_pages(d: _Kit, lt: float) -> None:
@@ -1645,7 +1669,10 @@ def g_burndown(k: _Kit, lt: float, dur: float) -> None:
             yp = k.by1 - 2 - int((h - 3) * actual[d - 1] / 100.0)
             k.put(min(x, xp) + 1, min(y, yp) + 1, "\u2571" if y < yp else "\u2572", _mix(AMBER, 0.7))
     k.put(k.bx0, k.by0, "\u5728\u8dd1\u4e0d\u5b8c\u7684 Sprint", _ui(0.8))
-    k.put(k.bx1 - 16, k.by0, "ideal \u2500  actual \u25cf", _ui(0.45))
+    # the legend names the glyphs the drawing actually uses: the ideal line is `·` (drawn above), not
+    # `─`. A legend that shows a solid rule for a dotted line is the smallest possible lie, and this pane
+    # got it wrong for its whole life. (Batch 42, by reading the two lines together.)
+    k.put(k.bx1 - 16, k.by0, "ideal \u00b7  actual \u25cf", _ui(0.45))
 
 
 def g_pareto(k: _Kit, lt: float, dur: float) -> None:
@@ -1838,13 +1865,26 @@ def g_assembly(k: _Kit, lt: float, dur: float) -> None:
     w, h = k.bw, k.bh
     if h < 4:
         return
-    k.put(k.bx0, k.by0, "assembly  BOM 41 parts", _ui(0.75))
-    n = max(3, min(6, (w - 10) // 12))
-    sep = int(k.u * (w // 4))
+    # **The boxes no longer collide, and the header counts what is drawn.** Two separate contradictions
+    # were measured here (batch 42):
+    #
+    #   * the header said `BOM 41 parts` while the loop drew at most six, so the number was a claim about
+    #     a bill of materials that the picture did not support - and anyone counting the boxes found a
+    #     different film from the one the caption describes. The count now comes from the loop;
+    #   * at `w = 95` the last two boxes overlapped: `cx = min(cx + sep, k.bx1 - 6)` clamps *every* box
+    #     past the right edge onto the same column, so P5 sat at 83..89 and P6 at 89..95 and they shared
+    #     column 89. An exploded view whose parts are inside each other is not exploded. The step is now
+    #     solved from the width so the boxes fit, and the separation is capped at what is left over.
+    n = max(3, min(8, (w - 4) // 8))
+    # the room each box may travel in, before it would touch the next one: six cells of box plus a gap
+    step = max(0.0, (w - 8) / max(1, n))
+    sep = int(k.u * min(w // 4, max(0, step - 7)))
+    k.put(k.bx0, k.by0, f"assembly  BOM {n} parts", _ui(0.75))
     for i in range(n):
-        cx = k.bx0 + 4 + i * ((w - 8) // max(1, n))
-        cx = min(cx + sep, k.bx1 - 6)
-        if cx < k.bx0 + 2:
+        # the home position, spread across the width so nothing is clamped on top of anything else
+        home = k.bx0 + 3 + int(step * i)
+        cx = min(home + sep, k.bx1 - 6)
+        if cx <= k.bx0 + 1:
             continue
         yy = k.by0 + 2 + (i % 2)
         k.frame(cx, yy, cx + 6, min(yy + 2, k.by1), _mix(BLUE, 0.6))
