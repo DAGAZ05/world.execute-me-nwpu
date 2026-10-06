@@ -420,13 +420,28 @@ def c_c(k: _Kit, lt: float, dur: float) -> None:
     y = k.by0 + 1
     step = int(lt * 2.4) % (n + 3)                 # the pointer cycles, so the pane never goes static
     over = step >= n
-    for i in range(n):
+    # **The red cell exists now.** The loop only ever drew `i in range(n)` - the declared array - while
+    # the pointer cycles to `n + 2`, so `over and i == step` could not be true for any drawn cell: the
+    # red cell past the end, which is the one genuinely frightening idea in this course ("`*p++` has no
+    # idea where the array ends"), was dead code. `pane_probe` cannot see it and nothing else could
+    # either: the pane rendered, moved, and stayed inside its rect while its central claim was absent.
+    # (Batch 43, by reading `step`'s range against the loop's.)
+    #
+    # Three cells past the end are drawn as part of the picture, fading with distance - they are the
+    # next rows of *memory*, which is the point: they exist, and nothing stops the write.
+    for i in range(n + 3):
         xx = x0 + i * 2
-        col = RED if (over and i == step) else (BLUE if i == step else DIM)
+        if i < n:
+            col = BLUE if i == step else DIM
+        else:
+            col = RED if i == step else _mix(RED, 0.28)
         k.put(xx, y, f"{i:2d}"[-2:], _mix(col, 0.95 if i == step else 0.55))
         k.put(xx, y + 1, BOX_TL + BOX_H + BOX_TR, _mix(col, 0.6))
         k.put(xx, y + 2, BOX_V + "\u2591" + BOX_V, _mix(col, 0.45))
         k.put(xx, y + 3, BOX_BL + BOX_H + BOX_BR, _mix(col, 0.6))
+    # the boundary the language does not check, drawn where the array ends
+    if x0 + (n - 1) * 2 + 2 <= k.bx1:
+        k.vline(x0 + (n - 1) * 2 + 2, y, y + 3, BOX_V, _mix(AMBER, 0.45))
     k.put(x0 + step * 2, y + 4, ARROW_U, _mix(RED if over else BLUE, 1.0))
     k.put(k.bx0, y + 4, "p", _mix(RED if over else BLUE, 0.95))
     k.put(k.bx0, y + 6, f"*p++   {step:2d}   addr 0x{k.bx0 + step * 4:04X}", _ui(0.65))
@@ -507,14 +522,22 @@ def c_software_engineering(k: _Kit, lt: float, dur: float) -> None:
             k.hline(px + pw + 1, y + 1, max(px + pw + 2, t_end - 2), BOX_H, col)
             k.put(px + pw + 2, y, flow, _mix(AMBER if on else DIM, 0.8 if on else 0.35))
             if k.bw > 70:
-                k.frame(t_end - 8, y, t_end, y + 2, _mix(VIOLET, 0.75), "\u6559\u5e08")
+                # **A repeated external entity is marked, and this one was not.** The same 教师 box is
+                # drawn on the left (the submit row) and again here on the right (the compile row), which
+                # Yourdon/DeMarco allows *precisely because* a duplicate is marked - the convention is a
+                # star or a slash on the repeat, and without it the reader counts two different people.
+                # On a pane whose own legend says "a DFD whose flows are anonymous is a flowchart", an
+                # unmarked duplicate is the same kind of error. (Batch 43.)
+                k.frame(t_end - 8, y, t_end, y + 2, _mix(VIOLET, 0.75), "\u6559\u5e08*")
         if i == 3 and k.bx0 + ew + 1 < px:
             k.vline(k.bx0 + ew // 2, top + 3, top + 2 * step - 1, BOX_V, _mix(VIOLET, 0.5))
             back = top + 2 * step - 1
             k.hline(k.bx0 + ew // 2, back, px + pw // 2, BOX_H, _mix(VIOLET, 0.5))
             k.put(k.bx0 + ew // 2 + 1, back, flow, _mix(AMBER, 0.8))
     k.put(k.bx0, k.by1 - 1, "\u25a1 \u5916\u90e8\u5b9e\u4f53   \u256d\u2500\u256e \u52a0\u5de5   "
-                            "\u2550 D1 \u6570\u636e\u5b58\u50a8   \u2192 \u6570\u636e\u6d41", _ui(0.55))
+                            "\u2550 D1 \u6570\u636e\u5b58\u50a8   \u2192 \u6570\u636e\u6d41   "
+                            "* \u540c\u4e00\u5b9e\u4f53\u7684\u91cd\u590d\u51fa\u73b0",
+          _ui(0.55))
     k.put(k.bx0, k.by1, "\u7bad\u5934\u4e0a\u90fd\u6709\u540d\u5b57\uff1a\u6ca1\u6709\u540d\u5b57\u7684"
                         "\u6d41\u5411\u56fe\u53eb\u6d41\u7a0b\u56fe", _ui(0.5))
     # ...and a packet keeps travelling the pipeline: `u` draws the diagram, `k.t` runs it
@@ -962,23 +985,40 @@ def c_db(k: _Kit, lt: float, dur: float) -> None:
     # twenty rows of nothing between the plan and the index the plan was talking about.
     ly = k.by1 - (2 if k.bh >= 12 else 0)
     leaves = max(4, min(12, (k.bw - 2) // 5))
-    hot = int(k.t * 3) % max(1, leaves)          # the scan keeps running on the song clock
+    # **The index contains the row the plan is looking for.** The leaf keys used to be `i * 137`, i.e.
+    # 0..1507, while the plan two lines above says `Index Cond: (id = 41827)` - so the picture showed an
+    # index scan finding a value that is not in the index, and the highlighted "hot" leaf was highlighted
+    # for no reason. (Batch 43. A B+ tree is what the course teaches; one whose keys do not contain the
+    # query teaches the opposite.)
+    #
+    # The keys are now centred on that row, and `hit` is the leaf whose range actually holds it.
+    mid = leaves // 2
+    keys = [41827 + (i - mid) * 137 for i in range(leaves)]
+    hit = mid                                     # the leaf holding id = 41827
+    hot = int(k.t * 3) % max(1, leaves)           # the scan keeps running on the song clock
     root_y = k.by0 + 4
     mid_y = (root_y + ly) // 2 if k.bh >= 12 else root_y + 2
     k.put(k.bx0, root_y, "B+ root", _ui(0.5))
-    k.put(k.bx0 + 9, root_y, "\u250c" + BOX_H * 3 + "\u252c" + BOX_H * 3 + "\u2510", _ui(0.45))
+    # the root's separators are the *smallest key of each internal subtree*, which is what an internal
+    # node holds: a root drawn as an empty two-slot box above four children is not a B+ tree either
+    groups = 4
+    per = max(1, (leaves + groups - 1) // groups)
+    seps = [keys[min(len(keys) - 1, i * per)] for i in range(groups)]
+    k.put(k.bx0 + 9, root_y, "\u250c" + ("\u2500" * 3 + "\u252c") * (groups - 1)
+          + "\u2500" * 3 + "\u2510", _ui(0.45))
     k.put(k.bx0, mid_y, "internal", _ui(0.5))
-    for i in range(4):
+    for i in range(groups):
         ix = k.bx0 + 9 + i * 15
         if ix + 3 > k.bx1:
             break
-        k.put(ix, mid_y, f"{i * 137:>3}", _mix(BLUE if i == hot // 3 else DIM, 0.7))
-        # the root fans out to the internal level, and the internal level fans out to the leaves:
-        # a B+ tree drawn as three named strips with nothing between them is three strips
+        # the internal node carrying the query's range is the one the scan is inside
+        near = seps[i] <= 41827 < (seps[i + 1] if i + 1 < len(seps) else 10 ** 9)
+        k.put(ix, mid_y, f"{seps[i] % 100000:>5}"[:5],
+              _mix(AMBER if near else BLUE if i == hot // per else DIM, 0.85 if near else 0.7))
         for yy in range(root_y + 1, mid_y):
             k.put(ix + 1, yy, BOX_V, _ui(0.2))
-        for j in range(3):
-            cx = k.bx0 + 9 + (i * 3 + j) * 5
+        for j in range(min(3, per)):
+            cx = k.bx0 + 9 + (i * per + j) * 5
             if cx + 4 > k.bx1:
                 break
             # the fan only in the last few rows: spread over fourteen rows an interpolated diagonal
@@ -995,7 +1035,13 @@ def c_db(k: _Kit, lt: float, dur: float) -> None:
         xx = k.bx0 + 9 + i * 5
         if xx + 4 > k.bx1:
             break
-        k.put(xx, ly - 1, f"{i * 137:5d}"[:5], _mix(BLUE if i == hot else DIM, 0.9 if i == hot else 0.5))
+        # the leaf that answers the query is amber; the moving cursor is blue. **No marker glyph**: a
+        # five-column key occupies `xx..xx+4` and the next key starts at `xx+5`, so the `◀` that was here
+        # landed on the key's own last digit and turned `41827` into `4182◀` - the query value was
+        # overwritten by the arrow pointing at it. (Caught by the batch-43 probe reading the row back.)
+        k.put(xx, ly - 1, f"{keys[i]:5d}"[:5],
+              _mix(AMBER, 0.95) if i == hit else _mix(BLUE if i == hot else DIM,
+                                                     0.9 if i == hot else 0.5))
     if k.bh >= 12:
         k.put(k.bx0, ly + 1, "\u4e09\u5c42\u6811\uff0c\u4e00\u6b21\u67e5\u8be2\u4e09\u6b21 I/O", _mix(GREEN, 0.75))
 
@@ -1114,16 +1160,26 @@ def c_test(k: _Kit, lt: float, dur: float) -> None:
 
 
 def c_dl(k: _Kit, lt: float, dur: float) -> None:
-    """深度学习: the loss curve over a backward pass drawn on top of it.
+    """深度学习: the loss curve, under a computation graph that carries both passes.
 
-    The curve is the training run; the red edges are the gradient flowing back through the same graph
-    the blue edges carried activations forward. Drawing them on one graph is the course's central
-    idea and it is also the reason this pane can animate: forward and backward are two directions.
+    **The graph is the content.** The docstring here used to claim "the red edges are the gradient
+    flowing back through the same graph the blue edges carried activations forward", and there was no
+    graph: there was a loss *curve*, and the "backward pass" drew `\\` and `/` one row off the curve. A
+    curve with slashes beside it is not a computation graph, and the course's central idea - that the
+    backward pass walks the *same* edges in the other direction - was not on screen at all. (Batch 43.)
+
+    So there are two drawings now, and they are different kinds of thing on purpose:
+
+      * the top third is the loss curve, which is what monitoring a run looks like;
+      * the rest is the graph: five nodes, the forward arrows in blue along the top, and the backward
+        arrows in red on a row *below* them, walking right to left. Both directions are visible at once,
+        which is the whole point - they are two traversals of one structure, not two pictures.
     """
     w, h = k.bw, k.bh
-    if h < 4 or w < 12:
+    if h < 6 or w < 12:
         return
-    # the loss curve: descending, with the noise a real run has
+    # ---- the loss curve, in the top third: a descending run with the noise a real one has
+    ch = max(3, h // 3)
     pts = []
     for c in range(w):
         v = 0.92 * math.exp(-3.1 * (c / max(1, w - 1))) + 0.06
@@ -1131,22 +1187,55 @@ def c_dl(k: _Kit, lt: float, dur: float) -> None:
         pts.append(v)
     shown = int(w * min(1.0, k.u * 1.5))
     for c in range(1, shown):
-        y_prev = k.by1 - 1 - int(pts[c - 1] * (h - 2))
-        y_now = k.by1 - 1 - int(pts[c] * (h - 2))
+        y_prev = k.by0 + ch - 1 - int(pts[c - 1] * (ch - 2))
+        y_now = k.by0 + ch - 1 - int(pts[c] * (ch - 2))
         k.put(k.bx0 + c, y_now, "\u00b7" if abs(y_now - y_prev) < 2 else "\u2571", _mix(BLUE, 0.85))
     k.put(k.bx0, k.by0, f"loss {pts[max(0, shown - 1)]:.3f}", _mix(BLUE, 0.9))
-    # the curve's leading point, still descending, on the song's clock: a loss curve that stops moving is
-    # a plot, and the whole point of a training run is that it is still going
-    lx = k.bx0 + 2 + int((k.t * 7) % max(1, k.bw - 6))
-    ly = k.by0 + 2 + int(max(1, k.bh - 6) * (0.5 + 0.5 * math.sin(k.t * 1.9)))
-    k.put(lx, min(k.by1 - 2, ly), "\u25cf", _mix(GREEN, 0.85))
-    # the backward pass: the same edges, in red, walking right to left
-    if k.u > 0.55:
-        back = int(w * min(1.0, (k.u - 0.55) / 0.40))
-        for c in range(max(1, w - back), w):
-            y = k.by1 - 1 - int(pts[c] * (h - 2))
-            k.put(k.bx0 + c, y + (1 if c % 3 else -1), "\\" if c % 2 else "/", _mix(RED, 0.9))
-        k.put(max(k.bx0, k.bx1 - 12), k.by0, "\u2207loss", _mix(RED, 0.95))
+    # ---- the graph: ops left to right, forward on top, backward underneath
+    ytop = k.by0 + ch + 1
+    if ytop + 4 > k.by1:
+        return
+    nodes = ("x", "W\u2081x+b", "ReLU", "W\u2082a+b", "L")
+    n = len(nodes)
+    bw = max(4, min(11, (w - 4) // n - 3))
+    xs = [k.bx0 + 1 + i * (bw + 3) for i in range(n)]
+    # the forward pass: nodes and arrows appear left to right over the first half of the slot
+    fwd = min(1.0, k.u / 0.5)
+    shown_n = max(1, int(round(fwd * n)))
+    for i in range(n):
+        x = xs[i]
+        if x + bw > k.bx1:
+            break
+        on = i < shown_n
+        col = _mix(BLUE, 0.9) if on else _ui(0.28)
+        k.put(x, ytop, BOX_TL + BOX_H * (bw - 2) + BOX_TR, col)
+        k.put(x, ytop + 1, BOX_V + _pad(nodes[i], bw - 2) + BOX_V, col)
+        k.put(x, ytop + 2, BOX_BL + BOX_H * (bw - 2) + BOX_BR, col)
+        if i and on:
+            ax = xs[i - 1] + bw
+            k.hline(ax, ytop + 1, x - 1, BOX_H, _mix(BLUE, 0.65))
+            k.put(x - 1, ytop + 1, ARROW_R, _mix(BLUE, 0.9))
+    # the backward pass: the *same* edges, in red, on the row below, right to left, carrying ∂L/∂·
+    if k.u > 0.5:
+        back = min(1.0, (k.u - 0.5) / 0.45)
+        yb = ytop + 4
+        j = int(round(back * (n - 1)))
+        for i in range(n - 1, n - 1 - j, -1):
+            if i - 1 < 0:
+                break
+            ax = xs[i - 1] + bw
+            k.hline(ax + 1, yb, xs[i] - 1, BOX_H, _mix(RED, 0.6))
+            k.put(ax, yb, ARROW_L, _mix(RED, 0.9))
+            # the gradient each edge carries, under it where there is room
+            grad = ("\u2202L/\u2202W\u2082", "\u2202L/\u2202a", "\u2202L/\u2202W\u2081",
+                    "\u2202L/\u2202x")[min(3, n - 1 - i)]
+            if yb + 1 <= k.by1 and ax + 2 + _cells(grad) <= k.bx1:
+                k.put(ax + 2, yb + 1, grad, _mix(RED, 0.7))
+        k.put(k.bx0, yb, "\u2207", _mix(RED, 0.95))
+    if k.by1 - 1 > ytop + 2:
+        k.put(k.bx0, min(k.by1, ytop + 3), "\u540c\u4e00\u7ec4\u8fb9\uff0c\u4e24\u4e2a\u65b9\u5411\uff1a"
+                                           "\u84dd\u5411\u53f3\u4f20\u6570\u636e\uff0c\u7ea2\u5411\u5de6"
+                                           "\u4f20\u68af\u5ea6", _ui(0.55))
 
 
 def _ind_tree(k: _Kit, u: float) -> None:

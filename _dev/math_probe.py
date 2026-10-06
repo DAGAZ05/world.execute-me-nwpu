@@ -40,7 +40,12 @@ W, H = 95, 30
 def _rows(s, cols, rows):
     out = []
     for y in range(rows):
-        row = "".join(s.buf[y][x][0] if s.buf[y][x][0] else " " for x in range(cols))
+        # **placeholder cells are skipped, not turned into spaces.** `Screen.put` writes an empty filler
+        # after every double-width character, so substituting a space for it puts a gap between 数 and 据
+        # and no CJK substring ever matches - not a label, not a legend. Batch 43 found this the hard way
+        # (a check reported "0 occurrences" for a pane that draws the word twice, and passed). ASCII is
+        # unaffected either way, which is why it went unnoticed while every check here was ASCII.
+        row = "".join(s.buf[y][x][0] for x in range(cols) if s.buf[y][x][0])
         if row.strip():
             out.append(row)
     return out
@@ -171,8 +176,10 @@ def main() -> None:
     found = None
     for yy in range(h + 4):
         for xx in range(1, w + 6):
-            if s.buf[yy][xx][0] == "8" and s.buf[yy][xx - 1][0] in MARKERS:
-                found = (xx, yy, s.buf[yy][xx - 1][0], s.buf[yy][xx][1])
+            nb = s.buf[yy][xx - 1][0]
+            # `nb and ...`: the empty placeholder cell is not a marker, and `"" in MARKERS` is True
+            if s.buf[yy][xx][0] == "8" and nb and nb in MARKERS:
+                found = (xx, yy, nb, s.buf[yy][xx][1])
     if found is None:
         print("  pane_exec_ds       'search 8': no tree node reading 8 (marker + digit) is on screen")
         bad.append("pane_exec_ds draws a search for 8 and the key 8 is not on the tree")
@@ -252,6 +259,80 @@ def main() -> None:
             if c2 - c1 < 6:
                 bad.append(f"pane_gauge_assembly: P{n1} and P{n2} collide at u={uu}")
                 break
+
+    # ---- 6. the claims that need a *different frame* or a *different structure* to check --------
+    #
+    # Four more of the same family (batch 43), each found by reading the drawing against its own
+    # docstring. Two of them could not be seen in a single frame: `c_c`'s red cell only exists while the
+    # pointer is past the end of the array, so the check sweeps the cycle.
+    print(f"\nthe panes whose subject was missing from the picture:")
+
+    # `c_c` is about `*p++` having no idea where the array ends - so the cell past the end has to be
+    # drawn at some point in the pointer's cycle. It never was: the loop drew `range(n)` while `step`
+    # cycle to `n + 2`, so the red branch was unreachable.
+    def red_dominant(c) -> bool:
+        r, g, b = c
+        return r > 90 and r > g * 2 and r > b * 2
+
+    reds = 0
+    for kk in range(80):
+        lt = kk * 0.11
+        s = T.Screen(w + 6, h + 4)
+        CO.draw_course("pane_exec_c", s, x0, y0, x1, y1, lt, lt, 0.8, 1.0, run=2, total=16)
+        if any(red_dominant(s.buf[y][x][1]) for y in range(h + 4) for x in range(w + 6)
+               if s.buf[y][x][0]):
+            reds += 1
+    print(f"  pane_exec_c        red cell over the cycle: {reds}/80 frames")
+    if reds == 0:
+        bad.append("pane_exec_c never draws the out-of-bounds cell its docstring is about")
+
+    # `c_db`'s plan scans for `id = 41827`; the B+ leaf level has to contain that key.
+    s = T.Screen(w + 6, h + 4)
+    CO.draw_course("pane_exec_db", s, x0, y0, x1, y1, 0.4, 0.4, 0.8, 1.0, run=10, total=16)
+    dbrows = _rows(s, w + 6, h + 4)
+    leaf = next((r for r in dbrows if "B+ leaf" in r), "")
+    print(f"  pane_exec_db       leaf level contains the query key: {'41827' in leaf}")
+    if "41827" not in leaf:
+        bad.append("pane_exec_db's B+ leaf level does not contain the id its plan scans for")
+
+    # `c_dl` claims one graph carrying both passes: it needs nodes, forward edges *and* backward edges.
+    #
+    # **Every `ch in "<glyphs>"` test has to exclude the empty character first**, because `"" in "abc"`
+    # is True in Python - and the buffer is full of empty *placeholder* cells (one after each double-width
+    # character). Written the obvious way this counted 139 "corners" on a pane whose graph has 20
+    # (5 nodes x 4), so it would have reported a graph even with no nodes drawn at all. Measured by
+    # counting the same screen two ways: 139 with `in`, 20 after filtering `""`. (Batch 43. Same root as
+    # the CJK search above: a placeholder cell is not a space.)
+    s = T.Screen(w + 6, h + 4)
+    CO.draw_course("pane_exec_dl", s, x0, y0, x1, y1, 1.0, 1.0, 0.8, 1.0, run=13, total=16)
+
+    def glyphs(where):
+        return sum(1 for y in range(h + 4) for x in range(w + 6)
+                   if s.buf[y][x][0] and s.buf[y][x][0] in where)
+
+    corners = glyphs("\u250c\u2510\u2514\u2518")
+    fwd = glyphs("\u25b6")
+    bwd = glyphs("\u25c0")
+    print(f"  pane_exec_dl       nodes {corners} corners, forward {fwd}, backward {bwd}")
+    if not corners or not fwd or not bwd:
+        bad.append("pane_exec_dl claims forward and backward passes through one graph and does not "
+                   "draw the graph with both directions")
+
+    # the DFD repeats an external entity, which the notation allows only when the repeat is marked
+    s = T.Screen(w + 6, h + 4)
+    CO.draw_course("pane_exec_se", s, x0, y0, x1, y1, 0.4, 0.4, 0.8, 1.0, run=5, total=16)
+    se = _text(s, w + 6, h + 4)
+    label = "\u6559\u5e08"
+    plain = se.count(label)
+    starred = se.count(label + "*")
+    print(f"  pane_exec_se       '{label}' x{plain}, marked repeats x{starred}, "
+          f"legend explains: {'同一实体的重复出现' in se}")
+    if plain == 0:
+        bad.append("pane_exec_se's external-entity label is not findable on the pane at all")
+    elif plain > 1 and not starred:
+        bad.append("pane_exec_se repeats an external entity without marking the repeat")
+    elif starred and "同一实体的重复出现" not in se:
+        bad.append("pane_exec_se marks a repeated entity and the legend does not explain the mark")
 
     print()
     if bad:

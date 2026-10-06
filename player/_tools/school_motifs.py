@@ -23,6 +23,7 @@ Every function here is `(k, t)` and pure in `t`: same time, same frame, seek or 
 from __future__ import annotations
 
 import math
+from functools import lru_cache
 
 import school_courses as _C
 
@@ -245,33 +246,91 @@ def quantize(k, t: float) -> None:
     k.put(k.bx0 + 2 + int((t * 7.0) % max(1, n)), y - 1, "\u25bc", _mix(_C.AMBER, 0.9))
 
 
+@lru_cache(maxsize=None)
+def _crack_path(w: int, h: int):
+    """The least-cost path across the crack field, by **Dijkstra**. `((x, y), ...)` from left to right.
+
+    This replaces a three-candidate greedy step that was not Dijkstra and was also wrong twice over
+    (batch 43, by reading it):
+
+      * `if i == 0 or cost(nx, ny) < cost(x + 1, y)` - the `i == 0` arm is unconditional, so the *first*
+        candidate always won without being compared, and the other two were compared against a baseline
+        that had already been overwritten by that first arm (`y` is reassigned inside the loop, so
+        `cost(x + 1, y)` is no longer the cost of the original cell). A "cheapest neighbour" that never
+        evaluates the first neighbour and measures the rest from a moving origin;
+      * it is one step of lookahead, so the path is greedy - it cannot find the cheapest *route*, only
+        the cheapest *next cell*. The pane is titled `Dijkstra 裂纹` and its caption says the crack is
+        "最便宜的那条路": a greedy descent can be arbitrarily far from that.
+
+    A real Dijkstra over the same deterministic field. It is computed **once per (w, h)** and cached -
+    the field is a pure function of the coordinates, so the path never changes while the pane is up, and
+    the per-frame cost of the whole motif is one slice.
+    """
+    import heapq
+
+    def cost(x: int, y: int) -> int:
+        return ((x * 2654435761 + y * 40503) >> 7) % 100
+
+    start = (0, h // 2)
+    goal_x = w - 1
+    dist = {start: cost(*start)}
+    prev: dict = {}
+    pq = [(dist[start], start)]
+    seen = set()
+    while pq:
+        d, node = heapq.heappop(pq)
+        if node in seen:
+            continue
+        seen.add(node)
+        x, y = node
+        if x == goal_x:                      # popped at its final distance: the path is settled
+            path = [(x, y)]
+            while (x, y) in prev:
+                x, y = prev[(x, y)]
+                path.append((x, y))
+            path.reverse()
+            return tuple(path)
+        for dx, dy in ((1, -1), (1, 0), (1, 1), (0, -1), (0, 1), (-1, 0)):
+            nx, ny = x + dx, y + dy
+            if not (0 <= nx < w and 0 <= ny < h):
+                continue
+            nd = d + cost(nx, ny)
+            if nd < dist.get((nx, ny), 1 << 30):
+                dist[(nx, ny)] = nd
+                prev[(nx, ny)] = (x, y)
+                heapq.heappush(pq, (nd, (nx, ny)))
+    return ()
+
+
 def dijkstra_cracks(k, t: float) -> None:
     """Cracks grown by Dijkstra: the shortest path from one edge point to another, on a random field.
 
-    `想法.md` lists "Dijkstra \u88c2\u7eb9" under \u788e\u7247, and it is the honest version of a crack: a crack
+    `想法.md` lists "Dijkstra 裂纹" under 碎片, and it is the honest version of a crack: a crack
     is not random, it is the *cheapest* way through the material. The field is a deterministic hash, the
-    path walks to the lowest-cost neighbour, and the growth is on `t` so the crack keeps opening.
+    path is the least-cost route across it (`_crack_path`, a real Dijkstra), and the growth is on `t`
+    so the crack keeps opening.
     """
     k.section(k.by0, "Dijkstra \u88c2\u7eb9", 0.28)
     w, h = k.bw, k.by1 - k.by0 - 1
     if w < 12 or h < 4:
         return
-
-    def cost(x, yy):
-        return ((x * 2654435761 + yy * 40503) >> 7) % 100
-    grown = max(2, int(w * 0.9 * min(1.0, (t % 6.0) / 4.0 + 0.25)))
-    x, y = k.bx0, k.by0 + 1 + (h // 2)
-    for step in range(min(grown, w)):
-        k.put(x, y, "\u2571" if step % 3 == 0 else ("\u2502" if step % 3 == 1 else "\u2572"),
-              _mix(_C.RED, 0.6 + 0.35 * (step / max(1, grown))))
-        for i in range(3):                     # three candidate steps right, take the cheapest
-            nx = x + 1
-            ny = max(k.by0 + 1, min(k.by0 + h, y + (i - 1)))
-            if i == 0 or cost(nx, ny) < cost(x + 1, y):
-                y = ny
-        x += 1
-        if x > k.bx1 - 1:
-            break
+    path = _crack_path(w, h)
+    if not path:
+        return
+    # the crack opens along the settled path; the leading cell is the brightest
+    grown = max(2, int(len(path) * min(1.0, 0.25 + (t % 6.0) / 4.0 * 0.9)))
+    grown = min(grown, len(path))
+    for i in range(grown):
+        x, y = path[i]
+        px, py = (path[i - 1] if i else path[0])
+        if i and y < py:
+            ch = "\u2571"
+        elif i and y > py:
+            ch = "\u2572"
+        else:
+            ch = "\u2500" if i else "\u25cf"
+        k.put(k.bx0 + x, k.by0 + 1 + y, ch,
+              _mix(_C.RED, 0.45 + 0.5 * (i / max(1, grown - 1))))
     k.put(k.bx0, k.by1, "\u88c2\u7eb9\u4e0d\u662f\u968f\u673a\u7684\uff0c\u662f\u6700\u4fbf\u5b9c"
                         "\u7684\u90a3\u6761\u8def", _ui(0.5))
 
