@@ -97,6 +97,33 @@ except Exception as _exc:              # a broken variant must not take the orig
           file=sys.stderr, flush=True)
     VAR[0] = "original"
 
+
+def panels():
+    """The module the chrome reads its own strings from: the school's tables, or the film's.
+
+    A function rather than the module-level `CHAPTERS = FP.CHAPTERS` copy at line 155, because that copy
+    is made *before* `--variant` is resolved and therefore always holds the film's bar. Everything that
+    reads the chapter bar goes through here so that a variant switch is picked up, and so that there is
+    one place to look when a string on screen belongs to the other timeline.
+    """
+    return SP if (SP is not None and VAR[0] == "school") else FP
+
+
+def next_chapter_num(t: float) -> str:
+    """The two digits of the chapter that *begins* after `t` - the number `draw_flood` stamps.
+
+    That stamp is the film's own device (sec_chorus2.py:336-355) and it means "this is what is coming":
+    the film fires it at 146.24 s and `07 / EXECUTION` begins at 147.40. It was written as the literal
+    `"07"`, which is the film's answer and not this variant's - here `08 / 执行` begins at 147.52, so the
+    school screen was printing the film's chapter number over its own chapter bar. Reading the active
+    bar makes both right without a second drawing routine.
+    """
+    bar = panels().CHAPTERS
+    after = [lab for s, lab in bar if s > t]
+    lab = after[0] if after else (bar[-1][1] if bar else "")
+    return lab.split("/")[0].strip()
+
+
 # The left window's own title. The film's page is DeepSeek's web chat, so it says `dsh web`, and that
 # is the right title for `--variant original` - it is the page the film draws. This variant's page
 # belongs to 航小天: the top bar already says `hangxiaotian@nwpu`, and the user asked for the box to
@@ -916,11 +943,9 @@ class Data:
 
     def chapter(self, t: float) -> str:
         # the variant's own bar: `school_panels` replaces `CHAPTERS` with the school's section names,
-        # and `film_panels` keeps the film's. Read through the module rather than a module-level copy
-        # so that a variant switch at `--variant` time is picked up (the copy at line 144 is made
-        # before that).
-        P = SP if (SP is not None and VAR[0] == "school") else FP
-        return [lab for s, lab in P.CHAPTERS if s <= t][-1]
+        # and `film_panels` keeps the film's. Read through `panels()` rather than a module-level copy
+        # so that a variant switch at `--variant` time is picked up.
+        return [lab for s, lab in panels().CHAPTERS if s <= t][-1]
 
 
 def tokenize(s: str) -> list[str]:
@@ -2536,7 +2561,9 @@ def draw_flood(s: Screen, x0: int, y0: int, x1: int, y1: int, t: float, u: float
         s.put(xx, yy, FP.flood_cell(i, g, order, n),
               mix(ME_TEXT, 0.5 + 0.5 * (order[i] < g - 0.05)) if order[i] < g else ui(0.25))
     if u > 0.6:
-        block_word(s, x0, y0 + max(0, (y1 - y0) // 2 - 4), "07", w, 9, mix(RED, 1.0))
+        # `07` was the film's chapter number written as a literal; the incoming chapter of *this*
+        # variant's bar is what the stamp means. See `next_chapter_num`.
+        block_word(s, x0, y0 + max(0, (y1 - y0) // 2 - 4), next_chapter_num(t), w, 9, mix(RED, 1.0))
 
 
 def draw_collapse(s: Screen, x0: int, y0: int, x1: int, y1: int, u: float) -> None:

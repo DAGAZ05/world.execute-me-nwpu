@@ -38,6 +38,12 @@ quiet machine"**, not "the code got slower" - and this file has to be run on its
 (`check.cmd` runs it last, after the probes that only read). `--reps` defaults to 5 rather than 3 for
 the same reason: taking the minimum over more passes is the only lever a probe has against sustained
 load, and it is cheap next to being wrong about a regression.
+
+Batch 48 re-measured the same single worst frame (t=193.69) three times back to back on a machine with a
+browser and a live wallpaper on it: `43.5`, `41.1`, `39.9` ms - **pass, fail, pass, on identical code**,
+while `stage_probe`'s breakdown for that frame matched batch 45's to within noise (`render_diff 15.04`
+against 15.74, `draw_body 9.84` against 9.32). A verdict that flips between runs is a statement about the
+machine, so the number to quote is the stage breakdown, not the exit code.
 """
 from __future__ import annotations
 

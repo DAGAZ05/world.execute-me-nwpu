@@ -302,13 +302,31 @@ def _crack_path(w: int, h: int):
     return ()
 
 
+@lru_cache(maxsize=1)
+def _dijkstra_anchor() -> float:
+    """When `pane_motif_dijkstra`'s own row starts, read out of the school's schedule.
+
+    Read rather than written here so that re-timing the row re-phases the drawing with it. Only the
+    school schedules this motif (`school_motifs.draw_motif`'s band route was removed in batch 32), so a
+    miss cannot happen in a real frame and falls back to the song's first frame.
+    """
+    try:
+        import school_panels as _SP
+        for r in _SP.shot_rows():
+            if r.get("name") == "pane_motif_dijkstra":
+                return float(r["at"])
+    except Exception:
+        pass
+    return 0.0
+
+
 def dijkstra_cracks(k, t: float) -> None:
     """Cracks grown by Dijkstra: the shortest path from one edge point to another, on a random field.
 
     `想法.md` lists "Dijkstra 裂纹" under 碎片, and it is the honest version of a crack: a crack
     is not random, it is the *cheapest* way through the material. The field is a deterministic hash, the
-    path is the least-cost route across it (`_crack_path`, a real Dijkstra), and the growth is on `t`
-    so the crack keeps opening.
+    path is the least-cost route across it (`_crack_path`, a real Dijkstra), and the growth runs on its
+    own row's clock so the crack opens across the slot it was given.
     """
     k.section(k.by0, "Dijkstra \u88c2\u7eb9", 0.28)
     w, h = k.bw, k.by1 - k.by0 - 1
@@ -317,8 +335,16 @@ def dijkstra_cracks(k, t: float) -> None:
     path = _crack_path(w, h)
     if not path:
         return
-    # the crack opens along the settled path; the leading cell is the brightest
-    grown = max(2, int(len(path) * min(1.0, 0.25 + (t % 6.0) / 4.0 * 0.9)))
+    # the crack opens along the settled path; the leading cell is the brightest.
+    #
+    # Anchored on this row's own start rather than on `t % 6.0` (batch 48). Looping on the song clock is
+    # right for every other motif - their slots run five to ten seconds, so a cycle lands whole - but this
+    # row's *visible* life is 2.16 s, because `shot_flood` takes the whole frame at 144.16. On an absolute
+    # 6 s cycle the pane would arrive with the crack already grown and then snap back to 25 % four frames
+    # before it disappears; on the row's clock it opens from 20 % to full across the 1.6 s a viewer
+    # actually gets, which is the one thing the drawing is about.
+    ph = (t - _dijkstra_anchor()) % 6.0
+    grown = max(2, int(len(path) * min(1.0, 0.20 + ph / 2.0)))
     grown = min(grown, len(path))
     for i in range(grown):
         x, y = path[i]

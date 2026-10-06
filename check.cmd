@@ -35,7 +35,7 @@ echo === trans_probe     the transitions: the buffer invariant they can break
 python _dev\trans_probe.py shatter slide zoom skew page --cells || set FAIL=1
 
 echo.
-echo === row_probe       the schedule: does any pane outlast the lyric it belongs to
+echo === row_probe       the schedule: does any pane outlast its lyric, or never reach the screen
 python _dev\row_probe.py || set FAIL=1
 
 echo.

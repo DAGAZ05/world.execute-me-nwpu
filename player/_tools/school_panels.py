@@ -412,15 +412,27 @@ LANDMARK_ROWS: list[dict] = [
     # **Split at 144.50** (batch 44): this row was the film's longest single drawing at 10.62 s, and the
     # stretch from the end of the 数据结构 exchange (~144.4) to the first "Execution" hit was carrying no
     # picture of its own. The tail now shows the algorithm one of these courses actually computes.
+    #
+    # **Moved to 142.00-147.52** (batch 48). The tail row was put at 144.50, which is *inside* shot 64
+    # (`shot_flood`, 144.16-147.62) - and the film's flood shot takes the whole screen, panes and all, so
+    # the pane was drawn zero times: scheduled for 3.0 s and never on screen. The lyric table has the
+    # boundary this row wanted all along - the instrumental gap labelled 数据结构 at 02:22.0 - so the
+    # curriculum ends there and the graph drawing owns the gap. `_dev/row_probe.py` now fails a row whose
+    # whole life is inside a shot that draws no pane, which is the check that would have caught it.
     dict(at=136.90, name="pane_curriculum", lyric="[after the gate]",
-         ops=["YEAR1", "YEAR2", "YEAR3", "YEAR4"], mascot=False, end=144.50),
+         ops=["YEAR1", "YEAR2", "YEAR3", "YEAR4"], mascot=False, end=142.00),
     # `Dijkstra 裂纹` - a least-cost path through a material, as the last image before the twelve hits.
     # The user's note: the motif existed but **no row used it** ("dijkstra 没被使用的话，需要在学院部分
     # 合适的地方加上"). It belongs in the college section because shortest path is the fourth pillar of
     # 算法设计 - the pane next to this one in the schedule teaches 分治/动规/贪心, and this is the graph
     # algorithm that the other three build toward. It is a real Dijkstra now, not a greedy walk (batch 43),
     # so what it draws is the thing its caption claims.
-    dict(at=144.50, name="pane_motif_dijkstra", lyric="[after the gate]",
+    #
+    # Its visible life is 142.00-144.16 (2.16 s): the row spans to 147.52 so that the schedule stays
+    # gapless, but the last 3.36 s of it are behind `shot_flood`, which is where the "07" stamp lands.
+    # The crack's growth is anchored on this row rather than on the song clock for that reason - see
+    # `school_motifs._dijkstra_anchor`.
+    dict(at=142.00, name="pane_motif_dijkstra", lyric="[after the gate]",
          ops=["\u7b97\u6cd5\u8bbe\u8ba1", "Dijkstra \u6700\u77ed\u8def"], mascot=False, end=147.52),
     dict(at=184.33, name="pane_love_class", lyric="I know the algebraic expression of lo-o-ove",
          ops=["LOVE", "CLASS", "UML"], mascot=False),
