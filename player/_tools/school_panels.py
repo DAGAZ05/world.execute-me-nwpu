@@ -105,6 +105,8 @@ EXEC_PANES = [
     ("pane_exec_pm", "\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406 \u00b7 WBS/Gantt"),
     ("pane_exec_test", "\u8f6f\u4ef6\u6d4b\u8bd5 \u00b7 \u8986\u76d6\u7387"),
     ("pane_exec_dl", "\u6df1\u5ea6\u5b66\u4e60 \u00b7 \u53cd\u5411\u4f20\u64ad"),
+    # \u7f16\u8bd1\u539f\u7406 is on the curriculum's spine and had no pane until batch 34
+    ("pane_exec_compiler", "\u7f16\u8bd1\u539f\u7406 \u00b7 \u4e94\u6b65\u7ba1\u9053"),
     ("pane_exec_industrial", "\u5927\u578b\u5de5\u4e1a\u8f6f\u4ef6"),
     # ...and the last slot of the reprise is the machine's own shutdown counter rather than the FEM
     # instrument a second time: "除了校徽、铸剑雕塑外的演出禁止重复", and the countdown to one is what the
@@ -344,8 +346,10 @@ LANDMARK_ROWS: list[dict] = [
          ops=["LATTICE", "TRANCE"], mascot=False),
     dict(at=101.13, name="pane_motif_moire", lyric="The trance, the trance",
          ops=["MOIRE", "TRANCE"], mascot=False),
-    dict(at=103.03, name="pane_motif_hyperellipse", lyric="If I can, if I can",
-         ops=["|x|^n", "超椭圆"], mascot=False),
+    # The superellipse played twice (here and in the 互换 panel at 50.95). The user's rule is
+    # once, so this slot is the resonance curve - the row covers "Feel your vibrations" (batch 34).
+    dict(at=103.03, name="pane_motif_resonance", lyric="If I can, if I can",
+         ops=["f₀", "RESONANCE", "Q=6"], mascot=False),
     dict(at=106.84, name="pane_motif_epicycles", lyric="Then I can, then I can",
          ops=["EPICYCLE", "FOURIER"], mascot=False),
     # "Challenging your God": the sword, as the accusation
@@ -362,8 +366,9 @@ LANDMARK_ROWS: list[dict] = [
     # `02b_图像对位与可视化表达.md` §4.3-4.6 names, and each is pinned to the lyric it belongs to rather
     # than to a share of the time.
     dict(at=162.23, name="pane_converge", lyric="If I can, if I can",         ops=["DFD", "ER", "\u6d3b\u52a8\u56fe", "\u72b6\u6001\u56fe", "\u2192", "CLASS"], mascot=False),
-    dict(at=166.05, name="pane_motif_byrne", lyric="Be your only execution",
-         ops=["BYRNE", "PLATE"], mascot=False),
+    # Euclid I.47 was a plate about proof on a line about *selection*; this is the selection (batch 34)
+    dict(at=166.05, name="pane_motif_one_path", lyric="Be your only execution",
+         ops=["ONE PATH", "唯一执行"], mascot=False),
     dict(at=169.61, name="pane_backlog", lyric="If I can have you back",
          ops=["SCRUM", "TODO", "DOING", "DONE"], mascot=False),
     # The four AI motifs. They are laid out around `shot_collapse` (174.90-177.50), which the TUI draws

@@ -1761,6 +1761,47 @@ def _split(k: _Kit, parts) -> None:
 # The pane name is the key, and it is the *only* place a course's name is written: `school_panels`
 # builds its schedule from these keys and reads the titles back out, so the two files cannot drift.
 # A `pane_gauge_` key is one of the six instruments of the countdown; everything else is a course.
+def c_compiler(k: _Kit, lt: float, dur: float) -> None:
+    """编译原理: the pipeline from characters to a program, with a parse tree on it.
+
+    The course the curriculum names that no pane drew - the user asked me to check the drawings once the
+    curriculum changed, and this was the gap. 词法 → 语法 → 语义 →
+    中间代码 → 目标代码 across the box, the expression the front end
+    is chewing under them, and a cursor that walks the five stages on the song clock.
+    """
+    w = k.bw
+    if w < 24 or k.bh < 5:
+        return
+    stages = ["词法", "语法", "语义", "中间代码", "目标代码"]
+    bw = max(6, (w - 2 * (len(stages) - 1)) // len(stages))
+    step = bw + 2
+    live = int(k.t * 1.4) % len(stages)
+    for i, name in enumerate(stages):
+        bx = k.bx0 + i * step
+        if bx + bw - 1 > k.bx1:
+            break
+        k.frame(bx, k.by0, bx + bw - 1, k.by0 + 2, _mix(BLUE, 0.9 if i == live else 0.45), name)
+        if i < len(stages) - 1 and bx + bw <= k.bx1:
+            k.put(bx + bw, k.by0 + 1, "→", _mix(AMBER, 0.9 if i == live else 0.35))
+    k.put(k.bx0, k.by0 + 4, "a = b + c * d", _ui(0.85))
+    if k.bh >= 9:
+        cx, cy = k.bx0 + 8, k.by0 + 6
+        nodes = [("=", cx + 8, cy), ("a", cx + 2, cy + 2), ("+", cx + 8, cy + 2),
+                 ("b", cx + 5, cy + 4), ("*", cx + 11, cy + 4),
+                 ("c", cx + 9, cy + 6), ("d", cx + 13, cy + 6)]
+        edges = ((8, 0, 2, 2), (8, 0, 8, 2), (8, 2, 5, 4), (8, 2, 11, 4), (11, 4, 9, 6), (11, 4, 13, 6))
+        for ex0, ey0, ex1, ey1 in edges:
+            y = cy + (ey0 + ey1) // 2
+            if y <= k.by1 - 1:
+                k.put(cx + ex0, y, "╲" if ex1 >= ex0 else "╱", _ui(0.3))
+        for ch_, x_, y_ in nodes:
+            if y_ <= k.by1 - 1:
+                k.put(x_, y_, ch_, _mix(GREEN, 0.9))
+    if k.bh >= 6:
+        k.put(k.bx0, k.by1, "词法到目标代码：一个程序"
+                            "是怎么被读进去的", _ui(0.5))
+
+
 COURSES: dict[str, tuple[str, object, tuple | None]] = {
     "pane_exec_embedded": ("\u5d4c\u5165\u5f0f\u7535\u5b50\u5fae\u7cfb\u7edf", c_embedded, None),
     "pane_exec_c": ("\u7a0b\u5e8f\u8bbe\u8ba1\uff08C\uff09", c_c, None),
@@ -1771,6 +1812,7 @@ COURSES: dict[str, tuple[str, object, tuple | None]] = {
     "pane_exec_net": ("\u8ba1\u7b97\u673a\u7f51\u7edc \u00b7 \u4e09\u6b21\u63e1\u624b", c_network, None),
     "pane_exec_os": ("\u8ba1\u7b97\u673a\u64cd\u4f5c\u7cfb\u7edf \u00b7 OpenEuler", c_os, None),
     "pane_exec_co": ("\u8ba1\u7b97\u673a\u7ec4\u6210\u539f\u7406 \u00b7 \u8865\u7801\u4e58\u6cd5", c_co, None),
+    "pane_exec_compiler": ("\u7f16\u8bd1\u539f\u7406 \u00b7 \u4e94\u6b65\u7ba1\u9053", c_compiler, None),
     "pane_exec_db": ("\u6570\u636e\u5e93 \u00b7 EXPLAIN \u4e0e B+ \u6811", c_db, None),
     "pane_exec_pm": ("\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406 \u00b7 WBS/Gantt", c_pm, None),
     "pane_exec_test": ("\u8f6f\u4ef6\u6d4b\u8bd5 \u00b7 \u8986\u76d6\u7387", c_test, None),
@@ -1798,6 +1840,13 @@ GAUGES: dict[str, tuple[str, object]] = {n: (COURSES[n][0], COURSES[n][1]) for n
 # manual and the error message all use is "red-black tree", and the two belong on the same screen.
 # Only the courses get one. The six instruments of the countdown live for three tenths of a second.
 DETAIL: dict[str, tuple[tuple[str, str], ...]] = {
+    "pane_exec_compiler": (
+        ("lexer", "\u8bcd\u6cd5\uff1a\u5b57\u7b26\u6d41 \u2192 token"),
+        ("parser", "\u8bed\u6cd5\uff1atoken \u2192 \u8bed\u6cd5\u6811"),
+        ("IR", "\u4e2d\u95f4\u4ee3\u7801\uff1a\u4e09\u5730\u5740\u7801"),
+        ("opt", "\u4f18\u5316\uff1a\u5e38\u91cf\u6298\u53e0\u3001\u516c\u5171\u5b50\u8868\u8fbe\u5f0f"),
+    ),
+
     "pane_exec_embedded": (
         ("MCU / SoC", "微控制器与片上系统"),
         ("register", "寄存器：外设的编程接口"),

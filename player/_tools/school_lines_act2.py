@@ -5,10 +5,14 @@ module's docstring for the typo the shape prevents.
 
 The curriculum is the student's own correction and it drives the whole act:
 
-    大一  嵌入式微电子系统 · 程序设计基础（C）· 数据结构
-    大二  面向对象（Java）· 软件工程 · 计网 · 机操 · 计组 · 数据库
-    大三  软件项目管理 · 算法设计 · 软件测试 · 深度学习 · 工业模型 · 大型工业软件
-    大四  毕业设计
+    大一  嵌入式电子微系统 · 程序设计基础（C 语言）· 数据结构
+    大二  面向对象（java）· 软件工程 · 计算机网络 · 计算机操作系统 ·
+          计算机组成原理 · 数据库系统
+    大三  软件项目管理 · 算法设计 · 软件测试 · 深度学习 · 编译原理 · 大型工业软件
+    大四  毕设 · 实习
+
+    The lists are the user's own (batch 34): the highlighted courses are the ones this variant treats
+    as the major's spine, and every other line of each year is a course that runs beside them.
 
 The song's twelve "Execution" hits fall inside 大二 and 大三; the year boundaries are what the
 *dialogue* tracks, so the audience hears the shape of the four years over the top of the course
@@ -60,7 +64,7 @@ ACT_TWO: list[tuple[float, str, str, str]] = [
     (169.61, "If I can have you back", "user", "\u90a3\u5f20\u56fe\u4e4b\u540e\u5462 \u2014\u2014 \u5927\u4e09\u5462\uff1f"),
     (169.61, "If I can have you back", "ai", "\u5927\u4e09\u3002\u56fe\u4e0a\u8fd9\u516d\u95e8\uff0c\u52a0\u4e0a\u4f60\u7684\u6bd5\u8bbe\u3002"),
     (169.61, "If I can have you back", "code", "\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406  \u7b97\u6cd5\u8bbe\u8ba1  \u8f6f\u4ef6\u6d4b\u8bd5"),
-    (169.61, "If I can have you back", "code", "\u6df1\u5ea6\u5b66\u4e60      \u5de5\u4e1a\u6a21\u578b  \u5927\u578b\u5de5\u4e1a\u8f6f\u4ef6"),
+    (169.61, "If I can have you back", "code", "\u6df1\u5ea6\u5b66\u4e60      \u7f16\u8bd1\u539f\u7406  \u5927\u578b\u5de5\u4e1a\u8f6f\u4ef6"),
     (169.61, "If I can have you back", "sub", "\u7b97\u6cd5\u8bbe\u8ba1\u662f\u628a\u6570\u636e\u7ed3\u6784\u91cc\u7684\u6811\uff0c\u6362\u6210\u5bf9\u590d\u6742\u5ea6\u672c\u8eab\u7684\u8010\u5fc3\u3002"),
     (169.61, "If I can have you back", "meta", "\u7528\u65f6 3.4 \u79d2|02:49"),
     (173.11, "Though we are trapped", "user", "\u53c8\u662f\u90a3\u4e2a\u6846\u3002"),

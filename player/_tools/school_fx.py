@@ -88,7 +88,10 @@ SHADE = " \u2591\u2592\u2593\u2588"
 # spotted it in one frame ("有的飞机方向飞反了，成了尾部在往前飞"), which is the sort of thing a
 # direction table fixes once instead of at every call site.
 FACES = {
-    "y20": "left", "j20": "left", "z20": "left", "arj21": "left", "manta": "left",
+    # ARJ21 is the one the table got wrong: looked at, its nose is on the **right** of the photograph
+    # (T-tail and engine on the left), so `left` mirrored it and it crossed tail first - the user saw
+    # it in batch 34 ("ARJ21 变成从尾部往前飞了")
+    "y20": "left", "j20": "left", "z20": "left", "arj21": "right", "manta": "left",
     "torpedo": "right",
 }
 
@@ -1750,7 +1753,8 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     # --- the fourth route: the design's four aircraft are 运-20 (the low pass), 歼-20 (the three-hit
     #     fly), 直-20 (the descent) and ARJ21 - which had its file, its name and no event at all until
     #     batch 31's audit counted them. It crosses the instrumental gap at 21 s, high and small.
-    (21.00, 23.40, fly, dict(name="arj21", y=0.28, size=0, rows_n=0, caption="ARJ21 \u00b7 \u652f\u7ebf\u5ba2\u673a")),
+    (21.00, 23.40, fly, dict(name="arj21", y=0.28, size=0, rows_n=13, body=4,
+                                 caption="ARJ21 \u00b7 \u652f\u7ebf\u5ba2\u673a")),
     (55.00, 57.40, fly, dict(name="manta", y=0.30, size=0, rows_n=0, wave=1.0, dy=0.16,
                              caption="\u9b54\u9b3c\u9c7c")),
     # --- the first chorus: 歼-20, once, on a diagonal

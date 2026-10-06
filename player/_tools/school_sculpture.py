@@ -494,19 +494,43 @@ def banner_cells(name: str, cols: int, rows: int):
         return None
     w = max(len(ln) for ln in lines)
     h = len(lines)
-    scale = max(1, min(max(1, cols) // w, max(1, rows - 1) // h))
-    cw, ch = w * scale, h * scale
-    ox, oy = (cols - cw) // 2, (rows - ch) // 2
-    cells = [[None] * cols for _ in range(rows)]
+    # Supersampled, then drawn through the shade ramp. The first version multiplied the art by an
+    # **integer** and filled every covered cell with one solid block, so at pane size the letterforms were
+    # a staircase of blocks - the user's note in batch 34 is that the mark is not clear enough. Sampling
+    # at `K` per cell keeps the edges: a half-covered cell gets a lighter glyph instead of a whole block.
+    K = 4
+    mask = [[0.0] * (w * K) for _ in range(h * K)]
     for r in range(h):
         for c in range(len(lines[r])):
             if lines[r][c] == " ":
                 continue
-            for dy in range(scale):
-                for dx in range(scale):
-                    y, x = oy + r * scale + dy, ox + c * scale + dx
-                    if 0 <= y < rows and 0 <= x < cols:
-                        cells[y][x] = ("\u2588", 235)
+            for dy in range(K):
+                for dx in range(K):
+                    mask[r * K + dy][c * K + dx] = 1.0
+    mw, mh = w * K, h * K
+    scale = min(cols / max(1, mw), (rows - 1) / max(1, mh))
+    cw, ch = max(1, int(mw * scale)), max(1, int(mh * scale))
+    ox, oy = (cols - cw) // 2, (rows - ch) // 2
+    ramp = " \u2591\u2592\u2593\u2588"
+    cells = [[None] * cols for _ in range(rows)]
+    for cy in range(ch):
+        for cx in range(cw):
+            y0, y1 = int(cy * mh / ch), max(int(cy * mh / ch) + 1, int((cy + 1) * mh / ch))
+            x0, x1 = int(cx * mw / cw), max(int(cx * mw / cw) + 1, int((cx + 1) * mw / cw))
+            tot = hit = 0
+            for yy in range(min(y0, mh), min(y1, mh)):
+                for xx in range(min(x0, mw), min(x1, mw)):
+                    tot += 1
+                    hit += int(mask[yy][xx])
+            if not tot:
+                continue
+            cov = hit / tot
+            if cov <= 0.06:
+                continue
+            y, x = oy + cy, ox + cx
+            if 0 <= y < rows and 0 <= x < cols:
+                cells[y][x] = (ramp[min(len(ramp) - 1, 1 + int(cov * (len(ramp) - 1)))],
+                               int(120 + 130 * cov))
     return tuple(tuple(r) for r in cells), cols, rows
 
 

@@ -277,7 +277,8 @@ def overlay(s, cols: int, rows: int, t: float) -> bool:
     # the terminal behind it, dimmed: the gate is a mode, not a new screen
     for y in range(1, rows - 1):
         s.put(1, y, " " * max(0, cols - 2), _ui(0.18), (2, 4, 9))
-    s.box(x0, y0, x1, y1, " dsh  \u8bf7\u9009\u62e9\u5b66\u9662 ", 0.85, ANOM)
+    # the window is 航小天's, so its box says his name (it said "dsh" - the film's page - until batch 34)
+    s.box(x0, y0, x1, y1, " hangxiaotian  \u8bf7\u9009\u62e9\u5b66\u9662 ", 0.85, ANOM)
     left = window_left(t)
     s.put(x1 - 12, y0, f" {left:3.1f}s ",
           _mix(ANOM, 0.95) if left > 1.5 else _mix(CO.RED, 0.95))

@@ -238,6 +238,9 @@ def pane_parameters(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     film's own panels are all measured, and this variant keeps that promise. Every figure here is
     from `02_叙事设计.md` §9, which quotes the school's own site, data as of 2026-08-05.
     """
+    # The user's own four years (batch 34). `\u2605` is the major's spine - the courses this variant
+    # treats as the software college - and every other line is a course that runs beside them; the footer
+    # says exactly that, and each year is the complete list rather than "the first few".
     rows = [
         ("name", "\"西北工业大学\"", "\u6821\u53f2"),
         ("campus", "\"\u957f\u5b89\u6821\u533a \u4e1c\u7965\u8def1\u53f7\"", "\u5b98\u7f51"),
@@ -444,18 +447,23 @@ def pane_curriculum(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     college the student just chose.
     """
     rows = [
-        ("\u5927\u4e00", ["\u2605\u7a0b\u5e8f\u8bbe\u8ba1\uff08C\uff09", "\u2605\u5d4c\u5165\u5f0f\u5fae\u7cfb\u7edf",
-                        "\u9ad8\u7b49\u6570\u5b66", "\u7ebf\u6027\u4ee3\u6570", "\u79bb\u6563\u6570\u5b66",
-                        "\u5927\u5b66\u7269\u7406", "\u8ba1\u7b97\u673a\u5bfc\u8bba", "\u7a0b\u5e8f\u8bbe\u8ba1\u5b9e\u8df5"]),
-        ("\u5927\u4e8c", ["\u2605\u6570\u636e\u7ed3\u6784", "\u2605\u7b97\u6cd5\u8bbe\u8ba1", "\u2605\u9762\u5411\u5bf9\u8c61",
-                        "\u2605\u8ba1\u7b97\u673a\u7f51\u7edc", "\u2605\u8ba1\u7b97\u673a\u7ec4\u6210", "\u2605\u64cd\u4f5c\u7cfb\u7edf",
-                        "\u2605\u6570\u636e\u5e93", "\u6982\u7387\u7edf\u8ba1"]),
-        ("\u5927\u4e09", ["\u2605\u8f6f\u4ef6\u5de5\u7a0b", "\u2605\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406",
-                        "\u2605\u8f6f\u4ef6\u6d4b\u8bd5", "\u2605\u6df1\u5ea6\u5b66\u4e60", "\u2605\u5de5\u4e1a\u6a21\u578b",
-                        "\u2605\u5927\u578b\u5de5\u4e1a\u8f6f\u4ef6", "\u8f6f\u4ef6\u4f53\u7cfb\u7ed3\u6784",
-                        "\u9700\u6c42\u5de5\u7a0b", "\u4eba\u673a\u4ea4\u4e92"]),
-        ("\u5927\u56db", ["\u6bd5\u4e1a\u8bbe\u8ba1", "\u4e13\u4e1a\u5b9e\u4e60", "\u8f6f\u4ef6\u8d28\u91cf\u4fdd\u8bc1",
-                        "\u79fb\u52a8\u5e94\u7528\u5f00\u53d1", "\u9879\u76ee\u7ba1\u7406\u5b9e\u8bad"]),
+        ("\u5927\u4e00", ["\u2605\u5d4c\u5165\u5f0f\u7535\u5b50\u5fae\u7cfb\u7edf",
+                        "\u2605\u7a0b\u5e8f\u8bbe\u8ba1\u57fa\u7840\uff08C\uff09",
+                        "\u2605\u6570\u636e\u7ed3\u6784",
+                        "\u5fae\u79ef\u5206", "\u7ebf\u6027\u4ee3\u6570",
+                        "\u667a\u80fd\u65f6\u4ee3\u7684\u8f6f\u5de5", "\u519b\u4e8b\u7406\u8bba",
+                        "\u79bb\u6563\u6570\u5b66", "\u5927\u5b66\u7269\u7406"]),
+        ("\u5927\u4e8c", ["\u2605\u9762\u5411\u5bf9\u8c61\uff08java\uff09", "\u2605\u8f6f\u4ef6\u5de5\u7a0b",
+                        "\u2605\u8ba1\u7b97\u673a\u7f51\u7edc", "\u2605\u8ba1\u7b97\u673a\u64cd\u4f5c\u7cfb\u7edf",
+                        "\u2605\u8ba1\u7b97\u673a\u7ec4\u6210\u539f\u7406", "\u2605\u6570\u636e\u5e93\u7cfb\u7edf",
+                        "\u6570\u5b66\u5efa\u6a21", "\u4eba\u5de5\u667a\u80fd\u5bfc\u8bba", "\u6982\u7387\u8bba",
+                        "\u590d\u53d8\u51fd\u6570", "\u8ba1\u7b97\u65b9\u6cd5", "\u6bdb\u6982", "\u4e60\u6982"]),
+        ("\u5927\u4e09", ["\u2605\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406", "\u2605\u7b97\u6cd5\u8bbe\u8ba1",
+                        "\u2605\u8f6f\u4ef6\u6d4b\u8bd5", "\u2605\u6df1\u5ea6\u5b66\u4e60",
+                        "\u2605\u7f16\u8bd1\u539f\u7406",
+                        "\u2605\u5927\u578b\u5de5\u4e1a\u8f6f\u4ef6", "\u4fe1\u53f7\u4e0e\u7ebf\u6027\u7cfb\u7edf",
+                        "\u9a6c\u539f", "\u5de5\u4e1a\u6a21\u578b", "\u8f6f\u4ef6\u5f00\u53d1\u8bad\u7ec3"]),
+        ("\u5927\u56db", ["\u2605\u6bd5\u8bbe", "\u5b9e\u4e60"]),
     ]
     w, h = x1 - x0, y1 - y0
     from school_courses import _clip
@@ -494,11 +502,11 @@ def pane_curriculum(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
             if u < 0.04 + 0.10 * len(courses):
                 if int(t * 2) % 2 == 0:
                     s.put(cx, min(y1 - 3, y0 + 2 + len(courses)), "\u2588", _mix(ME_TEXT, 0.9))
-        s.put(x0 + 1, y1 - 1, _clip("\u2605 = \u4f60\u70b9\u540d\u7684\u91cd\u70b9\uff0c"
-                                    "\u4e0d\u662f\u5168\u90e8\uff1a\u540c\u4e00\u5b66\u671f\u8fd8\u6709\u522b"
-                                    "\u7684\u8bfe", w - 2), _mix(ME_TEXT, 0.75))
-        s.put(x0 + 1, y1, _clip("\u8fd9\u91cc\u53ea\u5217\u5230\u4e86\u6bcf\u5e74\u7684\u5934\u51e0\u95e8",
-                                w - 2), _ui(0.5))
+        s.put(x0 + 1, y1 - 1, _clip("\u2605 = \u4f60\u8981\u91cd\u70b9\u8bb0\u7684\uff1b"
+                                    "\u5176\u4f59\u662f\u540c\u4e00\u5b66\u671f\u4e00\u8d77\u4e0a\u7684",
+                                    w - 2), _mix(ME_TEXT, 0.75))
+        s.put(x0 + 1, y1, _clip("\u56db\u5e74\u7684\u8bfe\u8868\uff1a\u5927\u56db\u53ea\u5269"
+                                "\u6bd5\u8bbe\u548c\u5b9e\u4e60", w - 2), _ui(0.5))
         return
     flat = [(yr, nm) for yr, cs in rows for nm in cs]
     n = min(len(flat), max(1, h - 2))
@@ -739,10 +747,12 @@ def pane_love_class(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     rewritten for a whole box rather than a band).
     """
     lines = [
-        "class Love:",
-        "    giver: Person",
-        "    taker: Person",
-        "    def give(self) -> None: ...",
+        # Java, not Python: this project's programming course is 程序设计基础（C 语言）+ 面向对象（java）
+        # - there is no Python course in the curriculum (the user's note, batch 34)
+        "public class Love {",
+        "    Person giver;",
+        "    Person taker;",
+        "    public void give() { }",
     ]
     import school_courses as _C
     w, h = x1 - x0, y1 - y0

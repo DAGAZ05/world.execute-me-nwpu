@@ -27,7 +27,7 @@ pane_class	只靠 u（sine 带在动）；`class World(UNO):` 与歌词 "object 
 pane_parameters	只靠 u（rectifier/hyperellipse 带在动）；缩到真实 18×8 的何尊是 0/144 格有墨（等于看不见）
 pane_three_arms	三条旋臂写 航空·ARJ21 / 航天·北斗 / 航海·蛟龙 ✓ 与校方「三航」一致；靠 moire/galaxy 带在动
 pane_countdown	**越界**：底线用 y1-y0-1 当绝对行，288 格画到自己矩形外（197×44 会画进 feature bands 框）；digits[3] 画成 Π 不是 3；靠 chladni/bessel 带在动
-pane_curriculum	四年课程表，内容与专业相关 ✓；但大二一列标了 7 门而对话说「六门一起上」
+pane_curriculum	四年课表改用用户自己的清单（批次34）：★ 是专业脊梁、其余是同学期的课，与对话里的计数一致（大二 6 门）
 pane_point_set	框的上边框 95 格、下边框 96 格；只靠 u（byrne/en_limit 带在动）
 pane_converge	docstring 与同框对话都说「七个图」，代码只列六个（缺时序图）；只靠 u（lattice 带在动）
 pane_backlog	**完全静止**：sin(lt) 那项被 floor 成常数，60 个采样卡片数恒为 3
@@ -66,3 +66,6 @@ pane_ai_cnn	四页都写 `EXEC 01/04`（编号没有随课程走）
 pane_ai_attention	同上；注意力权重矩阵与 QKᵀ→softmax 相符
 pane_ai_rl	同上；策略更新与 r/A 数值相符
 pane_ai_diffusion	同上；箭头方向与去噪方向相反
+pane_exec_compiler	编译原理五步管道（词法/语法/语义/中间代码/目标代码）+ `a = b + c * d` 的语法树；新增（批次34）——课程表点名了它而图里没有
+pane_motif_one_path	唯一执行：二叉执行树里只亮一条路，并有一个走在它上的标记；接替 Byrne 图版（批次34）——那张图是关于“证明”的，而这句是关于“选择”
+pane_motif_resonance	共振曲线（受迫振荡的响应），峰在 f₀ 上随歌曲时钟移动；接替第二次出现的超椭圆（批次34）——用户要求“仅保留第一次”

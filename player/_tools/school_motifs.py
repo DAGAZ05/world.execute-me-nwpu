@@ -447,13 +447,18 @@ def sine(k, t: float) -> None:
     # the tangent at the moving point: the tangent to sin at p is y = cos(p)(x-p) + sin(p)
     p = (t * 0.9) % (4 * math.pi)
     i0 = int((p / (4 * math.pi)) * (n - 1))
+    # **The curve's own phase at that column**, not `p`: the curve is `sin(ph)` with
+    # `ph = i/(n-1)*4pi + t*0.9`, so evaluating the dot (and the tangent) at `p` puts the time term in
+    # twice and the red dot sits off the curve - which is what the user reported in batch 34
+    # ("sin 曲线红点的位置没有沿在曲线上").
+    ph0 = (i0 / max(1, n - 1)) * 4 * math.pi + t * 0.9
     for i in range(n):                                   # only the stretch that is on screen
         dx = i - i0
-        yy = math.sin(p) + math.cos(p) * (dx * (4 * math.pi / max(1, n - 1)))
+        yy = math.sin(ph0) + math.cos(ph0) * (dx * (4 * math.pi / max(1, n - 1)))
         y = mid - int(amp * yy)
         if hi <= y <= lo:
             k.put(k.bx0 + i, y, "\u2500", _mix(_C.AMBER, 0.55))
-    y0 = mid - int(amp * math.sin(p))
+    y0 = mid - int(amp * math.sin(ph0))
     k.put(k.bx0 + i0, max(hi, min(lo, y0)), "\u25cf", _mix(_C.RED, 0.95))
     k.put(k.bx0, k.by1, "\u66f2\u7ebf\u78b0\u5230\u7684\u4e24\u6761\u76f4\u7ebf\uff0c\u5c31\u662f\u5b83\u7684"
                         "\u5305\u7edc", _ui(0.5))
@@ -900,11 +905,97 @@ def lattice(k, t: float) -> None:
                         "\u6a2a\u7ebf\u6309 1/z \u53d8\u5bc6", _ui(0.5))
 
 
+def one_path(k, t: float) -> None:
+    """`Be your only execution`: every branch the run could take, and the one it takes.
+
+    The lyric's figure - "then I can, then I can / be your only execution" - is *selection*. A program
+    with four decisions has sixteen possible executions; the panel draws them as the binary tree they
+    are, lights the one this run is actually on, and walks a token down it. The other branches stay
+    visible as what did not happen, which is the half of the line that is about being chosen.
+
+    It replaced Byrne's plate from Euclid I.47 on this row: a picture about *proof* on a line about
+    *selection* (the user: "几何原本的那个展示效果不好，"
+    "换一个和歌词贴合的").
+    """
+    k.section(k.by0, "唯一执行 · one path", 0.28)
+    w, h = k.bw, k.by1 - k.by0 - 1
+    if w < 16 or h < 4:
+        return
+    levels = max(2, min(4, (h - 1) // 2, (w - 8) // 12))
+    # the choice made at each level, on the song clock: the path is a prefix of these bits
+    bits = [(int(t * 0.6) >> i) & 1 for i in range(levels)]
+
+    def node_x(level: int, j: int) -> int:
+        n = 2 ** level
+        return k.bx0 + 4 + int((w - 8) * (j + 0.5) / n)
+
+    def path_at(level: int) -> int:
+        return sum(bits[i] << (level - 1 - i) for i in range(level))
+
+    for d in range(levels):
+        n = 2 ** d
+        y = k.by0 + 2 + d * 2
+        if y > k.by1 - 1:
+            break
+        for j in range(n):
+            x = node_x(d, j)
+            lit = (j == path_at(d))
+            if d:
+                px = node_x(d - 1, j // 2)
+                for xx in range(min(px, x) + 1, max(px, x)):
+                    k.put(xx, y - 1, BOX_H, _mix(_C.BLUE, 0.5 if lit else 0.14))
+            k.put(x, y, "●" if lit else "·",
+                  _mix(_C.GREEN if lit else _C.BLUE, 0.95 if lit else 0.3))
+    # the token, one level at a time down the chosen chain
+    dl = int(t * 1.3) % levels
+    ty = k.by0 + 2 + dl * 2
+    if ty <= k.by1 - 1:
+        k.put(node_x(dl, path_at(dl)), ty, "▶", _mix(_C.AMBER, 0.95))
+    k.put(k.bx0, k.by1, f"{2 ** levels} 条可能，只有 1 条真的跑了",
+          _ui(0.5))
+
+
+def resonance(k, t: float) -> None:
+    """`Feel your vibrations`: the resonance curve, and the peak that is the answer.
+
+    Amplitude against driving frequency for a driven oscillator,
+    `A(f) = 1 / sqrt((1 - r²)² + (r/Q)²)` with `r = f/f0`: flat, a peak at `f0`, then falling
+    away. `f0` walks on the song clock, so the peak moves and the pane is never a still frame. It takes
+    the slot the second superellipse had - the user's rule is that a performance appears once, and the
+    superellipse's first appearance is the 互换 panel at 50.95.
+    """
+    k.section(k.by0, "共振 · resonance", 0.28)
+    w, h = k.bw, k.by1 - k.by0 - 2
+    if w < 14 or h < 4:
+        return
+    Q = 6.0
+    f0 = 0.30 + 0.35 * (0.5 + 0.5 * math.sin(t * 0.35))
+    base = k.by0 + 1 + h
+    prev = None
+
+    def amp(f: float) -> float:
+        r = f / max(1e-6, f0)
+        return min(1.0, (1.0 / math.sqrt((1 - r * r) ** 2 + (r / Q) ** 2)) / Q * 1.7)
+
+    for i in range(w):
+        f = 0.02 + 1.7 * i / max(1, w - 1)
+        y = base - int((h - 1) * amp(f))
+        y = max(k.by0 + 1, min(base, y))
+        if prev is not None:
+            for yy in range(min(prev, y), max(prev, y) + 1):
+                k.put(k.bx0 + i, yy, "·", _mix(_C.VIOLET, 0.85))
+        prev = y
+    px = k.bx0 + int((w - 1) * (f0 - 0.02) / 1.7)
+    k.put(px, k.by0 + 1, "▼", _mix(_C.AMBER, 0.9))
+    k.put(k.bx0, k.by1, "f = f₀ 时振幅最大：频率对上了",
+          _ui(0.5))
+
+
 MOTIFS = {
     "he_init": ("He \u521d\u59cb\u5316", he_init),
     "rectifier": ("\u6574\u6d41\u4e0e\u6ee4\u6ce2", rectifier),
     "phyllotaxis": ("\u53f6\u5e8f", phyllotaxis),
-    "byrne": ("Byrne \u56fe\u7248", byrne),
+    # "byrne" is not scheduled any more: its plate sat on a line about selection (see `one_path`)
     "quantize": ("2\u2075\u00b3 \u91cf\u5316", quantize),
     "dijkstra": ("Dijkstra \u88c2\u7eb9", dijkstra_cracks),
     "epicycles": ("\u672c\u8f6e", epicycles),
@@ -918,11 +1009,14 @@ MOTIFS = {
     "pixelsort": ("\u50cf\u7d20\u6392\u5e8f", pixelsort),
     "powerdown": ("\u5173\u673a\u5012\u653e", powerdown),
     "bessel": ("\u5706\u677f\u6a21\u6001", bessel),
-    "hyperellipse": ("\u8d85\u692d\u5706", hyperellipse),
+    # "hyperellipse" is not scheduled any more: it played twice, and the rule is once (see
+    # `school_scenes._ex_hyper`, the 41.92-54.74 互换 panel, which is its first appearance)
     "stardiff": ("\u884d\u5c04\u661f\u8292", stardiff),
     "en_limit": ("\u03b5\u2013N \u6781\u9650", en_limit),
     "binary": ("\u53cc\u661f\u65cb\u8fd1", binary),
     "lattice": ("\u6676\u683c\u5de8\u6784", lattice),
+    "one_path": ("\u552f\u4e00\u6267\u884c", one_path),
+    "resonance": ("\u5171\u632f", resonance),
 }
 
 
