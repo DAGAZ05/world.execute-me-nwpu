@@ -264,25 +264,56 @@ def sprite(name: str, cols: int, rows: int, contrast: float = 1.0, flip: str = "
                 # turns the boundary between two levels into a checkerboard instead of a hard edge - the
                 # same trick every image-to-terminal converter uses (chafa's `--dither`, libcaca before
                 # it), and the reason its output reads as a photograph rather than as poster art.
-                b = (BAYER4[r & 3][c & 3] + 0.5) / 16.0 - 0.5
-                v = min(1.0, max(0.0, v + b * DITHER / n_lev))
+                # `BAYER8`, and the nudge is expressed in **levels** rather than in `v`: `b` runs
+                # -0.5..+0.5, so `b * DITHER * 2 / n_lev` is at most `DITHER` levels of a 5-level ramp.
+                # It used to be `b * DITHER / n_lev` *without* the 2, i.e. a second division by two -
+                # the comment claimed "half a level" while the code did 0.234 of one, so the dither was
+                # on and all but invisible. (Batch 35's audit found it by reading the two lines together.)
+                b = BAYER8[y & 7][c & 7] - 0.5
+                v = min(1.0, max(0.0, v + b * DITHER * 2.0 / n_lev))
                 return int(round(min(1.0, v) * n_lev))
-            top, bot = lv(2 * r), lv(2 * r + 1)
+            yt, yb = 2 * r, 2 * r + 1
+            top, bot = lv(yt), lv(yb)
             if top is None and bot is None:
                 row.append(None)
+            elif top is None:
+                # **only the lower half has ink**: `▄`, not `░`. `░` is a quarter-covered *medium grey*
+                # and it was also being drawn at 0.7 brightness, so every subject's lower edge came out
+                # washed out; `▄` is half-covered and takes the pure colour like any other half block.
+                row.append(("\u2584", bot, P[c, yb], None))
+            elif bot is None:
+                row.append(("\u2580", top, P[c, yt], None))
             else:
-                k = 2 * r if top is not None else 2 * r + 1
-                row.append(("\u2580" if top is not None else SHADE[1], max(top or 0, bot or 0), P[c, k]))
+                # **both halves have ink**: `▀` carries *two* colours - the top half as the glyph's
+                # foreground, the bottom half as the cell's background. This is the change that matters
+                # most in the whole batch: the terminal has had two colour slots per cell all along, the
+                # project's own older sheet path used both (`tui_live.py`, the whale's half block), and
+                # this route was throwing the second one away - so every photograph came out as flat
+                # horizontal bands, which is exactly what the frames at 194 s and 55 s looked like.
+                row.append(("\u2580", top, P[c, yt], P[c, yb]))
         out.append(tuple(row))
     if outline:
         out = _outline(out, cols, rows)
     return tuple(out), cols, rows
 
 
-# The ordered-dither threshold, 4x4: the classic Bayer matrix, as the fraction of one ramp level each
-# cell is nudged by before it is quantised. `DITHER` is how much of a level that nudge may be - half is
-# the textbook setting, and less than that keeps the dither from reading as noise in a small pane.
-BAYER4 = ((0, 8, 2, 10), (12, 4, 14, 6), (3, 11, 1, 9), (15, 7, 13, 5))
+# The ordered-dither threshold: the classic 8x8 Bayer matrix, normalised to -0.5..+0.5 by subtracting a
+# half. `DITHER` is how many *ramp levels* that nudge may be, and half a level is the textbook setting:
+# it breaks the hard edge between two levels into a checkerboard without the picture reading as noise.
+#
+# The matrix was 4x4 with a redundant division (see the note in `sprite`); the 8x8 is used at no cost
+# because `sprite` is `lru_cache`d per size, so the dither is computed once per picture per size and never
+# again - a finer pattern for zero frames' worth of work.
+BAYER8 = (
+    ( 0, 32,  8, 40,  2, 34, 10, 42),
+    (48, 16, 56, 24, 50, 18, 58, 26),
+    (12, 44,  4, 36, 14, 46,  6, 38),
+    (60, 28, 52, 20, 62, 30, 54, 22),
+    ( 3, 35, 11, 43,  1, 33,  9, 41),
+    (51, 19, 59, 27, 49, 17, 57, 25),
+    (15, 47,  7, 39, 13, 45,  5, 37),
+    (63, 31, 55, 23, 61, 29, 53, 21),
+)
 DITHER = 0.5
 
 
@@ -329,21 +360,25 @@ def _outline(grid, cols: int, rows: int):
                 ch = "\u258c"
             else:
                 ch = "\u2590"
-            row[c] = (ch, len(SHADE) - 2, OUTLINE_RGB)
+            row[c] = (ch, len(SHADE) - 2, OUTLINE_RGB, None)
         out.append(tuple(row))
     return tuple(out)
 
 
 # The ramp every sprite is drawn through: `colour * dim * (LIFT + SPAN * level)`, where `level` is the
-# cell's own 0..4 ink. LIFT is what a photograph's *mid-tones* come out as, and it is the whole of "is this
-# thing visible against the frame" - the frame's ground is `(4,7,15)` and an aircraft is a dark photograph.
+# cell's own 0..4 ink. So `LIFT` is where the *darkest* ink lands and `LIFT + SPAN` where the brightest
+# does, and the pair is a contrast curve rather than a brightness offset.
 #
-# The aircraft and the manta get their own pair ("尝试增大飞机的亮度，好与背景区分开"): +36 % at the floor and
-# a steeper span, so the hull's greys come up to where the eye can see them while the bright panels clip.
-# The photographs that are *supposed* to be backgrounds (the gate, the library, the hands) keep the lower
-# pair - brightening those would fight the text drawn over them.
-LIFT, SPAN = 0.72, 0.42
-AIRCRAFT_LIFT, AIRCRAFT_SPAN = 0.98, 0.55
+# **These were 0.72/0.42, and that floor was the "发灰" problem in numbers.** A floor of 0.72 means a
+# photograph's black comes out at 72 % of its own colour - nothing in the film could be black, so every
+# picture sat in a narrow bright band and the whole frame read as washed out. It was written that way for
+# a real reason (a dark aircraft on the film's `(4,7,15)` ground is invisible), but the reason only applies
+# to the *silhouettes*, and batch 35's dual-colour half-block took over half of that job by giving the
+# cell's lower half its own colour instead of the frame's black. So the floor comes down and the span goes
+# up: the photographs get a real black, and the aircraft keep a raised floor because they are dark shapes
+# on a dark ground and nothing else is holding them up.
+LIFT, SPAN = 0.30, 0.92
+AIRCRAFT_LIFT, AIRCRAFT_SPAN = 0.62, 0.94
 # the frame's own ground, which is what a sprite's cells fall back to behind a half-block glyph. It is
 # `tui_live.BG`; it is repeated rather than imported because `school_fx` is imported *by* `tui_live`.
 FRAME_BG = (4, 7, 15)
@@ -400,10 +435,13 @@ def paste(s, cells, x0: int, y0: int, ink=None, dim: float = 1.0, box=None, flat
                 cell = row[c]
                 if cell is None:
                     continue
-                ch, lv, rgb = cell
+                ch, lv, rgb, bot = cell
                 col = ink or rgb
                 k = drow[x] * dim * (lift + span * lv / ramp_n)
-                brow[x] = (ch, (int(col[0] * k), int(col[1] * k), int(col[2] * k)), FRAME_BG)
+                # the cell's two colour slots: the glyph's own colour, and - when the lower half of the
+                # cell also has ink - that half's colour as the background. See `sprite`.
+                bcol = FRAME_BG if bot is None else tuple(min(255, int(q * k)) for q in bot)
+                brow[x] = (ch, (int(col[0] * k), int(col[1] * k), int(col[2] * k)), bcol)
                 wrow[x] = False
             continue
         for c in range(w):
@@ -413,16 +451,24 @@ def paste(s, cells, x0: int, y0: int, ink=None, dim: float = 1.0, box=None, flat
             cell = row[c]
             if cell is None:
                 continue
-            ch, lv, rgb = cell
+            ch, lv, rgb, bot = cell
             if flat:
-                s.put(x, y, ch, ink or rgb)
+                s.put(x, y, ch, ink or rgb, bot if bot is not None else FRAME_BG)
                 continue
             col = ink or rgb
             # brighter than the panes' own ramp: this layer is drawn *over* an already-finished frame,
             # so a sprite at the panels' weight reads as a dark grey smudge rather than as an aircraft.
             # The floor is `lift` instead of 0.45 for that reason.
-            s.put(x, y, ch, tuple(min(255, int(k * dim * (lift + span * lv / (len(SHADE) - 1))))
-                                  for k in col))
+            #
+            # The ramp is one scalar for the whole cell - both halves share it, because what it encodes is
+            # how much ink *this cell* carries, not how bright either half is. Computing it once instead
+            # of once per channel keeps the second colour from costing anything: this path is the 285x90
+            # low pass, the film's biggest sprite, and it is measured by `_dev/frame_probe.py`.
+            k = dim * (lift + span * lv / ramp_n)
+            fg = (min(255, int(col[0] * k)), min(255, int(col[1] * k)), min(255, int(col[2] * k)))
+            bg = FRAME_BG if bot is None else (
+                min(255, int(bot[0] * k)), min(255, int(bot[1] * k)), min(255, int(bot[2] * k)))
+            s.put(x, y, ch, fg, bg)
 
 
 def has(name: str) -> bool:
@@ -512,8 +558,8 @@ def fly(s, cols: int, rows: int, t: float, u: float, name: str, y: float, rows_n
             if cell is None or abs(r - mid) <= body // 2:
                 row.append(cell)
             else:
-                ch, lv, rgb = cell
-                row.append((ch, max(0, lv - 1), rgb))
+                ch, lv, rgb, bot = cell
+                row.append((ch, max(0, lv - 1), rgb, bot))
         thin.append(tuple(row))
     paste(s, (tuple(thin), w, h), x, yy, lift=AIRCRAFT_LIFT, span=AIRCRAFT_SPAN)
     trail = max(0, min(16, int(16 * (1 - abs(v - 0.5) * 2) + 5)))
@@ -593,7 +639,7 @@ def sweep(s, cols: int, rows: int, t: float, u: float, name: str, rows_n: int = 
 
 
 def flash(s, cols: int, rows: int, t: float, u: float, name: str, cols_n: int = 0,
-          rows_n: int = 0, dim: float = 1.0, caption: str = "", behind: bool = False,
+          rows_n: int = 0, dim: float = 0.0, caption: str = "", behind: bool = False,
           contrast: float = 0.0, zoom: float = 0.0, fill: float = 0.62, x: float = 0.5,
           y: float = 0.5) -> None:
     """A picture landing over the whole frame, growing in and fading out.
@@ -653,7 +699,7 @@ def flash(s, cols: int, rows: int, t: float, u: float, name: str, cols_n: int = 
     # than be pushed against its left edge, or "bigger than the screen" reads as "off to one side"
     x0 = int((cols - w) * x)
     y0 = int((rows - h) * y)
-    paste(s, cells, x0, y0, dim=dim * (0.42 if behind else 1.0) * fade)
+    paste(s, cells, x0, y0, dim=(dim if dim > 0.0 else (0.42 if behind else 1.0)) * fade)
     if caption:
         s.put(max(1, (cols - len(caption)) // 2), min(rows - FOOTER_KEEP, max(0, y0) + min(h, rows) + 1), caption,
               tuple(int(k * fade) for k in (255, 210, 120)))
@@ -719,14 +765,29 @@ def stand(s, cols: int, rows: int, t: float, u: float, name: str, side: str = "r
         return
     _, cw, chh = cells
     breathe = int(round(math.sin(t * 1.1) * 1.2))
-    rise = int((1.0 - min(1.0, u * 2.4)) * (chh * 0.5))          # steps up into place and settles
+    # **The entry arrives from above, and the feet never enter the chrome.** It used to push the figure
+    # *down* by half its own height as it came in (`rise = (1-u*2.4) * chh * 0.5`), which on a 43-row
+    # sprite is 21 rows: for the first two and a quarter seconds the feet were painted over rows 47-51,
+    # i.e. the status line and the progress bar - and those are drawn *before* this layer and never
+    # repainted (measured: lowest inked row 51 at 193.70, 47 at 194.50, clean only from 195.50). The
+    # user's call is that the figure must not cover the progress bar, and the rise cannot go downwards
+    # any more, so it comes from above instead - the same arrival, read in the other direction - and it
+    # is measured against the room that actually exists above the chrome rather than against the
+    # figure's own height.
     p = FP.pulse(t)                                              # 1 on the beat, 0 between them
     hop = int(round((p ** 1.5) * max(2, chh * 0.11)))
     landing = int(round((p ** 0.5) * 1.5)) if p < 0.25 else 0     # the dip just after the beat
     x = cols - cw - 6 if side == "right" else 6
     # ...two rows of margin, because `breathe` and the landing dip push it down again: at exactly
     # `rows - FOOTER_KEEP` the feet still touched the progress box's top border.
-    y = (rows - FOOTER_KEEP - 2) - chh + rise // 2 + breathe - hop + landing
+    y_rest = (rows - FOOTER_KEEP - 2) - chh
+    room = max(0, y_rest)                                        # how far it can settle, in rows
+    rise = int((1.0 - min(1.0, u * 2.4)) * min(room, 3))
+    y = y_rest - rise + breathe - hop + landing
+    # ...and clamped as well, because `breathe`, the hop and the landing dip each move it a row or two on
+    # their own and any of the three could put a foot back into the chrome. The invariant this enforces is
+    # the one the user asked for: the lowest inked row is `rows - FOOTER_KEEP - 1` at worst.
+    y = max(0, min(y, rows - FOOTER_KEEP - 1 - chh))
     paste(s, cells, x, y)
     if caption and 2 <= x <= cols - len(caption) - 3:
         s.put(x, max(0, y - 1), caption, (255, 220, 150))

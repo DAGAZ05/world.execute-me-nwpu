@@ -43,6 +43,21 @@ LEVELS = 5
 LEVEL_FLOOR = 0.18
 SHADE = " \u2591\u2592\u2593\u2588"
 
+# The same ordered-dither pair `school_fx` uses - see the note in `halfblock`. Defined here rather than
+# imported from `school_fx` because `school_fx` imports *this* module, and a cycle for a 64-integer table
+# is not worth it. `DITHER` is in ramp levels: half a level is the textbook setting.
+_BAYER8 = (
+    ( 0, 32,  8, 40,  2, 34, 10, 42),
+    (48, 16, 56, 24, 50, 18, 58, 26),
+    (12, 44,  4, 36, 14, 46,  6, 38),
+    (60, 28, 52, 20, 62, 30, 54, 22),
+    ( 3, 35, 11, 43,  1, 33,  9, 41),
+    (51, 19, 59, 27, 49, 17, 57, 25),
+    (15, 47,  7, 39, 13, 45,  5, 37),
+    (63, 31, 55, 23, 61, 29, 53, 21),
+)
+DITHER = 0.5
+
 # what each landmark is called on screen, and which file it is
 FILES = {
     "dialogue": "\u5bf9\u8bdd_\u673a\u5668\u624b\u4e0e\u4eba\u7684\u624b.png",
@@ -221,7 +236,13 @@ def halfblock(name: str, cols: int, rows: int):
     def lv(c, y):
         if A[c, y] <= 96:
             return None
-        return int(round((LEVEL_FLOOR + (1 - LEVEL_FLOOR) * L[c, y] / 255) * (LEVELS - 1)))
+        v = (LEVEL_FLOOR + (1 - LEVEL_FLOOR) * L[c, y] / 255) * (LEVELS - 1)
+        # ordered dithering, the same 8x8 Bayer matrix `school_fx.sprite` uses, and for the same reason:
+        # a five-level ramp turns a photograph into five flat bands, and the bands are what the plates in
+        # this path (对话, 校徽, memory) were showing. Half a level either way, decided by the cell's place
+        # in the matrix, turns the boundary between two levels into a checkerboard instead of a hard edge.
+        # This is `lru_cache`d per (name, cols, rows), so the dither costs nothing per frame.
+        return int(round(v + (_BAYER8[y & 7][c & 7] - 0.5) * DITHER))
 
     block, colour = [], []
     for r in range(rows):

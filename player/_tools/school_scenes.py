@@ -914,7 +914,6 @@ def _landmark(name: str, s, x0: int, y0: int, x1: int, y1: int, u: float, title:
         got = SC.halfblock(name, cols, rows)
         if got:
             (block, colour), cw, ch = got
-            from school_courses import SHADE
             for r in range(min(ch, k.by1 - oy + 1)):
                 for c in range(cw):
                     top, bot = block[r][c]
@@ -924,7 +923,11 @@ def _landmark(name: str, s, x0: int, y0: int, x1: int, y1: int, u: float, title:
                     if top is not None:
                         k.put(ox + c, oy + r, "\u2580", _mix(ink, dim), 1.0)
                     elif bot is not None:
-                        k.put(ox + c, oy + r, SHADE[1], _mix(ink, dim * 0.7), 1.0)
+                        # `▄` and the full `dim`: this was `SHADE[1]` (`░`, a quarter-covered *medium
+                        # grey*) at 0.7 brightness, so the lower edge of every plate in this path came
+                        # out washed out - and the lower edge is most of a silhouette's outline.
+                        # (Batch 35; the same fix as `school_fx.sprite`'s lower-half case.)
+                        k.put(ox + c, oy + r, "\u2584", _mix(ink, dim), 1.0)
     if caption and k.by1 >= oy + rows:
         k.put(k.bx0, k.by1, caption, _ui(0.55))
     return k, ox, oy
