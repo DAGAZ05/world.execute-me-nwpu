@@ -2588,6 +2588,13 @@ LEFT_BOX: list = [0, 0, 0, 0]
 # over it (the library now sits in the bottom-left corner), and the band has to be put back on top
 # afterwards or the words being read are gone. Published by `draw_body`, read in `draw`.
 BAND_BOX: list = [0, 0, 0, 0]
+# ...and where the *drawing column* is, for the third and last time. A cut transition in the variant's
+# full-frame layer moves one of the two columns, and which one - and exactly which cells - is decided
+# here: `_box` used to guess it as `int(cols * 0.54)` on the swapped side, which is 106 columns at 197,
+# while the pane really ends at 97. Every transition after 02:16.9 therefore reached 8-9 columns into
+# the chat window and moved that instead of the drawing it was meant to move. Published like the other
+# two rather than recomputed, so there is one copy of the layout.
+PANE_BOX: list = [0, 0, 0, 0]
 AVATAR_MAX_W = 14             # cells; a cell is twice as tall as it is wide, so 14x7 is square
 ERR_RED = (255, 74, 61)       # the page's own --dsw-alias-state-error-primary in the red group
 CURSOR_BLINK = 0.53           # dsh_her.py:167 - `int((t - GONE) / 0.53) % 2`
@@ -3493,6 +3500,7 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
     else:
         chat_x0, chat_x1 = x0, lx
         pane_x0, pane_x1 = lx + 1, x1
+    PANE_BOX[:] = [pane_x0, top, pane_x1, bottom]      # see the note on PANE_BOX
     sp_bottom = min(top + 8, bottom - 4)      # border + 7 bands
 
     # The figure's pane, above the stdout band, when the column can hold a legible portrait - 航小天's

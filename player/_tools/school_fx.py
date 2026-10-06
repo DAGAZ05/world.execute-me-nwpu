@@ -675,7 +675,12 @@ def flash(s, cols: int, rows: int, t: float, u: float, name: str, cols_n: int = 
         z = zoom + (1.0 - zoom) * min(1.0, u) ** 1.35
         steps = ZOOM_STEPS
     else:
-        z = min(1.0, u * 3.2)
+        # ...and this one is eased too. It was `min(1.0, u * 3.2)`, i.e. a picture growing at a constant
+        # rate for the first third of its event - which is the single most common motion in the film
+        # (`flash` is 9 of the 15 full-frame events), so the most-seen motion in the film was the one
+        # that read as a machine sliding a rectangle. `** 0.75` decelerates into its size instead, which
+        # is what a thing arriving looks like, and `zoom`'s own `** 1.35` was already this idea.
+        z = min(1.0, u * 3.2) ** 0.75
         steps = GROW_STEPS
     # ...quantised, because `sprite` is cached per size and a grow that changes every frame decodes the
     # whole PNG every frame. Measured on the opening flash (`_dev/opening_probe.py`): 80-90 ms a frame for
@@ -803,7 +808,9 @@ def emerge(s, cols: int, rows: int, t: float, u: float, name: str, caption: str 
     a fade-in, and it is drawn over the collapsed frame rather than in a pane, because the pane is exactly
     what is not there.
     """
-    grow = min(1.0, u * 1.5)
+    # eased, so the thing grows *out of* the dot rather than being wiped open at a constant rate - the
+    # dot it comes from is the point of the shot, so the first frames have to stay near it
+    grow = min(1.0, u * 1.5) ** 0.8
     fade = min(1.0, u * 3.0)
     # A mark, not a plate: the user's "校门、校徽的大图出现了多次，仅保留第一次" leaves this one drawing the
     # bridge out of the collapse, and at the 0.34x0.44 it used to reach it was a *third* big crest. At
@@ -849,9 +856,11 @@ def plate(s, cols: int, rows: int, t: float, u: float, name: str, cols_n: int = 
         if hb is None:
             return
         (block, colour), cw, ch = hb
-        from school_courses import SHADE
         ink = (196, 208, 228)
-        shown = int(ch * min(1.0, u * 1.6))
+        # eased like the other reveals, and the *whole* picture is revealed rather than `u*1.6` clamped:
+        # `** 0.75` reaches 1.0 by u=0.625 like the linear version did, but the top rows it has already
+        # drawn arrive with a decelerating edge instead of a constant one.
+        shown = int(ch * min(1.0, u * 1.6) ** 0.75)
         ox, oy = max(0, (cols - cw) // 2), max(0, (rows - ch) // 2)
         for r in range(shown):
             for c in range(cw):
@@ -859,8 +868,17 @@ def plate(s, cols: int, rows: int, t: float, u: float, name: str, cols_n: int = 
                 if top is None and bot is None:
                     continue
                 col = colour[r][c] or ink
-                s.put(ox + c, oy + r, "\u2580" if top is not None else SHADE[1],
-                      tuple(int(v * dim) for v in col))
+                fg = tuple(int(v * dim) for v in col)
+                # **the same `▄`-not-`░` and dual-colour fix the sprite route got in batch 35** - this is
+                # the fourth instance of the same two lines, and it draws the film's frame-size plates
+                # (何尊 at 7.30, 铸剑 twice), so it is the one where the lower half of a subject is
+                # largest on screen. It was `SHADE[1]` (`░`) with no background at all.
+                if top is None:
+                    s.put(ox + c, oy + r, "\u2584", fg, FRAME_BG)
+                elif bot is None:
+                    s.put(ox + c, oy + r, "\u2580", fg, FRAME_BG)
+                else:
+                    s.put(ox + c, oy + r, "\u2580", fg, fg)
     else:
         cells, cw, ch = got
         shown = int(ch * min(1.0, u * 1.6))
@@ -903,7 +921,7 @@ def _ink_share(name: str) -> tuple[float, float, float]:
 
 
 def lowpass(s, cols: int, rows: int, t: float, u: float, name: str, y: float = 0.42,
-            peak: float = 1.45, caption: str = "", wave: float = 0.0, cover: float = 0.66) -> None:
+            peak: float = 1.45, caption: str = "", cover: float = 0.66) -> None:
     """A low pass: the aircraft comes over the frame, is biggest in the middle of it, and goes.
 
     The user asked for this one three times now - "运20需要展示掠空的冲击效果，其到达屏幕中间时需要占据全屏
@@ -917,8 +935,11 @@ def lowpass(s, cols: int, rows: int, t: float, u: float, name: str, y: float = 0
         `fill`), and the sprite is clipped by the frame on both sides - which is the whole point of a low
         pass: at the centre you are under it, not looking at a picture of it.
 
-    At 197x52 that is 285 cells of sprite, 90 rows of it, and a hull about 49 rows tall - taller than the
+    At 197x52 that is 285 cells of sprite, 90 rows of it, and a hull about 45 rows tall - taller than the
     frame's mid-band and wider than the screen, on a shallow diagonal, with the frame shaking.
+    (`_ink_share("y20")` measures the ink at 0.50 of the height, so 90 rows of sprite carry 45 rows of
+    hull. The comment said 49 and the one further down said 63 rows and 34 - both were written before the
+    size was solved from `cover` and neither was remeasured.)
 
     It crosses on a shallow diagonal rather than a rail, and while it is over the frame the frame takes
     the hit: an expanding ring off the hull, a shock line across the whole width at its altitude, dust
@@ -937,9 +958,6 @@ def lowpass(s, cols: int, rows: int, t: float, u: float, name: str, y: float = 0
                          / max(0.05, share_w * share_h)))
     # ...and the frame may also simply be overflowed, which is the biggest of the two ("让其更大，允许超出屏幕")
     size = max(16, int(max(want, cols * peak) * frac))
-    if wave:
-        # kept for symmetry with `fly`: a boat, not a plane, if one is ever put on this path
-        pass
     rn = max(6, int(round(size / (CELL_ASPECT * aspect))))
     cells = sprite(name, size, rn, flip=_flip_for(name, 1.0))
     if not cells:
@@ -1206,6 +1224,12 @@ def window_fx(s, cols: int, rows: int, t: float, box: tuple) -> int:
     The window's own layer, called by `tui_live.draw_body` right after the window's contents - which is
     what makes the panel impossible to bury. `warm` plays the same table, so the file's parse cost is
     paid before the music like every other sprite's.
+
+    **A failure here is reported, not swallowed.** This used to be a bare `except: pass`, while `draw` -
+    twenty lines below in the same file - had been printing once per broken event since the 运-20
+    vanished for a whole batch behind exactly this shape of silence. The window layer is the one the user
+    has already had to report twice ("航小天打篮球动图完全不见了"), so it is the last place that should fail
+    quietly.
     """
     n = 0
     for start, end, fn, kw in WINDOW_EVENTS:
@@ -1215,8 +1239,12 @@ def window_fx(s, cols: int, rows: int, t: float, box: tuple) -> int:
         try:
             fn(s, cols, rows, t, u, box=box, **kw)
             n += 1
-        except Exception:
-            pass
+        except Exception as exc:
+            if fn not in _BROKEN:
+                _BROKEN.add(fn)
+                import sys as _sys
+                print(f"warning: school_fx window event {getattr(fn, '__name__', fn)} failed ({exc})",
+                      file=_sys.stderr, flush=True)
     return n
 
 
@@ -1313,19 +1341,27 @@ def covers_band(t: float) -> bool:
 
 
 def particles(s, cols: int, rows: int, t: float, u: float, n: int = 90, hue=(120, 200, 255),
-              rise: bool = True) -> None:
+              rise: bool = True, y0: int = 2, y1: int = 0) -> None:
     """A sparse particle field - the AI-couplet background.
 
     Positions come from a hash of the particle index and of *quantised* time, so the field drifts
     without ever being random per frame: the same `t` gives the same dots.
+
+    **It stays off the reading rows**, which is the one thing the first version got wrong: it scattered
+    over the whole frame, so for its 7.1 seconds it wrote into the lyric band and the footer - 31-32
+    cells of the band and 5-8 of the chrome at each sample, and being neither `behind` nor repainted,
+    they stayed there. It is decoration; it has no business on top of the words being sung. `y1` is the
+    last row it may use and defaults to the row above the chrome.
     """
+    if y1 <= 0:
+        y1 = rows - FOOTER_KEEP - 1
+    span = max(1, y1 - y0 + 1)
     for i in range(n):
         h1 = (i * 2654435761) & 0xFFFFFFFF
         h2 = (i * 40503) & 0xFFFFFFFF
         x = (h1 % cols)
         speed = 0.06 + (h2 % 100) / 100 * 0.22
-        y = (h2 // 97 % rows) + (t * speed * rows * (-1 if rise else 1))
-        y = int(y) % rows
+        y = y0 + int(((h2 // 97 % span) + (t * speed * span * (-1 if rise else 1))) % span)
         v = 0.25 + 0.75 * ((h1 // 31 % 100) / 100)
         k = 0.35 + 0.65 * v * (0.6 + 0.4 * math.sin(t * 2.2 + i))
         col = tuple(min(255, int(c * max(0.0, k) * (0.4 + 0.6 * u))) for c in hue)
@@ -1402,7 +1438,12 @@ def warm(cols: int = 197, rows: int = 52) -> int:
 # All of them are pure functions of `q`, the fraction of the transition that has elapsed, so a seek lands
 # in the middle of a transition exactly as playing into it does.
 
-TRANS_DUR = 0.42                  # seconds a cut transition takes; a little over half a beat at 130 BPM
+# One beat, so a transition starts on a cut and lands on the next beat. It was 0.42, described in the
+# comment (and in `04_验证记录/批次9_转场.md`) as "a little over half a beat at 130 BPM" - and that
+# arithmetic was simply wrong: 0.42 / 0.4615 = **0.91 beats**, i.e. it landed just short of the following
+# beat, every time. A cut is the one place in the film where the picture *is* timed to the music, so this
+# is the one constant that should be a musical value rather than a number of milliseconds.
+TRANS_DUR = FP.BEAT
 SHATTER_DUR = 0.95                # the torpedo gets longer: it has to leap, hit, and break
 KINDS = ("slide", "zoom", "skew", "page")
 GROW_STEPS = 4                    # the steps a `flash` grows in; see the note in `flash`
@@ -1430,12 +1471,22 @@ def _cuts():
     The kind cycles by position in the schedule, so two consecutive cuts are never the same transition;
     that is the difference between a vocabulary and a tic. The shatter snaps to whatever cut is nearest
     its chosen line, because the effect has to land on a real cut to be a transition at all.
+
+    **A row shorter than the transition gets none.** Two of them did (`pane_gauge_attention` and
+    `pane_gauge_fem` are 0.395 s to a 0.42 s transition), and a transition whose `q` never reaches 1.0
+    never lands: the drawing is replaced by the next row's transition while it is still visibly halfway
+    through the move. A cut that cannot complete is worse than a hard cut, so those rows are skipped
+    rather than shortened - the film has 79 rows and two hard cuts among them will not be noticed, while
+    two interrupted moves will.
     """
     import school_panels as SP
     rows = SP.shot_rows()
     out = {}
     for i, row in enumerate(rows):
         at = row["at"]
+        span = float(row.get("end", at) or at) - at
+        if span and span < TRANS_DUR:
+            continue
         out[at] = (KINDS[i % len(KINDS)], TRANS_DUR)
     for want in SHATTER_AT:
         near = min(out, key=lambda a: abs(a - want))
@@ -1486,19 +1537,33 @@ FOOTER_KEEP = 5
 def _box(cols: int, rows: int, t: float = 0.0) -> tuple[int, int, int, int]:
     """The drawing column, which is what a pane transition moves. The chrome is not a pane.
 
-    The column swaps sides at `school_panels.SWAP_AT` (136.90): before it the drawing is the right-hand
-    half, after it the left. Always taking the right half - which is what this did - meant that from
-    136.90 on every transition moved the *chat window* and only grazed the pane (the audit measured
-    `skew` 91..196 at 148.16, `slide` 107..157 at 149.22, `zoom` 90..142 at 151.51).
+    **Read from the layout rather than guessed from it.** The first version took a fixed share of the
+    frame on the side the column was on, and the batch-31 audit measured what that cost: before the swap
+    it reached 90..196 when the pane was 99..195 (eight columns of the chat window moved with it), and
+    after the swap - which the same audit's finding introduced - it moved 90..196 again while the pane
+    had moved to the *other* side entirely. Batch 32 taught it about `SWAP_AT`; this batch stops it
+    guessing the width as well. `tui_live.draw_body` publishes `PANE_BOX` next to `LEFT_BOX` and
+    `BAND_BOX`, so there is one copy of the layout and this reads it.
+
+    The fallback stays for the frames `draw_body` does not run on - the film's own full-bleed shots
+    (`shot_collapse`, `shot_flood`) - where a transition still has to move something and the share below
+    is the best available guess.
     """
+    try:
+        import tui_live as _T
+        pb = list(_T.PANE_BOX)
+        if pb[2] > pb[0] and pb[3] > pb[1]:
+            return pb[0], pb[1], pb[2], pb[3]
+    except Exception:
+        pass
     try:
         import school_panels as _SP
         swap = float(getattr(_SP, "SWAP_AT", 1e9))
     except Exception:
         swap = 1e9
     if t >= swap:
-        return 1, 2, max(2, int(cols * 0.54)), rows - 3
-    return int(cols * 0.46), 2, cols - 1, rows - 3
+        return 1, 2, max(2, int(cols * 0.46)), rows - 3
+    return int(cols * 0.50) + 1, 2, cols - 1, rows - 3
 
 
 def _carry(s, dy: int, dx: int, cell, wide: bool) -> None:
@@ -1626,7 +1691,10 @@ def _page(s, cols: int, rows: int, q: float) -> None:
     """
     y0, y1 = 1, rows - 2
     peel = max(1, int(cols * 0.55))
-    fx = cols - 1 - int((cols - 1 + peel) * q)
+    # eased, like the other three: `slide` uses `1-(1-q)²`, `zoom` and `skew` the same shape. The page
+    # was the one transition that ran at constant speed, so the turn accelerated out of nothing and
+    # stopped dead - while a page being turned is the most physical of the four.
+    fx = cols - 1 - int((cols - 1 + peel) * (1.0 - (1.0 - q) ** 2))
     if fx < 1:
         return
     src = [row[:] for row in s.buf]
