@@ -598,50 +598,64 @@ def pane_converge(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     collapse = max(0.0, min(1.0, (u - 0.55) / 0.40))       # 0 while the seven are apart, 1 when merged
     cw = max(6, (w - 4) // cols)
     ch = max(2, (h - (rows - 1)) // rows)
+    # the one class the seven become: computed *before* the loop, because the seven have to be able to
+    # aim at it. It is drawn from the start of the collapse and its weight rises with `collapse`, so what
+    # the audience sees is seven drawings *contracting into* a class.
+    #
+    # The old version could not show that, and the maths audit said so: it moved each box to the middle
+    # while keeping it its full size, so near the end seven full-size rectangles overlapped into a
+    # tangle; then at `collapse >= 1.0` it dropped all seven with a `break`, and *afterwards* drew the
+    # class in the same place. There was therefore no frame in which a box and the class coexisted - the
+    # audience saw a pile-up, a cut to empty, and a new box appearing. "收敛/归约" is the single most
+    # important action in this pane and it was two fades.
+    tbw = min(w - 4, 34)
+    tbh = min(h - 2, 6)
+    tbx, tby = x0 + (w - tbw) // 2, y0 + (h - tbh) // 2
     for i, name in enumerate(titles):
         r, c = divmod(i, cols)
         bx = x0 + 1 + c * (cw + 1)
         by = y0 + r * (ch + 1)
-        if collapse >= 1.0:
-            break
+        bw_i, bh_i = cw, ch
         if collapse > 0:
-            # the six converge on the middle: each box walks toward the centre and shrinks
-            mx, my = x0 + w // 2 - cw // 2, y0 + h // 2 - ch // 2
-            bx = int(bx + (mx - bx) * collapse)
-            by = int(by + (my - by) * collapse)
-        if not (x0 <= bx and bx + cw <= x1 and y0 <= by and by + ch <= y1):
+            # **the rect interpolates, not just the position.** Width and height travel toward the class
+            # rect along with the corner, so at `collapse == 1` all seven are *coincident with* the class
+            # box - one rectangle, drawn seven times over itself and therefore idempotent - rather than
+            # seven full-size rectangles stacked in the middle.
+            bx = int(bx + (tbx - bx) * collapse)
+            by = int(by + (tby - by) * collapse)
+            bw_i = max(3, int(cw + (tbw - cw) * collapse))
+            bh_i = max(2, int(ch + (tbh - ch) * collapse))
+        if not (x0 <= bx and bx + bw_i <= x1 and y0 <= by and by + bh_i <= y1):
             continue
-        for xx in range(bx, bx + cw):
-            s.put(xx, by, _C.BOX_H if xx not in (bx, bx + cw - 1)
-                  else ("\u250c" if xx == bx else "\u2510"), _C._mix(_C.BLUE, 0.5))
-            s.put(xx, by + ch - 1, _C.BOX_H if xx not in (bx, bx + cw - 1)
-                  else ("\u2514" if xx == bx else "\u2518"), _C._mix(_C.BLUE, 0.5))
-        for yy in range(by + 1, by + ch - 1):
-            s.put(bx, yy, _C.BOX_V, _C._mix(_C.BLUE, 0.5))
-            s.put(bx + cw - 1, yy, _C.BOX_V, _C._mix(_C.BLUE, 0.5))
-        s.put(bx + 2, by, f" {name} ", _C._ui(0.7))
-        dots = ("\u00b7" * 16)[int(t * 3.0 + i * 2) % 8:][: max(0, cw - 4)]
-        s.put(bx + 2, by + 1, dots, _C._ui(0.4))
-    if collapse > 0.75:
-        # what is left: one class, drawn in the middle, at the weight the film gives a final drawing
-        bw = min(w - 4, 34)
-        bh = min(h - 2, 6)
-        bx, by = x0 + (w - bw) // 2, y0 + (h - bh) // 2
-        for xx in range(bx, bx + bw):
-            s.put(xx, by, _C.BOX_H, _C._mix(_C.AMBER, 0.85))
-            s.put(xx, by + bh - 1, _C.BOX_H, _C._mix(_C.AMBER, 0.85))
-        for yy in range(by + 1, by + bh - 1):
-            s.put(bx, yy, _C.BOX_V, _C._mix(_C.AMBER, 0.85))
-            s.put(bx + bw - 1, yy, _C.BOX_V, _C._mix(_C.AMBER, 0.85))
-        # the corners are set after the edges: the class is the drawing the six collapse *into*, and a
-        # box without corners reads as an unfinished rectangle rather than as the final answer
-        s.put(bx, by, "\u250c", _C._mix(_C.AMBER, 0.95))
-        s.put(bx + bw - 1, by, "\u2510", _C._mix(_C.AMBER, 0.95))
-        s.put(bx, by + bh - 1, "\u2514", _C._mix(_C.AMBER, 0.95))
-        s.put(bx + bw - 1, by + bh - 1, "\u2518", _C._mix(_C.AMBER, 0.95))
-        s.put(bx + 2, by, " class ", _C._mix(_C.AMBER, 0.95))
-        s.put(bx + 2, by + 1, "+ giver", _C._ui(0.8))
-        s.put(bx + 2, by + 2, "- taker", _C._ui(0.8))
+        # the seven give up their own weight as they give up their own shape
+        lv = 0.5 * (1.0 - collapse) + 0.95 * collapse
+        for xx in range(bx, bx + bw_i):
+            s.put(xx, by, _C.BOX_H if xx not in (bx, bx + bw_i - 1)
+                  else ("\u250c" if xx == bx else "\u2510"), _C._mix(_C.BLUE if collapse < 1.0
+                                                                    else _C.AMBER, lv))
+            s.put(xx, by + bh_i - 1, _C.BOX_H if xx not in (bx, bx + bw_i - 1)
+                  else ("\u2514" if xx == bx else "\u2518"), _C._mix(_C.BLUE if collapse < 1.0
+                                                                    else _C.AMBER, lv))
+        for yy in range(by + 1, by + bh_i - 1):
+            s.put(bx, yy, _C.BOX_V, _C._mix(_C.BLUE if collapse < 1.0 else _C.AMBER, lv))
+            s.put(bx + bw_i - 1, yy, _C.BOX_V, _C._mix(_C.BLUE if collapse < 1.0 else _C.AMBER, lv))
+        if collapse < 0.78:
+            # the labels and the notation go last, not first. They have to survive long enough to be seen
+            # *inside* the class that is forming around them - otherwise the collapse is again "everything
+            # vanishes, then a box appears", which is what it was. The batch-37 probe measured the first
+            # attempt at this fix: labels dropped at 0.45 while the class only arrived at 0.72, so there
+            # were **zero** frames in which a source label and the target class were both on screen.
+            s.put(bx + 2, by, f" {name} ", _C._ui(0.7))
+            dots = ("\u00b7" * 16)[int(t * 3.0 + i * 2) % 8:][: max(0, bw_i - 4)]
+            s.put(bx + 2, by + 1, dots, _C._ui(0.4))
+    # the class's own interior, once the seven are on top of it: the fields are the reduction's result
+    if collapse > 0.72:
+        lit = _C._mix(_C.AMBER, 0.95)
+        s.put(tbx + 2, tby, " class ", lit)
+        if collapse > 0.85:
+            s.put(tbx + 2, tby + 1, "+ giver", _C._ui(0.8 * collapse))
+            s.put(tbx + 2, tby + 2, "- taker", _C._ui(0.8 * collapse))
+            s.put(tbx + 2, tby + 3, "give()", _C._mix(_C.AMBER, 0.7 * collapse))
 
 
 def pane_backlog(s, x0, y0, x1, y1, t, lt, dur, u) -> None:

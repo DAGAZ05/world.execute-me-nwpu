@@ -298,9 +298,16 @@ def epicycles(k, t: float) -> None:
     # one period gives exactly these terms; the previous list (1.0/0.55/0.32/0.20/0.12 with made-up
     # phases) drew a self-intersecting tangle while the title said "心形的分解" (batch 31's audit measured
     # the crossing and the missing cusp). Scale = 1/23, the sum of |c_n|, so the curve spans ±1.
-    terms = [(0.5435, 1, -1.5708), (0.1087, 2, 1.5708), (0.1304, 3, 1.5708),
-             (0.0217, -1, -1.5708), (0.1087, -2, 1.5708), (0.0435, -3, -1.5708),
-             (0.0217, 4, 1.5708), (0.0217, -4, 1.5708)]
+    #
+    # **The harmonics were conjugated**, and that is why the heart hung upside down: the amplitudes were
+    # right and the *sign of every harmonic* was reversed, which is a reflection of the curve about the
+    # real axis. Measured by batch 37's maths audit against the closed form: the list as written came out
+    # top +0.739 / bottom -0.518 (cusp on top - a spade), the conjugated list +0.518 / -0.739 (cusp on
+    # the bottom - a heart), and the mean distance to the true curve is **0.0001 against 0.1726**. The
+    # same reversal also put the phase offsets on the wrong side, so both are flipped below.
+    terms = [(0.5435, -1, 1.5708), (0.1087, -2, -1.5708), (0.1304, -3, -1.5708),
+             (0.0217, 1, 1.5708), (0.1087, 2, -1.5708), (0.0435, 3, 1.5708),
+             (0.0217, -4, -1.5708), (0.0217, 4, -1.5708)]
     n_pts = 48
     path = []
     for i in range(n_pts + 1):
@@ -479,10 +486,15 @@ def chladni(k, t: float) -> None:
         return
     m = int(t * 0.35) % 4 + 1
     n = int(t * 0.22) % 5 + 2
-    # The plate is drawn on a **square** sample grid. Normalising x by the width and y by the height
-    # (which is what the first version did) stretches the figure to the band's own aspect - 95 cells wide
-    # by 11 rows is 95x22 px, so every figure came out four times wider than it was tall. A cell is 2 px
-    # tall, so a square of side `S` pixels is `S` cells wide and `S/2` rows tall.
+    # The plate is the band's own rectangle, and the comment here used to claim a *square* sample grid -
+    # which is not what the code does. `fx` and `fy` are both divided by the same `S`, so the pattern is
+    # not distorted (a circle in (fx, fy) is a circle on screen); what is rectangular is the *plate*, at
+    # `w` cells by `2h` pixels - 95x50 px at the pane's own size, i.e. 1.83:1. That is not a defect: the
+    # same shape functions `cos(nπx)cos(mπy) - cos(mπx)cos(nπy)` with coordinates normalised to the plate
+    # are the standard **rectangular**-plate modes, and drawing them across the full band is what makes
+    # the figure fill the pane instead of sitting in a square in the middle of it. (Batch 37 measured this
+    # with a ruler that counts only shape glyphs: 1.77:1 - and `bessel`, which really was distorted at
+    # 3.41:1, is the one that got fixed.)
     S = max(w, 2 * h)
     for j in range(h):
         y = k.by0 + 1 + j
@@ -710,16 +722,26 @@ def bessel(k, t: float) -> None:
             term *= -(x * x / 4) / ((m + 1) * (m + 5))
         return s
     k4 = 11.06                                   # j(4,5), the fifth root of J4
+    # **The plate is round on screen, and it was not.** The radius used to be `hypot(fx, fy * 2.0)`
+    # where `fx` and `fy` are both normalised to -1..1 over the *whole* body: that reaches r=1 at
+    # |fx|=1 (the full width) but at |fy|=0.5 (half the height), so the disc came out twice as wide as
+    # tall in cells - and a cell is already 2.1x taller than it is wide, so on screen the "circular
+    # plate" was about 3.4:1. Measured with a ruler that counts only shape glyphs (batch 37): body
+    # 93x13 cells = **3.41:1** where a disc must be 1.00:1. The radius is now measured in cells with
+    # the row height weighted by `_CA`, so the largest inscribed disc is genuinely a disc.
+    rmax = min(w / 2.0, (h / 2.0) * _CA)
+    if rmax < 2.0:
+        return
     for j in range(h):
         y = k.by0 + 1 + j
-        fy = (j + 0.5) / h * 2 - 1
+        py = (j + 0.5 - h / 2.0) * _CA
         for i in range(w):
             x = k.bx0 + i
-            fx = (i + 0.5) / w * 2 - 1
-            r = math.hypot(fx, fy * 2.0)
+            px = (i + 0.5 - w / 2.0)
+            r = math.hypot(px, py) / rmax
             if r > 1.0:
                 continue
-            th = math.atan2(fy * 2.0, fx)
+            th = math.atan2(py, px)
             v = j4(k4 * r) * math.cos(4 * th + t * 0.4)
             a = min(1.0, abs(v) * 3.0)
             if a <= 0.25:

@@ -854,7 +854,12 @@ def c_co(k: _Kit, lt: float, dur: float) -> None:
     carry = 0
     q = 0b1101                                   # 13 * 11, the textbook example
     m = 0b1011
-    for i in range(step - 1):
+    # **`range(step)`, not `range(step - 1)`.** The one-iteration-short loop was why the register trace
+    # printed 111 on the line whose own text says `13 × 11 = 143`: four iterations give 143 and three give
+    # 111 (verified by replaying the shift-add by hand - 3 iters -> A=6, Q=15 -> 111; 4 -> A=8, Q=15 ->
+    # 143). The comment below already said "four steps", so the intent was right and the loop disagreed
+    # with it. Found by batch 37's maths audit.
+    for i in range(step):
         if q & 1:
             t_ = a + m
             carry = (t_ >> 8) & 1                # the carry is real now; `(a + m) > 255` was never true
@@ -1042,10 +1047,19 @@ def c_test(k: _Kit, lt: float, dur: float) -> None:
             h = int(round(4 * cnt / top))
             k.put(k.bx0 + 9 + b * 2, hy, SHADE[min(4, h + 1)] if cnt else "\u00b7",
                   _mix(RED, 0.8) if cnt else _ui(0.25))
-        # ...and the coverage the matrix above really shows, on the row under it
+        # ...and the coverage the matrix above really shows, on the row under it.
+        #
+        # **The denominator is the whole matrix, not `done`.** `(done - nfail) * 100 // done` was the
+        # share of the *executed* cases that passed, which is a pass rate wearing the word "cov": it read
+        # 85 % at u=0.5 when the matrix had only 57 % of its cells executed, and it *fell* as the run
+        # progressed to 84 % at u=1.0 - i.e. the more of the suite had run, the smaller the number the
+        # suite reported, which is the one thing a coverage figure cannot do. Coverage is executed over
+        # total; the failures are a separate fact and now get their own parenthesis. (Batch 37's maths
+        # audit; the matrix itself was already drawing the truth.)
         if hy + 1 <= k.by1:
-            k.put(k.bx0, hy + 1, f"cov {(done - nfail) * 100 // max(1, done):3d} %  "
-                                 f"({nfail} failed of {done})",
+            total = max(1, rows * cols)
+            k.put(k.bx0, hy + 1, f"cov {done * 100 // total:3d} %  "
+                                 f"({done}/{total} executed, {nfail} failed)",
                   _mix(GREEN, 0.85))
 
 
@@ -1604,27 +1618,53 @@ def g_attention(k: _Kit, lt: float, dur: float) -> None:
     w, h = k.bw, k.bh
     n = max(6, min(18, min(w - 8, (h - 3) * 2)))
     x0, y0 = k.bx0 + 5, k.by0 + 1
-    focus = min(0.92, k.u * 1.1)
+    # **A real softmax.** The old line was `focus = min(0.92, k.u * 1.1)` - the pane's own *progress* -
+    # printed as `softmax focus {focus:.2f}`, and the cell values were the literals 3/2/1/0 chosen by
+    # `abs(c-r)`. So the number on screen was styled as a softmax report and was in fact a progress bar,
+    # and the heat map never contained a probability. Now the scores are real (a training run that
+    # sharpens the diagonal as it goes), the softmax is the real normalisation `exp(s)/Σexp(s)` per row,
+    # and what is printed is the **diagonal's own weight** - the quantity the sentence claims and the
+    # thing attention does. Batch 37's maths audit flagged the label; the arithmetic is this batch's.
+    sharp = 0.7 + 4.3 * min(1.0, k.u * 1.15)          # how peaked the head's scores are, training
+    head = hash((int(lt * 0.5), 3)) % 3               # which head this frame is showing: a slow rotation
+    diag_w = 0.0
     for r in range(n):
         y = y0 + r // 2
         if y > k.by1:
             break
         if r % 2 == 0:
             k.put(k.bx0 + 1, y, f"{r:2d}", _ui(0.4))
+        # the row's scores: this head attends to itself and to a neighbour that drifts
+        scores = []
+        for c in range(n):
+            jitter = ((hash((r, c, head, int(lt * 0.35))) % 100) - 50) / 500.0
+            s = sharp * (1.0 if c == r else 0.0) + (0.55 if abs(c - r) == 1 else 0.0) + jitter
+            scores.append(s)
+        mx = max(scores)
+        ex = [math.exp(s - mx) for s in scores]
+        z = sum(ex) or 1.0
+        p = [e / z for e in ex]
+        diag_w = max(diag_w, p[r] if r < len(p) else 0.0)
         for c in range(n):
             if x0 + c > k.bx1:
                 break
-            on_diag = abs(c - r) <= 0
-            near = abs(c - r) <= 1
-            if on_diag:
+            prob = p[c]
+            # the shade *is* the probability: 0.05 of the row's mass is one dot, the diagonal is solid
+            if prob >= 0.55:
                 v = 3
-            elif near:
-                v = 2 if focus > 0.45 else 1
+            elif prob >= 0.25:
+                v = 2
+            elif prob >= 0.10:
+                v = 1
             else:
-                v = 1 if (hash((r, c, int(lt * 2))) % 7 == 0) else 0
-            k.put(x0 + c, y, SHADE[v], _mix(BLUE if not on_diag else AMBER, 0.35 + 0.6 * (v / 3)))
-    k.put(k.bx0, k.by0, "attention  head 3", _ui(0.8))
-    k.put(k.bx0, k.by1, f"softmax focus {focus:.2f}", _ui(0.55))
+                v = 0
+            k.put(x0 + c, y, SHADE[v],
+                  _mix(AMBER if c == r else BLUE, 0.3 + 0.7 * min(1.0, prob * 2.2)))
+    k.put(k.bx0, k.by0, f"attention  head {head + 1}", _ui(0.8))
+    # ...on `by1 - 1`, not `by1`: the shared gauge cursor (`_gauge_live`) draws its rule and its moving
+    # triangle across the whole of the bottom row, so the readout printed there was erased every frame.
+    # The batch-37 probe caught it - the line was in the code and never on the screen.
+    k.put(k.bx0, max(k.by0, k.by1 - 1), f"softmax  \u03a3e^s \u2192 diag {diag_w:.2f}  n={n}", _ui(0.55))
 
 
 def g_fem(k: _Kit, lt: float, dur: float) -> None:
@@ -1832,6 +1872,23 @@ GAUGE_PANES = ["pane_gauge_burndown", "pane_gauge_pareto", "pane_gauge_attention
                "pane_gauge_fem", "pane_gauge_assembly", "pane_gauge_final"]
 
 # name -> (title, drawing fn). Read out of COURSES, so a course title is written down exactly once.
+# The countdown's own six words, one per instrument, in `GAUGE_PANES` order.
+#
+# **They were a dead parameter and never once reached the screen.** `draw_gauge` has taken `lang` and
+# `digit` since it was written and prints them at `k.bx1 - 10` - and the only call site
+# (`school_panels.draw_scene_pane`) never passed either, so the six words the song actually counts
+# (`Ein, dos / Trios, ne / Fem, liu` - German, Spanish, Greek, Chinese, Swedish, Chinese) were designed,
+# wired, and invisible. Keyed by pane name and read here rather than passed in, so there is no second
+# copy of the mapping and no call site that can forget it. (Batch 37's maths audit.)
+GAUGE_WORDS: dict[str, tuple[str, str]] = {
+    "pane_gauge_burndown": ("ein", "\u5fb7"),      # 软件项目管理
+    "pane_gauge_pareto": ("dos", "\u897f"),        # 软件测试
+    "pane_gauge_attention": ("trios", "\u5e0c"),   # 深度学习
+    "pane_gauge_fem": ("ne", "\u4e2d"),            # 工业模型
+    "pane_gauge_assembly": ("fem", "\u745e"),      # 大型工业软件
+    "pane_gauge_final": ("liu", "\u4e2d"),         # 毕业设计
+}
+
 GAUGES: dict[str, tuple[str, object]] = {n: (COURSES[n][0], COURSES[n][1]) for n in GAUGE_PANES}
 
 # The vocabulary each course actually asks for, drawn under its diagram when the pane is tall enough
@@ -2214,10 +2271,14 @@ def draw_gauge(name: str, s, x0: int, y0: int, x1: int, y1: int,
     if spec is None:
         return False
     title, fn = spec
-    k = _Kit(s, x0, y0, x1, y1, title, run, 3, u)
-    # the countdown: the song counts ein/dos/trios/ne/fem/liu here, and so does this
-    if digit:
-        k.put(k.bx1 - 10, k.by0, f"{digit} {lang}", _mix(AMBER, 0.9))
+    digit, lang = GAUGE_WORDS.get(name, ("", ""))
+    # **The countdown word rides in the title line**, which is the one row no instrument writes to. The
+    # first attempt drew it at `bx1 - 10` on `by0` - and `by0` is exactly where three of the six
+    # instruments put their own legend (`ideal · actual ·`, `defect pareto ... cum 80%`), so it was
+    # overwritten as soon as the drawing ran. Measured by the batch-37 probe: two of the six words were
+    # still missing after the "fix" that was supposed to add them.
+    head = f"{title}  {digit} {lang}".strip() if digit else title
+    k = _Kit(s, x0, y0, x1, y1, head, run, 3, u)
     fn(k, lt, dur)
     _gauge_live(k, t, run)
     return True
