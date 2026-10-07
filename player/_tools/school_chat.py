@@ -15,7 +15,7 @@ which is the layout that consumes it):
     ai         a bare left-aligned line: 航小天
     sub        an indented line under an ai line
     meta       a right-aligned timestamp / elapsed time
-    card       a "▸ ..." bullet
+    card       a "> ..." bullet
     err        a red system line
     code       monospace, no wrap
 

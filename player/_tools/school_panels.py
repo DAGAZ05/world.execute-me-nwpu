@@ -50,6 +50,10 @@ import school_machine as _MA         # noqa: E402
 CHAPTERS = _MA.CHAPTERS
 BOOT_LOG = _MA.BOOT_LOG
 PROT_START = _MA.PROT_START
+# ...and the one string that is not the bar's: what `draw_flood` stamps into the middle of the screen.
+# `tui_live.flood_stamp` looks for this name on whichever module `panels()` returns, so re-exporting it
+# here is what puts `SW` on screen instead of the film's chapter number.
+STAMP = _MA.STAMP
 
 # The film's last shot types `在吗？` into the prompt and nobody answers. This variant keeps the shot and
 # changes the question, because what is being waited on here is not a person but the sword.
@@ -249,8 +253,14 @@ SHOT_ROWS: list[dict] = [
          ops=["\u6821\u5fbd", "1938", "\u516c\u8bda\u52c7\u6bc5"], mascot=False),
     dict(at=25.14, name="pane_motif_phyllotaxis", lyric="[gap]",
          ops=["叶序", "GROW"], mascot=False),
+    # Batch 50 split this row for the matrix: 线性代数, 计算方法, 离散数学 and 深度学习 are all about the
+    # same object and the film had none (the user: "增加矩阵的要素（线性代数、计算方法、离散数学、深度学习
+    # 中均涉及矩阵）"). It belongs on this line rather than in the college section because a matrix *is* a
+    # linear map of a point set - the drawing continues the sentence it is under.
     dict(at=29.28, name="pane_point_set", lyric="If I'm a set of point",
-         ops=["IF", "SET", "DIM"], mascot=False),
+         ops=["IF", "SET", "DIM"], mascot=False, end=31.20),
+    dict(at=31.20, name="pane_motif_matrix", lyric="If I'm a set of point",
+         ops=["MATRIX", "A\u00b7x = b"], mascot=False, end=33.01),
     # The IF/THEN passage is four couplets, not one: "a set of point / my dimension", "a circle / my
     # circumference", "a sine wave / all my tangents", "infinity / your limitations". One pane held for
     # all 12.6 s of it was the same fault the user found on the tomato pane - the right column stopped
@@ -300,14 +310,14 @@ LANDMARK_ROWS: list[dict] = [
     # the 万物皆点 pane, which is where `想法.md` puts the cat and the tomato anyway.
     # 互换: 41.92-54.74 had no school pane at all - the film's own panels drew it. This is the section
     # `想法.md` gives five motifs to (F→M as three flipped bits, the twelve-hour clock as a double cover
-    # of a day, the braid group σ₁), and it is drawn by `school_scenes.pane_exchange`. Four rows, one per
+    # of a day, the braid group σ1), and it is drawn by `school_scenes.pane_exchange`. Four rows, one per
     # motif, on the line each belongs to rather than all four small at once for twelve seconds.
     dict(at=41.92, name="pane_exchange", lyric="Switch my current",
          ops=["XOR", "F\u2192M", "3 bits"], mascot=False, args=dict(panel="bits")),
     dict(at=45.52, name="pane_exchange", lyric="To AC, to DC",
          ops=["12h", "AM/PM"], mascot=False, args=dict(panel="clock")),
     dict(at=47.27, name="pane_exchange", lyric="And then blind my vision",
-         ops=["\u03c3\u2081", "BRAID"], mascot=False, args=dict(panel="braid")),
+         ops=["\u03c31", "BRAID"], mascot=False, args=dict(panel="braid")),
     dict(at=50.95, name="pane_exchange", lyric="Oh, we can travel",
          ops=["|x|^n", "SUPERELLIPSE"], mascot=False, args=dict(panel="hyper")),
     # Acts 1 and 2 only (`max_phase=1`): `unite` shows the hands approaching and `deeply` the star
@@ -328,7 +338,7 @@ LANDMARK_ROWS: list[dict] = [
     dict(at=66.17, name="pane_motif_galaxy", lyric="If I can make you happy",
          ops=["GALAXY", "星系"], mascot=False),
     dict(at=70.02, name="pane_motif_en_limit", lyric="Though we are trapped",
-         ops=["∃n", "LIMIT"], mascot=False),
+         ops=["存在n", "LIMIT"], mascot=False),
     # 万物皆点 is three couplets - eggplant, tomato, cat - and the film cuts on each one. All three panels
     # held for 11.07 s was the user's example of a performance that outlasts its lyric ("右边panel的西红柿
     # 那个光谱界面占了过长时间，和左侧歌词都不对应了"): the spectrum was still on screen while the words
@@ -365,7 +375,7 @@ LANDMARK_ROWS: list[dict] = [
     # The superellipse played twice (here and in the 互换 panel at 50.95). The user's rule is
     # once, so this slot is the resonance curve - the row covers "Feel your vibrations" (batch 34).
     dict(at=103.03, name="pane_motif_resonance", lyric="If I can, if I can",
-         ops=["f₀", "RESONANCE", "Q=6"], mascot=False),
+         ops=["f0", "RESONANCE", "Q=6"], mascot=False),
     dict(at=106.84, name="pane_motif_epicycles", lyric="Then I can, then I can",
          ops=["EPICYCLE", "FOURIER"], mascot=False),
     # "Challenging your God": the sword, as the accusation
@@ -439,8 +449,13 @@ LANDMARK_ROWS: list[dict] = [
     # The last verse is two thoughts, not one: "the algebraic expression of love", and then "though you
     # are free / I am trapped / trapped in lo-o-ove". The Love class draws the first; the hands - the
     # film's own work - draw the second, which is what the two hands not touching have always meant.
-    dict(at=187.97, name="pane_motif_bessel", lyric="Though you are free",
-         ops=["BESSEL", "振动"], mascot=False),
+    # The disc, moved here from the closing chapter (batch 50): "把最后面的圆盘挪至学院部分前面的学校部分
+    # （memory 部分有点长了，可以截取一部分换圆盘）". It is a *course* image - a circular plate mode, sand on
+    # the lines that do not move - so it belongs in the school part before the college, and the time comes
+    # out of the MEMORY run, which had six rows of the same word. What the closing chapter needed instead
+    # was the subject the software-engineering chapter is for; see `pane_sw_project` at 187.97.
+    dict(at=187.97, name="pane_sw_project", lyric="Though you are free",
+         ops=["SCRUM", "\u654f\u6377\u5ba3\u8a00", "\u770b\u677f"], mascot=False),
     # MEMORY: one more layer on every "You have left", then down to one, then none.
     #
     # This is the one place in the film where a pane is drawn *differently* on lines that are otherwise
@@ -470,9 +485,12 @@ LANDMARK_ROWS: list[dict] = [
     # "You have left me in isolation": the field emptying, one point left
     dict(at=115.90, name="pane_isolation", lyric="You have left me in isolation",
          ops=["ISOLATION", "\u4e00\u4e2a\u70b9"], mascot=False),
-    # ...and then the sculpture once more, as the single word that point became
-    dict(at=117.95, name="pane_memory", lyric="If I can, if I can",
-         ops=["MEMORY", "x1"], mascot=False, args=dict(layers=1)),
+    # ...and then the plate mode, in the slot the single-layer MEMORY used to hold. The count 2-3-4-5-6
+    # is the sculpture's own idea and it is intact; `layers=1` was a callback on a different lyric
+    # ("If I can, if I can"), so it is the row that costs the design least - and "memory 部分有点长了" is
+    # the user's own reading of the same thing.
+    dict(at=117.95, name="pane_motif_bessel", lyric="If I can, if I can",
+         ops=["BESSEL", "\u5706\u677f\u6a21\u6001"], mascot=False),
     # "Erase all the pointless fragments": the instruction carried out, cell by cell
     dict(at=119.81, name="pane_fragments", lyric="Erase all the pointless fragments",
          ops=["ERASE", "\u788e\u7247"], mascot=False),
@@ -503,7 +521,8 @@ PANE_MIN = {
 }
 # ...and the twenty-two `pane_motif_*` drawings (`school_scenes._motif`): they were written as bands and
 # are now also panes, so they want about what a band wanted - eleven rows, legible in five.
-for _m in ("he_init", "rectifier", "phyllotaxis", "byrne", "quantize", "dijkstra", "epicycles", "hearts9",
+for _m in ("he_init", "rectifier", "phyllotaxis", "byrne", "quantize", "dijkstra", "matrix", "epicycles",
+           "hearts9",
            "fork_bomb", "sine", "chladni", "moire", "galaxy", "fragmentation", "pixelsort", "powerdown",
            "bessel", "hyperellipse", "stardiff", "en_limit", "binary", "lattice"):
     PANE_MIN["pane_motif_" + _m] = (11, 5)

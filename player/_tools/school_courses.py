@@ -48,7 +48,7 @@ BOX_H = "\u2500"
 BOX_V = "\u2502"
 BOX_TL, BOX_TR, BOX_BL, BOX_BR = "\u250c", "\u2510", "\u2514", "\u2518"
 TEE_L, TEE_R, TEE_T, TEE_B, CROSS = "\u251c", "\u2524", "\u252c", "\u2534", "\u253c"
-ARROW_R, ARROW_L, ARROW_D, ARROW_U = "\u25b6", "\u25c0", "\u25bc", "\u25b2"
+ARROW_R, ARROW_L, ARROW_D, ARROW_U = "\u2192", "\u2190", "\u25bc", "\u25b2"
 DOT, BULLET = "\u00b7", "\u2022"
 SHADE = " \u2591\u2592\u2593\u2588"
 
@@ -558,6 +558,25 @@ def c_software_engineering(k: _Kit, lt: float, dur: float) -> None:
     sx = min(k.bx1 - 14, px + pw + 8)
     rows = max(4, min(5, h // 5))
     top = k.by0 + 1
+    # ---- the four documents the course actually produces, as a spine above the diagram it produces them
+    #      from (batch 50, the user: "软件工程课程的部分，当时做了项目开发计划、需求规格、概要设计、详细设计
+    #      4个文档，要有体现"). The DFD below is the *content* of 概要设计 and 详细设计; the strip is what
+    #      names them, and the one being worked on walks left to right on `lt` so the strip is a clock
+    #      rather than a caption.
+    docs = ("\u9879\u76ee\u5f00\u53d1\u8ba1\u5212", "\u9700\u6c42\u89c4\u683c\u8bf4\u660e\u4e66",
+            "\u6982\u8981\u8bbe\u8ba1", "\u8be6\u7ec6\u8bbe\u8ba1")
+    if h >= 14 and k.bw > 46:
+        step_d = max(12, (k.bw - 6) // len(docs))
+        cur = int((lt / max(1e-6, dur)) * len(docs)) % len(docs)
+        k.put(k.bx0, k.by0, "\u6587\u6863", _ui(0.45))
+        for i, name in enumerate(docs):
+            dx = k.bx0 + 6 + i * step_d
+            if dx + step_d > k.bx1 + 1:
+                break
+            on = i == cur
+            k.put(dx, k.by0, _clip(f"[{name}]" if on else f" {name} ", step_d - 1),
+                  _mix(AMBER, 0.95) if on else _ui(0.5))
+        top = k.by0 + 2
     step = max(3, (h - 5) // rows)
     # ---- the entities, stores and processes, placed down the pane rather than across it: a pipeline is
     # read top to bottom in a terminal, and the arrows between the stages are then horizontal and named
@@ -684,7 +703,7 @@ def _oop_dispatch(k: _Kit, u: float, lt: float) -> None:
     k.frame(k.bx0, y, k.bx0 + bw, y + 3, _mix(VIOLET, 0.8), "Enrollable")
     k.put(k.bx0 + 2, y + 1, "<<interface>>", _ui(0.55))
     k.put(k.bx0 + 2, y + 2, "+ enroll(): void", _ui(0.75))
-    k.put(k.bx0 + bw + 1, y + 2, "\u2550\u2550\u25b7", _mix(VIOLET, 0.7))
+    k.put(k.bx0 + bw + 1, y + 2, "\u2550\u2550>", _mix(VIOLET, 0.7))
     k.put(k.bx0 + bw + 5, y + 2, "Student \u5b9e\u73b0", _ui(0.6))
     y += 5
     k.put(k.bx0, y, "Person s = new Student();", _ui(0.75))
@@ -775,7 +794,7 @@ def c_network(k: _Kit, lt: float, dur: float) -> None:
         return
     # the two ends are hexagons, not words - the primitive the embedded board uses - and they get their own
     # head rows, so the messages start below them. Drawn at the message rows themselves (the first version)
-    # the hexes and the SYN arrow overwrote each other and the labels came out "CL─ACK" and "▶ER".
+    # the hexes and the SYN arrow overwrote each other and the labels came out "CL─ACK" and "→ER".
     head = 3
     hexagon(k, ax, k.by0 + 1, 1, _mix(BLUE, 0.85), "C")
     hexagon(k, bx, k.by0 + 1, 1, _mix(GREEN, 0.85), "S")
@@ -900,7 +919,7 @@ def c_os(k: _Kit, lt: float, dur: float) -> None:
     # the row 	op is reading right now, walking the table on the song's clock
     if rows:
         ry = hdr_y + 1 + int(k.t * 2.5) % rows
-        k.put(k.bx1 - 2, ry, "\u25c0", _mix(AMBER, 0.8))
+        k.put(k.bx1 - 2, ry, "\u2190", _mix(AMBER, 0.8))
     if k.by1 - 2 > hdr_y + rows:
         y = min(hdr_y + rows + 1, k.by1 - 1)
         k.put(k.bx0, y, "run queue", _ui(0.5))
@@ -1034,8 +1053,8 @@ def c_co(k: _Kit, lt: float, dur: float) -> None:
     k.put(k.bx0 + 5 + (7 - shift), y + 3, "\u25b2", _mix(RED, 0.9))
     k.put(k.bx0, y + 4, f"C    {carry}   step {step}/{steps}", _ui(0.6))
     if k.bh > 7:
-        k.put(k.bx0, y + 6, "\u25b8 若 Q0=1：A \u2190 A+M；否则跳过", _ui(0.65))
-        k.put(k.bx0, y + 7, "\u25b8 算术右移 (C,A,Q) 一位", _ui(0.65))
+        k.put(k.bx0, y + 6, "> 若 Q0=1：A \u2190 A+M；否则跳过", _ui(0.65))
+        k.put(k.bx0, y + 7, "> 算术右移 (C,A,Q) 一位", _ui(0.65))
     if k.bh > 9:
         k.put(k.bx0, y + 9, f"product  {(a << 4) | q:3d}   (13 \u00d7 11 = 143)",
               _mix(GREEN, 0.9) if step >= steps else _ui(0.4))
@@ -1116,8 +1135,8 @@ def c_db(k: _Kit, lt: float, dur: float) -> None:
         if xx + 4 > k.bx1:
             break
         # the leaf that answers the query is amber; the moving cursor is blue. **No marker glyph**: a
-        # five-column key occupies `xx..xx+4` and the next key starts at `xx+5`, so the `◀` that was here
-        # landed on the key's own last digit and turned `41827` into `4182◀` - the query value was
+        # five-column key occupies `xx..xx+4` and the next key starts at `xx+5`, so the `←` that was here
+        # landed on the key's own last digit and turned `41827` into `4182←` - the query value was
         # overwritten by the arrow pointing at it. (Caught by the batch-43 probe reading the row back.)
         k.put(xx, ly - 1, f"{keys[i]:5d}"[:5],
               _mix(AMBER, 0.95) if i == hit else _mix(BLUE if i == hot else DIM,
@@ -1127,42 +1146,73 @@ def c_db(k: _Kit, lt: float, dur: float) -> None:
 
 
 def c_pm(k: _Kit, lt: float, dur: float) -> None:
-    """软件项目管理: a WBS with a Gantt chart, and the critical path lighting up.
+    """信号与线性系统: the Fourier pair, and the two functions every signal is built out of.
 
-    Four tasks, their bars, and the dependencies between them. The critical path is the one thing in
-    this course that is drawn rather than tabulated, and it is drawn last, in red, because that is the
-    order the method works in.
+    This pane was 软件项目管理 (a WBS and a Gantt chart) and batch 50's instruction moved that subject to
+    the closing pane - the software-engineering chapter is where Scrum and a task board belong - and gave
+    this hit the course whose content is the *other* half of the same mathematics: "原先的软件项目管理部分放
+    傅里叶变换和逆变换、阶跃函数与冲激函数（课程取信号与线性系统）".
+
+    Two drawings, because the two are the two things the course is for:
+
+      * the top half is the transform pair. A rectangular pulse in time on the left, its spectrum on the
+        right, with `F` and the inverse between them: the widths are drawn honestly inverted (a narrow pulse has
+        a wide spectrum), which is the uncertainty principle of the transform and the one fact a reader
+        should leave with;
+      * the bottom half is the step and the impulse, and the relation between them - `u(t)` is the
+        integral of `δ(t)`, which is why the impulse is the derivative of the step and why a system's
+        impulse response is its whole description.
     """
-    tasks = [("需求", 0.02, 3, 0), ("设计", 0.14, 2, 3), ("编码", 0.28, 4, 5), ("测试", 0.44, 3, 9)]
-    x0 = k.bx0 + 8
-    span = max(6, k.bx1 - x0 - 2)
-    total = 12
-    for i, (name, at, length, start) in enumerate(tasks):
-        y = k.by0 + 1 + i
-        if y > k.by1:
-            break
-        k.put(k.bx0, y, name, _ui(0.8))
-        if k.u < at:
-            continue
-        bx = x0 + int(span * start / total)
-        bw = max(1, int(span * length / total))
-        critical = i in (2, 3)
-        col = RED if critical else BLUE
-        k.put(bx, y, "\u2588" * bw, _mix(col, 0.85))
-        k.put(bx + bw, y, f" {length}d", _ui(0.5))
-    # the sprint's today line, moving on the song's clock: the bars are a reveal, this is a clock
-    tx = x0 + int(span * ((k.t * 0.22) % 1.0))
-    for yy2 in range(k.by0 + 1, min(k.by1, k.by0 + 1 + len(tasks))):
-        k.put(tx, yy2, "\u2502", _mix(RED, 0.45))
-    if k.bh > 6:
-        yy = k.by0 + 1 + len(tasks)
-        if yy <= k.by1:
-            k.hline(x0, yy, k.bx1 - 1, BOX_H, _ui(0.30))
-            for i, w in enumerate(("W1", "W2", "W3", "W4")):
-                k.put(x0 + int(span * (i * 3 + 1.5) / total), yy, w, _ui(0.45))
-        if k.u > 0.7 and yy + 1 <= k.by1:
-            k.put(k.bx0, yy + 1, "critical path", _mix(RED, 0.9))
-            k.put(k.bx0 + 14, yy + 1, "\u2588" * 12, _mix(RED, 0.6))
+    w, h = k.bw, k.bh
+    if h < 6 or w < 24:
+        return
+    half = max(3, (h - 2) // 2)
+    # ---- the transform pair
+    ax = k.bx0 + 1
+    aw = max(6, (w - 12) // 2)
+    ay = k.by0 + 1
+    k.put(ax, k.by0, "x(t)  \u77e9\u5f62\u8109\u51b2", _mix(BLUE, 0.9))
+    for c in range(aw):
+        f = c / max(1, aw - 1)
+        on = 0.32 <= f <= 0.68
+        k.put(ax + c, ay + half - 2, "\u2588" if on else "\u2500",
+              _mix(BLUE, 0.95 if on else 0.30))
+    k.hline(ax, ay + half - 1, ax + aw - 1, BOX_H, _ui(0.30))
+    # ...the spectrum, drawn as the sinc it is: `|sin(u)/u|`, widest where the pulse is narrowest
+    sx2 = ax + aw + 6
+    k.put(sx2, k.by0, "X(f)  \u9891\u8c31", _mix(AMBER, 0.9))
+    for c in range(aw):
+        f = c / max(1, aw - 1)
+        u = (f - 0.5) * 9.0
+        v = 1.0 if abs(u) < 1e-6 else abs(math.sin(u) / u)
+        y = ay + half - 2 - int(v * (half - 2))
+        k.put(sx2 + c, min(ay + half - 2, y), "\u2588", _mix(AMBER, 0.85))
+    k.hline(sx2, ay + half - 1, sx2 + aw - 1, BOX_H, _ui(0.30))
+    if sx2 + aw + 3 <= k.bx1:
+        k.put(ax + aw + 1, ay + half - 3, " F\u2192", _mix(GREEN, 0.9))
+        k.put(ax + aw + 1, ay + half - 2, "\u2190F^-1", _mix(GREEN, 0.7))
+    # ---- the step and the impulse, and the relation between them
+    by = k.by0 + half + 2
+    if by + 2 > k.by1:
+        return
+    k.put(ax, by - 1, "u(t)  \u9636\u8dc3", _mix(BLUE, 0.9))
+    for c in range(aw):
+        f = c / max(1, aw - 1)
+        k.put(ax + c, by + 2 if f >= 0.5 else by + 2, "\u2500", _ui(0.28))
+        k.put(ax + c, by + 2 - (2 if f >= 0.5 else 0), "\u2588", _mix(BLUE, 0.9))
+    k.hline(ax, by + 3, ax + aw - 1, BOX_H, _ui(0.30))
+    ix = ax + aw + 3
+    if ix + 6 <= k.bx1:
+        k.put(ix, by - 1, "d/dt = \u03b4(t)  \u51b2\u6fc0", _mix(RED, 0.9))
+        k.hline(ix, by + 3, min(k.bx1, ix + aw - 1), BOX_H, _ui(0.30))
+        pulse = 0.55 + 0.45 * abs(math.sin(lt * 3.0))
+        k.put(ix + aw // 2, by + 2, "\u2588", _mix(RED, pulse))
+        k.put(ix + aw // 2, by + 1, "\u2588", _mix(RED, pulse * 0.8))
+        if ix + aw + 2 <= k.bx1:
+            k.put(ix + aw // 2 + 2, by + 1, "\u222b = u(t)", _mix(GREEN, 0.8))
+    if k.bh >= 10:
+        k.put(k.bx0, k.by1, "\u7a84\u8109\u51b2\u5bbd\u9891\u8c31\uff1b\u9636\u8dc3\u7684\u5bfc\u6570"
+                            "\u662f\u51b2\u6fc0", _ui(0.5))
 
 
 def c_test(k: _Kit, lt: float, dur: float) -> None:
@@ -1200,7 +1250,7 @@ def c_test(k: _Kit, lt: float, dur: float) -> None:
             elif i in fail:
                 ch, col = "\u00d7", RED
             else:
-                ch, col = "\u2713", GREEN
+                ch, col = "\u221a", GREEN
             k.put(xx, y0 + r, ch, _mix(col, 0.9 if i < done else 0.3))
     # the runner is still on a cell: the matrix fills on u, the cursor walks it on k.t
     if done < rows * cols:
@@ -1270,12 +1320,28 @@ def c_dl(k: _Kit, lt: float, dur: float) -> None:
         y_prev = k.by0 + ch - 1 - int(pts[c - 1] * (ch - 2))
         y_now = k.by0 + ch - 1 - int(pts[c] * (ch - 2))
         k.put(k.bx0 + c, y_now, "\u00b7" if abs(y_now - y_prev) < 2 else "\u2571", _mix(BLUE, 0.85))
-    k.put(k.bx0, k.by0, f"L(W\u2081,W\u2082)  {pts[max(0, shown - 1)]:.3f}", _mix(BLUE, 0.9))
+    k.put(k.bx0, k.by0, f"L(W1,W2)  {pts[max(0, shown - 1)]:.3f}", _mix(BLUE, 0.9))
+    # ---- the weights themselves, as the matrices they are (batch 50: "增加矩阵的要素（… 深度学习中也涉及
+    # 矩阵）"). Two small grids at the right end of the curve area, where the curve has already decayed to
+    # its floor and the cells are free; the shapes are in the labels, because the shape is the thing that
+    # tells you it is a matrix and not a table.
+    mw = 7
+    if w > 34:
+        for mi, (label, tone) in enumerate((("W1 4\u00d73", AMBER), ("W2 3\u00d74", VIOLET))):
+            mx = k.bx1 - (2 - mi) * (mw + 6)
+            if mx < k.bx0 + w // 2:
+                continue
+            pulse = 0.45 + 0.55 * abs(math.sin(lt * 2.0 + mi))
+            k.put(mx, k.by0, label, _mix(tone, 0.85))
+            for r in range(3):
+                for c in range(3):
+                    k.put(mx + c, k.by0 + 1 + r, "\u25aa" if (r + c + mi) % 2 else "\u00b7",
+                          _mix(tone, pulse * (0.5 + 0.5 * ((r * 3 + c) % 4) / 3)))
     # ---- the graph: ops left to right, forward on top, backward underneath
     ytop = k.by0 + ch + 1
     if ytop + 4 > k.by1:
         return
-    nodes = ("x", "W\u2081x+b", "ReLU", "W\u2082a+b", "L")
+    nodes = ("x", "W1x+b", "ReLU", "W2a+b", "L")
     n = len(nodes)
     bw = max(4, min(11, (w - 4) // n - 3))
     xs = [k.bx0 + 1 + i * (bw + 3) for i in range(n)]
@@ -1307,11 +1373,11 @@ def c_dl(k: _Kit, lt: float, dur: float) -> None:
             k.hline(ax + 1, yb, xs[i] - 1, BOX_H, _mix(RED, 0.6))
             k.put(ax, yb, ARROW_L, _mix(RED, 0.9))
             # the gradient each edge carries, under it where there is room
-            grad = ("\u2202L/\u2202W\u2082", "\u2202L/\u2202a", "\u2202L/\u2202W\u2081",
+            grad = ("\u2202L/\u2202W2", "\u2202L/\u2202a", "\u2202L/\u2202W1",
                     "\u2202L/\u2202x")[min(3, n - 1 - i)]
             if yb + 1 <= k.by1 and ax + 2 + _cells(grad) <= k.bx1:
                 k.put(ax + 2, yb + 1, grad, _mix(RED, 0.7))
-        k.put(k.bx0, yb, "\u2207", _mix(RED, 0.95))
+        k.put(k.bx0, yb, "grad", _mix(RED, 0.95))
     if k.by1 - 1 > ytop + 2:
         k.put(k.bx0, min(k.by1, ytop + 3), "\u540c\u4e00\u7ec4\u8fb9\uff0c\u4e24\u4e2a\u65b9\u5411\uff1a"
                                            "\u84dd\u5411\u53f3\u4f20\u6570\u636e\uff0c\u7ea2\u5411\u5de6"
@@ -1324,10 +1390,10 @@ def _ind_tree(k: _Kit, u: float) -> None:
     # \u62c9\u4f38 = 拉伸, not \u62c9\u4f28: the escape was one digit off from the first version and the feature
     # tree said "\u62c9\u4f28" in every frame since, which is a character nobody would type on purpose and
     # `pane_probe` has no opinion about
-    items = [("\u25be Part1", 0.04, 0), ("  \u25be \u62c9\u4f381", 0.16, 1),
-             ("    \u8349\u56fe1", 0.26, 2), ("  \u25be \u62c9\u4f382", 0.38, 1),
-             ("    \u8349\u56fe2", 0.48, 2), ("  \u25be \u5706\u89d21", 0.60, 1),
-             ("  \u25be \u9635\u52171", 0.72, 1)]
+    items = [("v Part1", 0.04, 0), ("  v \u62c9\u4f381", 0.16, 1),
+             ("    \u8349\u56fe1", 0.26, 2), ("  v \u62c9\u4f382", 0.38, 1),
+             ("    \u8349\u56fe2", 0.48, 2), ("  v \u5706\u89d21", 0.60, 1),
+             ("  v \u9635\u52171", 0.72, 1)]
     step = max(1, min(2, (k.bh - 2) // len(items)))
     for i, (label, at, d) in enumerate(items):
         if u < at:
@@ -1402,7 +1468,7 @@ def _ind_explode(k: _Kit, u: float) -> None:
     gap = 3 if n < 2 else max(3, (k.bh - 2) // n)
     mid = k.bx0 + k.bw // 2
     out = int(3 * min(1.0, u * 1.4))                   # the parts fly out as the pane plays
-    k.vline(mid, k.by0 + 1, k.by1, "\u254c", _ui(0.22))
+    k.vline(mid, k.by0 + 1, k.by1, ":", _ui(0.22))
     for i, (name, w) in enumerate(parts):
         y = k.by0 + 1 + i * gap
         if y + 2 > k.by1:
@@ -2229,7 +2295,7 @@ COURSES: dict[str, tuple[str, object, tuple | None]] = {
     "pane_exec_co": ("\u8ba1\u7b97\u673a\u7ec4\u6210\u539f\u7406 \u00b7 \u8865\u7801\u4e58\u6cd5", c_co, None),
     "pane_exec_compiler": ("\u7f16\u8bd1\u539f\u7406 \u00b7 \u4e94\u6b65\u7ba1\u9053", c_compiler, None),
     "pane_exec_db": ("\u6570\u636e\u5e93 \u00b7 EXPLAIN \u4e0e B+ \u6811", c_db, None),
-    "pane_exec_pm": ("\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406 \u00b7 WBS/Gantt", c_pm, None),
+    "pane_exec_pm": ("\u4fe1\u53f7\u4e0e\u7ebf\u6027\u7cfb\u7edf \u00b7 \u5085\u91cc\u53f6/\u51b2\u6fc0", c_pm, None),
     "pane_exec_test": ("\u8f6f\u4ef6\u6d4b\u8bd5 \u00b7 \u8986\u76d6\u7387", c_test, None),
     "pane_exec_dl": ("\u6df1\u5ea6\u5b66\u4e60 \u00b7 \u53cd\u5411\u4f20\u64ad", c_dl, None),
     "pane_exec_industrial": ("\u5927\u578b\u5de5\u4e1a\u8f6f\u4ef6", c_industrial, None),
@@ -2390,15 +2456,15 @@ DETAIL: dict[str, tuple[tuple[str, str], ...]] = {
         ("SQL 注入", "把输入当代码的下场"),
     ),
     "pane_exec_pm": (
-        ("WBS", "工作分解：把大活切小"),
-        ("critical path", "关键路径：拖它就拖全项目"),
-        ("burndown", "燃尽图：剩余工作量"),
-        ("risk register", "风险登记册"),
-        ("Gantt", "甘特图：时间与依赖"),
-        ("milestone", "里程碑：可交付的检查点"),
-        ("stakeholder", "干系人：会被影响到的人"),
-        ("scope creep", "范围蔓延：需求慢慢长大"),
-        ("retrospective", "复盘：这一轮学到了什么"),
+        ("Fourier", "\u5085\u91cc\u53f6\u53d8\u6362\uff1a\u65f6\u57df\u5230\u9891\u57df"),
+        ("inverse F", "\u53cd\u53d8\u6362\uff1a\u9891\u57df\u56de\u65f6\u57df"),
+        ("spectrum", "\u9891\u8c31\uff1a\u91cc\u9762\u6709\u54ea\u4e9b\u9891\u7387"),
+        ("step u(t)", "\u9636\u8dc3\uff1a\u4ece 0 \u5230 1 \u7684\u4e00\u5200"),
+        ("impulse \u03b4(t)", "\u51b2\u6fc0\uff1a\u65e0\u9650\u9ad8\u3001\u65e0\u9650\u7a84\u3001\u9762\u79ef 1"),
+        ("convolution", "\u5377\u79ef\uff1a\u7cfb\u7edf\u5bf9\u8f93\u5165\u7684\u5e94\u7b54"),
+        ("transfer fn", "\u4f20\u9012\u51fd\u6570 H(s)"),
+        ("sampling", "\u91c7\u6837\u5b9a\u7406\uff1a\u5948\u594e\u65af\u7279"),
+        ("frequency resp.", "\u9891\u7387\u54cd\u5e94\uff1a\u54ea\u4e9b\u9891\u7387\u8fc7\u5f97\u53bb"),
     ),
     "pane_exec_test": (
         ("black box", "黑盒：只看输入输出"),
@@ -2469,7 +2535,7 @@ def _activity(k: _Kit, t: float, seed: int) -> None:
     counter = 6 if k.bw >= 30 else 0
     n = max(4, k.bw - 4 - counter)
     head = int((t * 3.0 + seed * 0.37) % n)
-    k.put(k.bx0, y, "\u25b8", _mix(BLUE, 0.7))
+    k.put(k.bx0, y, ">", _mix(BLUE, 0.7))
     for i in range(n):
         on = i == head
         lag = (head - i) % n
@@ -2503,7 +2569,7 @@ LIVE: dict[str, tuple] = {
     "pane_exec_os": ("count", "%CPU", 0),
     "pane_exec_co": ("count", "A/Q", 0),
     "pane_exec_db": ("cursor", "scan", 0),
-    "pane_exec_pm": ("sweep", "sprint 3", 4.2),
+    "pane_exec_pm": ("sweep", "\u9891\u8c31", 4.2),
     "pane_exec_test": ("count", "cov %", 0),
     "pane_exec_dl": ("sweep", "loss", 2.2),
     "pane_exec_industrial": ("blink", "solver", 1.1),
@@ -2774,7 +2840,7 @@ def ai_cnn(k: _Kit, lt: float, dur: float) -> None:
 
 def ai_attention(k: _Kit, lt: float, dur: float) -> None:
     """注意力: QK^T, the softmax over it, and the one row that is being asked."""
-    k.section(k.by0, "\u6ce8\u610f\u529b \u00b7 QK\u1d40 \u2192 softmax", 0.30)
+    k.section(k.by0, "\u6ce8\u610f\u529b \u00b7 QK^T \u2192 softmax", 0.30)
     # one character per token, four cells apart. The first version used the words themselves
     # ("\u897f\u5de5\u5927", "\u8f6f\u4ef6") on the same pitch and the row of seven labels printed as one
     # smeared line - a CJK token is two cells per character and the pitch was two.
@@ -2883,7 +2949,7 @@ def ai_rl(k: _Kit, lt: float, dur: float) -> None:
         prev = (x, y)
     if k.u > 0.55:
         dx = k.bx0 + 11 + int(w * 0.47)
-        k.vline(dx, cy0, cy1, "\u254c", _mix(RED, 0.5))
+        k.vline(dx, cy0, cy1, ":", _mix(RED, 0.5))
         k.put(dx + 1, cy0, "\u6b65\u957f\u592a\u5927", _mix(RED, 0.8))
     k.put(k.bx0, min(k.by1, cy1 + 1), "\u66f2\u7ebf\u4e0a\u5347\u624d\u8bf4\u660e\u66f4\u65b0\u6709\u6548\uff0c"
                                       "\u4e0d\u662f\u635f\u5931\u4e0b\u964d", _ui(0.55))
@@ -2916,7 +2982,7 @@ def ai_diffusion(k: _Kit, lt: float, dur: float) -> None:
         nl = (panels - 1 - pi) / max(1, panels - 1)        # 1.0 = pure noise, 0.0 = the picture
         k.put(x0, k.by0 + 2, f"t={panels - 1 - pi}", _mix(AMBER, 0.9) if pi == now else _ui(0.5))
         if pi == now:
-            k.put(x0 + 8, k.by0 + 2, "\u25c0 \u73b0\u5728", _mix(AMBER, 0.85))
+            k.put(x0 + 8, k.by0 + 2, "\u2190 \u73b0\u5728", _mix(AMBER, 0.85))
         for y in range(size):
             for x in range(size):
                 # the target: a heart, because the line this pane is under is about one. `uy` is

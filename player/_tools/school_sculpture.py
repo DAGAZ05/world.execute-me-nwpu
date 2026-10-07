@@ -508,7 +508,20 @@ BANNER_FOR = {"sword": "NWPU"}
 
 @lru_cache(None)
 def banner_cells(name: str, cols: int, rows: int):
-    """`(cells, w, h)` for the supplied ASCII lettering, scaled up to fill the box."""
+    """`(cells, w, h)` for the supplied lettering, scaled up to fill the box.
+
+    **The art is a line drawing and it is sampled as lines** (batch 50, the user: "NWPU字符画需要优化").
+    The supplied file is six rows of `| _ / \\` - a *stroke* stencil, 34 cells wide - and the version that
+    filled every covered cell drew its four letters as solid slabs with staircase edges. Supersampling the
+    coverage (batch 34) smoothed the edges but kept the slabs: at six rows of source there is nothing
+    inside a letter to keep, so `N`, `W`, `P` and `U` came out as blocky rectangles with a notch.
+
+    What is sampled now is each character's **stroke**, painted at `K` per source cell: `_` as a
+    horizontal run, `|` as a vertical one, `/` and `\\` as diagonals that actually cross their cell. Six
+    rows become 48, the diagonals stay diagonal, and the output keeps one-cell strokes, so the letters are
+    letterforms rather than blocks. The coverage ramp is unchanged - a half-covered cell still gets a
+    lighter glyph - and the scale is still "fit inside the box", because a logo is not a photograph.
+    """
     p = ASSETS / BANNER[name]
     if not p.exists():
         return None
@@ -518,20 +531,37 @@ def banner_cells(name: str, cols: int, rows: int):
         return None
     w = max(len(ln) for ln in lines)
     h = len(lines)
-    # Supersampled, then drawn through the shade ramp. The first version multiplied the art by an
-    # **integer** and filled every covered cell with one solid block, so at pane size the letterforms were
-    # a staircase of blocks - the user's note in batch 34 is that the mark is not clear enough. Sampling
-    # at `K` per cell keeps the edges: a half-covered cell gets a lighter glyph instead of a whole block.
-    K = 4
-    mask = [[0.0] * (w * K) for _ in range(h * K)]
-    for r in range(h):
-        for c in range(len(lines[r])):
-            if lines[r][c] == " ":
-                continue
-            for dy in range(K):
-                for dx in range(K):
-                    mask[r * K + dy][c * K + dx] = 1.0
+    K = 8
     mw, mh = w * K, h * K
+    mask = [[0.0] * mw for _ in range(mh)]
+
+    def dot(y: int, x: int) -> None:
+        if 0 <= y < mh and 0 <= x < mw:
+            mask[y][x] = 1.0
+
+    for r, line in enumerate(lines):
+        for c, ch in enumerate(line):
+            if ch == " ":
+                continue
+            by, bx = r * K, c * K
+            if ch == "_":
+                for dx in range(K):
+                    dot(by + K - 2, bx + dx)
+            elif ch == "|":
+                for dy in range(K):
+                    dot(by + dy, bx + K // 2)
+            elif ch == "/":
+                for i in range(K):
+                    dot(by + K - 1 - i, bx + i)
+            elif ch == "\\":
+                for i in range(K):
+                    dot(by + i, bx + i)
+            elif ch in "`.'":
+                dot(by + K // 2, bx + K // 2)
+            else:                                        # anything else: a filled cell
+                for dy in range(K):
+                    for dx in range(K):
+                        dot(by + dy, bx + dx)
     scale = min(cols / max(1, mw), (rows - 1) / max(1, mh))
     cw, ch = max(1, int(mw * scale)), max(1, int(mh * scale))
     ox, oy = (cols - cw) // 2, (rows - ch) // 2

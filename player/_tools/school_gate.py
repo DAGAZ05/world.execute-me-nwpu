@@ -299,12 +299,12 @@ def overlay(s, cols: int, rows: int, t: float) -> bool:
         bar_w = max(0, x1 - (x0 + 3) - 2)
         if bg:
             s.put(x0 + 3, yy, " " * bar_w, fg, bg)
-        s.put(x0 + 3, yy, "\u25b8" if passed else " ", _mix(ANOM, 1.0), bg or BG_)
+        s.put(x0 + 3, yy, ">" if passed else " ", _mix(ANOM, 1.0), bg or BG_)
         s.put(x0 + 5, yy, f"{k}", fg, bg or BG_)
         s.put(x0 + 8, yy, f"{cn:<12}", fg, bg or BG_)
         s.put(x0 + 22, yy, f"{en:<18}"[: max(0, x1 - (x0 + 22) - 3)], _ui(0.5), bg or BG_)
         if done:
-            s.put(x1 - 3, yy, "\u2713", _mix(GREEN, 1.0), bg or BG_)
+            s.put(x1 - 3, yy, "\u221a", _mix(GREEN, 1.0), bg or BG_)
     # the input line: what the student types, and the caret while he has not finished
     iy = y1 - 2
     s.put(x0 + 2, iy, ">", _mix(ME_TEXT, 0.9))
@@ -338,17 +338,17 @@ def lines() -> list[tuple[str, str]]:
     if scr["phase"] == "answered":
         # the gate is over: one line saying what was chosen, in the page's own bullet style
         return [("ai", PROMPT),
-                ("card", f"\u2713 s  {OPTIONS[0][1]}   {OPTIONS[0][2]}"),
+                ("card", f"\u221a s  {OPTIONS[0][1]}   {OPTIONS[0][2]}"),
                 ("meta", "\u7b49\u4f60\u56de\u7b54")]
     out = list(BLOCK_HEAD)
     for i, (k, cn, en) in enumerate(OPTIONS):
         mark = "\u2022" if k in IMPLEMENTED else "\u00b7"
-        lead = "\u25b8 " if (scr["cursor"] and i == scr["cursor"] - 1) else "  "
+        lead = "> " if (scr["cursor"] and i == scr["cursor"] - 1) else "  "
         out.append(("card", f"{lead}{mark} {k}  {cn}   {en}"))
     if scr["typed"]:
         out.append(("user", scr["typed"]))
     if STATE["phase"] == "rejected":
-        out.append(("err", f"\u2717 {REJECT}"))
+        out.append(("err", f"\u00d7 {REJECT}"))
         out.append(("sub", HINT))
     elif not scr["typed"]:
         out.append(("sub", HINT))

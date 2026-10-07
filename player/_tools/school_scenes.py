@@ -176,7 +176,7 @@ def pane_protection(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     s.put(bx - 2, cy, "\u25cf", _mix(ANOM, 0.35 + 0.65 * closed))
     s.put(bx + band_w + 1, cy, "\u25cf", _mix(ANOM, 0.35 + 0.65 * closed))
     if w >= 20:
-        s.put(x0 + 2, y0, "\u26a0 ESD", _mix(ANOM, 0.5 + 0.5 * closed))
+        s.put(x0 + 2, y0, "! ESD", _mix(ANOM, 0.5 + 0.5 * closed))
     if h >= 4:
         s.put(x0 + 2, y0 + h - 1, "fuse 0.5A", _mix(SILK, 0.5 * closed))
     # ...and the board is live: a signal runs the bus on the song clock. Without it this pane is a still
@@ -214,7 +214,7 @@ def pane_pieces(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         s.put(x0 + 3, yy, name[: max(0, w - 6)], _ui(0.9 if on else 0.4))
         if on:
             # a landed part gets a right-hand check; the count is what the line is about
-            s.put(x1 - 2, yy, "\u2713", _mix((120, 220, 160), 0.9))
+            s.put(x1 - 2, yy, "\u221a", _mix((120, 220, 160), 0.9))
     done = sum(1 for _, at in parts[:rows] if u >= at)
     s.put(x0 + 1, y0 + rows, f"{done}/{rows}", _ui(0.5))
 
@@ -279,7 +279,7 @@ def pane_parameters(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
             s.put(x1 - len(src) - 1, y0 + i, src, _ui(0.4))
     # the table is being filled: a cursor walks its rows on the song clock (see `pane_class`)
     if n:
-        s.put(x0, y0 + int(t * 2.0) % n, "\u25b8", _mix(ANOM, 0.7))
+        s.put(x0, y0 + int(t * 2.0) % n, ">", _mix(ANOM, 0.7))
     # the source of the oldest value in the table, drawn beside it: 何尊 is where "中国" is first
     # written down, so it annotates the table rather than replacing it (see `LANDMARK_ROWS`)
     if w >= 34 and h >= 8:
@@ -458,27 +458,39 @@ def pane_curriculum(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     a claim nobody made. This version prints a term's worth per line, marks the courses the brief named
     with `★`, and says in the footer that the stars are the ones worth naming and not the whole list.
 
-    It sits after the gate (136.90-147.52) rather than in the first act, because it is the answer to the
+    Batch 50 filled the lists out (the user: "各年不止那几门课程") and fixed the reveal with them: the
+    stagger used to be a fixed `0.10` per course, which caps a column at ten printed courses, so a longer
+    timetable would have been silently clipped by its own animation. It is a share of the whole list now,
+    and `信号与线性系统` carries a star because its own pane is one of the sixteen hits.
+
+    It sits after the gate (136.90-142.00) rather than in the first act, because it is the answer to the
     college the student just chose.
     """
     rows = [
         ("\u5927\u4e00", ["\u2605\u5d4c\u5165\u5f0f\u7535\u5b50\u5fae\u7cfb\u7edf",
                         "\u2605\u7a0b\u5e8f\u8bbe\u8ba1\u57fa\u7840\uff08C\uff09",
                         "\u2605\u6570\u636e\u7ed3\u6784",
-                        "\u5fae\u79ef\u5206", "\u7ebf\u6027\u4ee3\u6570",
-                        "\u667a\u80fd\u65f6\u4ee3\u7684\u8f6f\u5de5", "\u519b\u4e8b\u7406\u8bba",
-                        "\u79bb\u6563\u6570\u5b66", "\u5927\u5b66\u7269\u7406"]),
+                        "\u9ad8\u7b49\u6570\u5b66", "\u7ebf\u6027\u4ee3\u6570",
+                        "\u79bb\u6563\u6570\u5b66", "\u5927\u5b66\u7269\u7406",
+                        "\u8ba1\u7b97\u673a\u5bfc\u8bba", "\u667a\u80fd\u65f6\u4ee3\u7684\u8f6f\u5de5",
+                        "\u5927\u5b66\u82f1\u8bed", "\u519b\u4e8b\u7406\u8bba",
+                        "\u601d\u60f3\u9053\u5fb7\u4e0e\u6cd5\u6cbb", "\u4f53\u80b2", "\u5de5\u7a0b\u8bad\u7ec3"]),
         ("\u5927\u4e8c", ["\u2605\u9762\u5411\u5bf9\u8c61\uff08java\uff09", "\u2605\u8f6f\u4ef6\u5de5\u7a0b",
                         "\u2605\u8ba1\u7b97\u673a\u7f51\u7edc", "\u2605\u8ba1\u7b97\u673a\u64cd\u4f5c\u7cfb\u7edf",
                         "\u2605\u8ba1\u7b97\u673a\u7ec4\u6210\u539f\u7406", "\u2605\u6570\u636e\u5e93\u7cfb\u7edf",
-                        "\u6570\u5b66\u5efa\u6a21", "\u4eba\u5de5\u667a\u80fd\u5bfc\u8bba", "\u6982\u7387\u8bba",
-                        "\u590d\u53d8\u51fd\u6570", "\u8ba1\u7b97\u65b9\u6cd5", "\u6bdb\u6982", "\u4e60\u6982"]),
-        ("\u5927\u4e09", ["\u2605\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406", "\u2605\u7b97\u6cd5\u8bbe\u8ba1",
-                        "\u2605\u8f6f\u4ef6\u6d4b\u8bd5", "\u2605\u6df1\u5ea6\u5b66\u4e60",
-                        "\u2605\u7f16\u8bd1\u539f\u7406",
-                        "\u2605\u5927\u578b\u5de5\u4e1a\u8f6f\u4ef6", "\u4fe1\u53f7\u4e0e\u7ebf\u6027\u7cfb\u7edf",
-                        "\u9a6c\u539f", "\u5de5\u4e1a\u6a21\u578b", "\u8f6f\u4ef6\u5f00\u53d1\u8bad\u7ec3"]),
-        ("\u5927\u56db", ["\u2605\u6bd5\u8bbe", "\u5b9e\u4e60"]),
+                        "\u6570\u5b57\u903b\u8f91", "\u6c47\u7f16\u8bed\u8a00",
+                        "\u8ba1\u7b97\u65b9\u6cd5", "\u6982\u7387\u8bba", "\u590d\u53d8\u51fd\u6570",
+                        "\u6570\u5b66\u5efa\u6a21", "\u4eba\u5de5\u667a\u80fd\u5bfc\u8bba",
+                        "\u5927\u5b66\u82f1\u8bed", "\u9a6c\u514b\u601d\u4e3b\u4e49\u57fa\u672c\u539f\u7406"]),
+        ("\u5927\u4e09", ["\u2605\u7b97\u6cd5\u8bbe\u8ba1", "\u2605\u8f6f\u4ef6\u6d4b\u8bd5",
+                        "\u2605\u6df1\u5ea6\u5b66\u4e60", "\u2605\u7f16\u8bd1\u539f\u7406",
+                        "\u2605\u5927\u578b\u5de5\u4e1a\u8f6f\u4ef6",
+                        "\u2605\u4fe1\u53f7\u4e0e\u7ebf\u6027\u7cfb\u7edf",
+                        "\u2605\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406",
+                        "\u8f6f\u4ef6\u4f53\u7cfb\u7ed3\u6784", "\u4eba\u673a\u4ea4\u4e92",
+                        "\u5d4c\u5165\u5f0f\u7cfb\u7edf\u8bbe\u8ba1", "\u5de5\u4e1a\u6a21\u578b",
+                        "\u8f6f\u4ef6\u5f00\u53d1\u8bad\u7ec3", "\u9a6c\u539f"]),
+        ("\u5927\u56db", ["\u2605\u6bd5\u8bbe", "\u5b9e\u4e60", "\u5c31\u4e1a\u6307\u5bfc"]),
     ]
     w, h = x1 - x0, y1 - y0
     from school_courses import _clip
@@ -495,9 +507,15 @@ def pane_curriculum(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         # still image, which for the one drawing in the film that is a plain list is the wrong answer
         # (`_dev/clock_probe.py` is the check: at full reveal, every pane has to move).
         active = int(t * 0.7) % len(rows)
+        # **The reveal is a share of the longest column, not a fixed ten steps** (batch 50). It used to be
+        # `u < 0.04 + 0.10 * j + 0.05 * ci`, which caps a column at ten printed courses and does not reach
+        # its end until `u = 1.4` - so the tail of a long column never appeared at all, however long the row
+        # was on screen (the user: "各年不止那几门课程"). It is a share of the whole list now, and it is
+        # still keyed on the **row** index, so the four years print side by side the way they always did.
+        longest = max(1, max(len(cs) for _yr, cs in rows))
         for ci, (year, courses) in enumerate(rows):
             cx = x0 + 1 + ci * cw
-            s.put(cx, y0, _clip(year + (" \u25b8" if ci == active else ""), cw - 1),
+            s.put(cx, y0, _clip(year + (" >" if ci == active else ""), cw - 1),
                   _mix(ANOM, 0.95 if ci == active else 0.45))
             s.put(cx, y0 + 1, "\u2500" * max(1, cw - 2), _ui(0.25))
             walk = int(t * 3.0) % max(1, len(courses))
@@ -505,7 +523,8 @@ def pane_curriculum(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
                 y = y0 + 2 + j
                 if y > y1 - 3:
                     break
-                if u < 0.04 + 0.10 * j + 0.05 * ci:
+                reveal = 0.04 + 0.82 * (j / longest)
+                if u < reveal:
                     break
                 star = name.startswith("\u2605")
                 body = name[1:] if star else name
@@ -514,14 +533,15 @@ def pane_curriculum(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
                 else:
                     col = _ui(0.75 if (ci == active and j == walk) else 0.5)
                 s.put(cx, y, _clip(("\u2605" if star else " ") + body, cw - 1), col)
-            if u < 0.04 + 0.10 * len(courses):
+            if u < reveal:
                 if int(t * 2) % 2 == 0:
                     s.put(cx, min(y1 - 3, y0 + 2 + len(courses)), "\u2588", _mix(ME_TEXT, 0.9))
         s.put(x0 + 1, y1 - 1, _clip("\u2605 = \u4f60\u8981\u91cd\u70b9\u8bb0\u7684\uff1b"
                                     "\u5176\u4f59\u662f\u540c\u4e00\u5b66\u671f\u4e00\u8d77\u4e0a\u7684",
                                     w - 2), _mix(ME_TEXT, 0.75))
-        s.put(x0 + 1, y1, _clip("\u56db\u5e74\u7684\u8bfe\u8868\uff1a\u5927\u56db\u53ea\u5269"
-                                "\u6bd5\u8bbe\u548c\u5b9e\u4e60", w - 2), _ui(0.5))
+        s.put(x0 + 1, y1, _clip(f"\u56db\u5e74\u7684\u8bfe\u8868\uff1a\u5171 "
+                                f"{sum(len(cs) for _yr, cs in rows)} \u95e8\uff08"
+                                f"\u53ea\u5217\u4e86\u8fd9\u4e9b\uff09", w - 2), _ui(0.5))
         return
     flat = [(yr, nm) for yr, cs in rows for nm in cs]
     n = min(len(flat), max(1, h - 2))
@@ -590,25 +610,28 @@ PANE_BY_NAME = {
 
 
 def pane_converge(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
-    """`all the execution` -> `only execution` (02:44.07-02:47.75): seven diagrams into one class.
+    """`all the execution` -> `only execution` (02:44.07-02:47.75): twelve drawings into one class.
 
     `02b` §4.3 calls this the core action of the software-engineering courseload, and it is also the
-    song's own figure: "give them all" arrives, and what is left is "your only". **Seven** small diagrams
-    - the seven the chat window names on this very line (`需求 · DFD · ER · 盒图 · 活动图 · 状态图 ·
-    时序图`) - are laid out three to a row, each drawn small enough to read as its own notation, and then
-    they collapse into a single UML class in the middle. The collapse is on `u`, so seeking into the pane
-    lands mid-collapse in the same place playing into it would.
+    song's own figure: "give them all" arrives, and what is left is "your only". The diagrams are laid
+    out four to a row, each drawn small enough to read as its own notation, and then they collapse into a
+    single UML class in the middle. The collapse is on `u`, so seeking into the pane lands mid-collapse in
+    the same place playing into it would.
 
-    The seventh arrived late: the pane drew six while the dialogue beside it listed seven, which batch 31's
-    audit caught by counting the boxes and the words in the same frame.
+    **Twelve, not seven** (batch 50, the user: "软工不止7个图"). Seven was the set the chat window used to
+    name, and the pane and the words had to agree (batch 31's audit counted the boxes against the words in
+    one frame), so both were extended together: the twelve are the deliverables of the four documents the
+    course actually produces - 需求规格 (需求, 数据字典, 用例图), 概要设计 (DFD, ER, 结构图, 接口),
+    详细设计 (盒图, 判定表, 活动图, 状态图, 时序图). The class they converge into is unchanged.
     """
     import school_courses as _C
     w, h = x1 - x0, y1 - y0
     if w < 16 or h < 5:
         return
-    titles = ["\u9700\u6c42", "DFD", "ER", "\u76d2\u56fe", "\u6d3b\u52a8\u56fe", "\u72b6\u6001\u56fe",
-              "\u65f6\u5e8f\u56fe"]
-    cols = 3
+    titles = ["\u9700\u6c42", "\u6570\u636e\u5b57\u5178", "\u7528\u4f8b\u56fe", "DFD",
+              "ER", "\u7ed3\u6784\u56fe", "\u63a5\u53e3", "\u76d2\u56fe",
+              "\u5224\u5b9a\u8868", "\u6d3b\u52a8\u56fe", "\u72b6\u6001\u56fe", "\u65f6\u5e8f\u56fe"]
+    cols = 4
     rows = (len(titles) + cols - 1) // cols
     collapse = max(0.0, min(1.0, (u - 0.55) / 0.40))       # 0 while the seven are apart, 1 when merged
     cw = max(6, (w - 4) // cols)
@@ -673,6 +696,108 @@ def pane_converge(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
             s.put(tbx + 2, tby + 3, "give()", _C._mix(_C.AMBER, 0.7 * collapse))
 
 
+def pane_sw_project(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
+    """软件项目管理, in the closing chapter: the agile manifesto, a sprint, and a working task board.
+
+    Batch 50's instruction moved this subject here from the twelve hits - "这部分替换为我给你说的软件项目
+    管理的内容（scrum、任务看板）" - because the closing chapter is literally named 软工与爱, and because
+    what the course is *for* is the thing the song's last verse is about: a plan that survives contact with
+    a week. The hit that used to carry it now carries 信号与线性系统.
+
+    Three parts, left to right, and they are the three things a project actually has:
+
+      * **敏捷宣言**: the four value pairs, each with the left-hand side heavier - which is what `>` means
+        and is the whole content of the manifesto (the right column is not worthless, it is worth less);
+      * **一个冲刺**: the four ceremonies in order, with the one the clock is in lit, and the sprint's
+        burndown - remaining work stepping down to zero - underneath;
+      * **任务看板**: three columns, cards walking 待办 → 进行中 → 完成. Unlike `pane_backlog`, whose Done
+        column can never fill because "trapped" means exactly that, this board *finishes*: a course about
+        project management that cannot ship is not showing project management.
+    """
+    import school_courses as _C
+    k = _kit(s, x0, y0, x1, y1, 0, "\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406")
+    if k is None or k.bw < 40 or k.bh < 8:
+        return
+    k.section(k.by0, "\u654f\u6377 \u00b7 \u51b2\u523a \u00b7 \u770b\u677f", 0.28)
+    body = k.sub(k.bx0, k.by0 + 1, k.bx1, k.by1)
+    # `columns` refuses rather than squeezing (its own docstring: "a caller that said this drawing needs
+    # thirty cells is telling the truth"), and `layout_probe` fails a pane that *asks* for a layout it does
+    # not get - so the ask is guarded, and a narrow pane draws the board alone instead of nothing.
+    cols = body.columns(2, mins=[32, 26], weights=[3, 4]) if body.bw >= 60 else []
+    if cols:
+        (lx0, lx1), (rx0, rx1) = cols
+    else:
+        lx0 = lx1 = None
+        rx0, rx1 = body.bx0, body.bx1
+    # ---------------------------------------------------------------- the manifesto, and the sprint
+    values = (("\u4e2a\u4f53\u4e0e\u4ea4\u4e92", "\u6d41\u7a0b\u4e0e\u5de5\u5177"),
+              ("\u53ef\u7528\u8f6f\u4ef6", "\u8be6\u5c3d\u6587\u6863"),
+              ("\u5ba2\u6237\u5408\u4f5c", "\u5408\u540c\u8c08\u5224"),
+              ("\u54cd\u5e94\u53d8\u5316", "\u9075\u5faa\u8ba1\u5212"))
+    if lx0 is not None:
+        body.put(lx0, body.by0, "\u654f\u6377\u5ba3\u8a00", _mix(_C.AMBER, 0.9))
+        for i, (left, right) in enumerate(values):
+            y = body.by0 + 1 + i
+            if y > body.by1 - 4:
+                break
+            on = i == int(t * 0.8) % len(values)
+            body.put(lx0, y, left, _mix(_C.AMBER, 0.95 if on else 0.7))
+            body.put(lx0 + 10, y, ">", _ui(0.5))
+            body.put(lx0 + 12, y, right, _ui(0.35))
+        # the sprint: four ceremonies, the current one lit, and the burndown under them
+        sy = min(body.by1 - 1, body.by0 + 1 + len(values) + 1)
+        ceremonies = ("\u8ba1\u5212", "\u5f00\u53d1", "\u8bc4\u5ba1", "\u56de\u987e")
+        phase = int(min(0.999, lt / max(1e-6, dur)) * len(ceremonies))
+        body.put(lx0, sy, "sprint 3", _ui(0.45))
+        for i, name in enumerate(ceremonies):
+            xx = lx0 + 10 + i * 8
+            if xx + 6 > lx1:
+                break
+            body.put(xx, sy, f"[{name}]" if i == phase else f" {name} ",
+                     _mix(_C.GREEN, 0.95) if i == phase else _ui(0.45))
+            if i < len(ceremonies) - 1 and xx + 7 <= lx1:
+                body.put(xx + 6, sy, "\u2192", _ui(0.35))
+        if sy + 2 <= body.by1:
+            w = max(6, lx1 - lx0 - 2)
+            for c in range(w):
+                frac = c / max(1, w - 1)
+                remain = 1.0 - frac
+                y = sy + 2 + int((1.0 - remain) * 3)
+                body.put(lx0 + c, min(body.by1, y), "\u2588",
+                         _mix(_C.BLUE, 0.8 if frac <= lt / max(1e-6, dur) else 0.22))
+            body.put(lx0, body.by1, "\u71c3\u5c3d\uff1a\u5269\u4e0b\u7684\u5de5\u4f5c\u9010\u6b65\u5230 0",
+                     _ui(0.5))
+    # ---------------------------------------------------------------- the task board, which finishes
+    board = (("\u5f85\u529e", 0.85), ("\u8fdb\u884c\u4e2d", 0.45), ("\u5b8c\u6210", 0.0))
+    cw = max(6, (rx1 - rx0 + 1) // 3)
+    for i, (name, _share) in enumerate(board):
+        bx = rx0 + i * cw
+        if bx + 4 > rx1:
+            break
+        for xx in range(bx, min(bx + cw - 1, rx1)):
+            body.put(xx, body.by0, _C.BOX_H, _mix(_C.BLUE, 0.45))
+            body.put(xx, body.by1, _C.BOX_H, _mix(_C.BLUE, 0.45))
+        body.put(bx, body.by0, "\u250c", _mix(_C.BLUE, 0.6))
+        body.put(min(bx + cw - 2, rx1), body.by0, "\u2510", _mix(_C.BLUE, 0.6))
+        body.put(bx + 1, body.by0, f" {name} ", _mix(_C.GREEN if i == 2 else _C.BLUE, 0.9))
+    # six cards; card `c` is done once the sprint has passed its own two-thirds, and the cards that are
+    # still moving are the ones in the middle column - the board is a clock, not a picture
+    total = 6
+    done = int(min(1.0, lt / max(1e-6, dur * 0.9)) * total)
+    moving = int(min(1.0, lt / max(1e-6, dur * 0.6)) * total)
+    for c in range(total):
+        col = 2 if c < done else (1 if c < max(done, moving) else 0)
+        row_in = (c if col == 2 else c - done if col == 1 else c - moving)
+        cx = rx0 + col * cw + 1
+        cy = body.by0 + 2 + max(0, row_in) * 2
+        if cy + 1 > body.by1 - 1 or cx + 5 > rx1:
+            continue
+        body.put(cx, cy, "\u25aa", _mix(_C.AMBER if col < 2 else _C.GREEN, 0.9))
+        body.put(cx + 2, cy, ("\u9700\u6c42", "\u8bbe\u8ba1", "\u7f16\u7801", "\u6d4b\u8bd5",
+                              "\u8bc4\u5ba1", "\u53d1\u5e03")[c % 6][: max(2, cw - 5)],
+                 _ui(0.7))
+
+
 def pane_backlog(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     """`Though we are trapped` (02:49.61-02:56.96): a Scrum board whose Done column never fills.
 
@@ -732,7 +857,7 @@ def pane_knowledge(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     if w < 20 or h < 5:
         return
     pts = [("C", 0.06), ("Java", 0.28), ("OpenEuler", 0.50), ("PGSQL", 0.70), ("\u53cd\u5411\u4f20\u64ad", 0.90)]
-    glyphs = ["{ }", "\u25a1", ">_", "\u2261", "\u2207"]
+    glyphs = ["{ }", "\u25a1", ">_", "\u2261", "grad"]
     # the curve: an ease that starts slow and accelerates, which is what learning something looks like
     n = max(10, w - 4)
     for c in range(n):
@@ -755,7 +880,7 @@ def pane_knowledge(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     # in progress - and without it the pane stops the moment its reveal ends
     fm = (t * 0.12) % 1.0
     s.put(x0 + 2 + int((n - 1) * fm), max(y0, y1 - 1 - int((h - 3) * (fm ** 1.6))),
-          "\u25b8", _C._mix(_C.RED, 0.9))
+          ">", _C._mix(_C.RED, 0.9))
     s.put(x0, y0, "\u5927\u4e00 \u2192 \u5927\u4e09", _C._ui(0.5))
 
 
@@ -962,6 +1087,24 @@ def _landmark(name: str, s, x0: int, y0: int, x1: int, y1: int, u: float, title:
     return k, ox, oy
 
 
+def _sparkle(k, x: int, y: int, colour, centre: float = 1.0) -> None:
+    """A four-point star of five cells: `·` above, below and either side of a `*`.
+
+    **A glyph-safety fix, not a style choice.** This mark used to be `* * *` (U+2727 U+2726 U+2727) in
+    `pane_landmark_dialogue`, and **neither font the exporter has carries those codepoints** - checked
+    against `consola.ttf` and `msyh.ttc` with fontTools, and visible as two `.notdef` boxes in the
+    rendered frame at 01:24.60 (`_dev/out/b50/crop_dialogue_star.png`). A terminal font is a third font
+    this project cannot check, so the rule is the conservative one: build the mark out of `*` and `·`,
+    which every monospace face has. `centre` scales the middle cell only, so the sparkle can twinkle by
+    brightness without moving.
+    """
+    k.put(x, y - 1, "\u00b7", _mix(colour, 0.55))
+    k.put(x - 1, y, "\u00b7", _mix(colour, 0.55))
+    k.put(x, y, "*", _mix(colour, centre))
+    k.put(x + 1, y, "\u00b7", _mix(colour, 0.55))
+    k.put(x, y + 1, "\u00b7", _mix(colour, 0.55))
+
+
 def pane_landmark_dialogue(s, x0, y0, x1, y1, t, lt, dur, u, phase=None, max_phase=2) -> None:
     """`对话` - the machine hand and the human hand, not yet touching.
 
@@ -978,7 +1121,7 @@ def pane_landmark_dialogue(s, x0, y0, x1, y1, t, lt, dur, u, phase=None, max_pha
     rather than the drawing guessing from the clock.
 
     **No words on it** (batch 49, the user: "对话雕塑…不要附近文字"). The phase titles and captions used
-    to name the act; the crop already does. The `✧ ✦ ✧` mark between the hands stays - it is the star
+    to name the act; the crop already does. The `* * *` mark between the hands stays - it is the star
     the pane is about, not a label for it.
     """
     import school_courses as _C
@@ -987,12 +1130,13 @@ def pane_landmark_dialogue(s, x0, y0, x1, y1, t, lt, dur, u, phase=None, max_pha
     phase = max(0, min(int(phase), int(max_phase)))
     k, ox, oy = _landmark("dialogue", s, x0, y0, x1, y1, u, "", "",
                           dim=1.0 if phase < 2 else 0.35)
-    # the star: the one thing in this pane that moves, and it pulses on the song's beat
+    # the star: the one thing in this pane that moves, and it pulses on the song's beat. Drawn from `*`
+    # and `·` rather than `*`/`*`: see `_sparkle`.
     if phase >= 1:
         cx = k.bx0 + k.bw // 2
-        cy = max(k.by0, oy - 1)
+        cy = max(k.by0 + 1, oy - 2)
         pulse = 0.55 + 0.45 * abs(math.sin(lt * 3.2))
-        k.put(cx - 3, cy, "\u2727 \u2726 \u2727", _mix(_C.AMBER, pulse))
+        _sparkle(k, cx, cy, _C.AMBER, centre=pulse)
 
 
 def pane_landmark_sword(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
@@ -1035,11 +1179,19 @@ def pane_landmark_hezun(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         ch, fg, _bg = s.buf[hy][xx]
         if ch.strip():
             s.put(xx, hy, ch, tuple(min(255, int(c * 1.45)) for c in fg))
-    if k.bw > 46 and k.by0 + 1 <= k.by1:
+    # **The two captions were drawn on top of the vessel** (batch 50, the user: "何尊的较小的字符画需要优化
+    # 一下"). The plate is aspect-fitted and centred and at pane size it fills the box, so `by0+1`/`by0+2`
+    # are *inside* the drawing: `origin = "宅兹中国"` sat across the mouth of the vessel and the vessel's own
+    # digits ran through it, so neither could be read. There is exactly one free row - `y0+1`, between the
+    # pane's title rule and the plate's top - and one line fits the two facts, so the caption moved there
+    # instead of taking a bite out of the drawing.
+    if k.bw > 46 and k.by0 >= y0 + 2:
         import school_courses as _C
-        k.put(k.bx0 + 2, k.by0 + 1, "origin = \"\u5b85\u5179\u4e2d\u56fd\"", _mix(_C.AMBER, 0.85))
-        k.put(k.bx0 + 2, k.by0 + 2, "// \u4f55\u5c0a\u94ed\u6587\uff0c\u7ea6\u516c\u5143\u524d 11 \u4e16\u7eaa"
-                                     "\uff08\u5468\u6210\u738b\u4e94\u5e74\uff09", _ui(0.45))
+        s.put(k.bx0 + 2, y0 + 1,
+              _C._clip("origin = \"\u5b85\u5179\u4e2d\u56fd\"  \u00b7  \u4f55\u5c0a\u94ed\u6587\uff0c\u7ea6"
+                       "\u516c\u5143\u524d 11 \u4e16\u7eaa\uff08\u5468\u6210\u738b\u4e94\u5e74\uff09",
+                       max(0, k.bw - 3)),
+              _mix(_C.AMBER, 0.85))
 
 
 def _kit(s, x0: int, y0: int, x1: int, y1: int, run: int = 0, title: str = ""):
@@ -1096,7 +1248,7 @@ def pane_landmark_cat(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         k.put(k.bx0, y, "\u732b\u5728\u4e0d\u5728\u91cc\u9762\uff0c\u8981\u6253\u5f00\u624d\u77e5\u9053",
               _mix(_C.GREEN, 0.8))
         k.put(k.bx0, min(k.by1, y + 1),
-              "(|\u751f\u27e9 + |\u6b7b\u27e9) / \u221a2 \u2014\u2014 \u53e0\u52a0\u6001\u4e0d\u662f\u4e0d\u77e5\u9053\uff0c"
+              "(|\u751f> + |\u6b7b>) / \u221a2 \u2014\u2014 \u53e0\u52a0\u6001\u4e0d\u662f\u4e0d\u77e5\u9053\uff0c"
               "\u662f\u4e24\u4e2a\u90fd\u5728", _ui(0.5))
     # ...and something for the cat to watch: a dot circling its head on the song clock. The pane's only
     # motion used to be the motif band under it, and the cat is the one drawing here that is *alive*.
@@ -1109,7 +1261,7 @@ def pane_everything_point(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> 
     """万物皆点: three things that are points, and the picture each one actually has.
 
     `想法.md` gives this section four: 茄子＝USDA 营养流向图, 番茄＝番茄红素吸收光谱 (444/472/503 nm),
-    猫＝薛定谔叠加态, 神＝∃!. The cat has its own pane; these are the other three, and they are drawn
+    猫＝薛定谔叠加态, 神＝存在!. The cat has its own pane; these are the other three, and they are drawn
     rather than described, which is the user's other note for this batch ("动图部分以视觉效果优先，
     比如优先画 sin(x) 的函数图像而不是写表达式"): a spectrum is a curve with three peaks marked, a flow
     diagram is boxes and arrows, and a uniqueness proof is a diagram with two dots and one of them crossed
@@ -1209,7 +1361,7 @@ def _ev_tomato(k, t: float, u: float) -> None:
     # spectrum whose peaks are missing - which is what the first version of this panel did
     for pp, nm in zip(peaks, ("444", "472", "503")):
         x = k.bx0 + 10 + int(w * pp)
-        k.vline(x, hi, lo, "\u254c", _mix(_C.AMBER, 0.35))
+        k.vline(x, hi, lo, ":", _mix(_C.AMBER, 0.35))
         k.put(x - 1, hi - 1, nm, _mix(_C.AMBER, 0.85))
     prev = None
     for i in range(w + 1):
@@ -1238,17 +1390,17 @@ def _ev_tomato(k, t: float, u: float) -> None:
 
 
 def _ev_exists(k, t: float, u: float) -> None:
-    """`\u2203!` - the uniqueness proof, as the diagram it is: two candidates, one struck out."""
+    """`\u5b58\u5728!` - the uniqueness proof, as the diagram it is: two candidates, one struck out."""
     import school_courses as _C
-    k.section(k.by0, "\u795e \u00b7 \u2203! \u552f\u4e00\u5b58\u5728", 0.25)
+    k.section(k.by0, "\u795e \u00b7 \u5b58\u5728! \u552f\u4e00\u5b58\u5728", 0.25)
     mid = k.by0 + 3
     if k.bh < 6:
         return
-    k.put(k.bx0 + 2, mid, "\u2203 x", _mix(_C.GREEN, 0.9))
-    k.put(k.bx0 + 2, mid + 2, "\u2203 y", _mix(_C.GREEN, 0.9))
+    k.put(k.bx0 + 2, mid, "\u5b58\u5728 x", _mix(_C.GREEN, 0.9))
+    k.put(k.bx0 + 2, mid + 2, "\u5b58\u5728 y", _mix(_C.GREEN, 0.9))
     k.put(k.bx0 + 8, mid, "P(x)", _ui(0.7))
     k.put(k.bx0 + 8, mid + 2, "P(y)", _ui(0.7))
-    k.put(k.bx0 + 8, mid + 1, "\u21d3", _mix(_C.AMBER, 0.9))
+    k.put(k.bx0 + 8, mid + 1, "\u2193", _mix(_C.AMBER, 0.9))
     k.put(k.bx0 + 12, mid + 1, "x = y", _mix(_C.AMBER, 0.95))
     # the two candidates are looked at one at a time, and the second one is struck out on the same
     # beat. A proof is a sequence of looks, not a still page, and this is the pane's half of the
@@ -1256,9 +1408,9 @@ def _ev_exists(k, t: float, u: float) -> None:
     # a continuous one: a two-state blink alone can land on the same phase at three samples of a short
     # slot, and then the pane reads as still to `_dev/clock_probe.py` even though it blinks.
     look = int(t * 1.7) % 2
-    k.put(k.bx0, mid if not look else mid + 2, "\u25b8",
+    k.put(k.bx0, mid if not look else mid + 2, ">",
           _mix(_C.AMBER, 0.55 + 0.4 * abs(math.sin(t * 2.6))))
-    # and the second candidate being struck out, which is the "!" in ∃!
+    # and the second candidate being struck out, which is the "!" in 存在!
     if u > 0.55:
         for i in range(7):
             k.put(k.bx0 + 2 + i, mid + 2, "\u2500", _mix(_C.RED, 0.85 if look else 0.5))
@@ -1273,7 +1425,7 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
     """互换: four things that are the same thing twice, on the lines about switching roles.
 
     `想法.md` gives this section five: `F→M` flipping exactly three bits, the twelve-hour clock as a
-    double cover of a day, the braid group σ₁, moiré, and the superellipse. The section had **no school
+    double cover of a day, the braid group σ1, moiré, and the superellipse. The section had **no school
     pane at all** - 41.9 to 54.7 was the film's own panels - so this is new content in a gap as well as
     the drawing those five were waiting for. Three panels, because the song's line is about a role
     changing and the interesting part is that nothing is lost: a bit flip is reversible, a clock face
@@ -1396,9 +1548,9 @@ def _ex_clock(k, t: float, u: float) -> None:
 
 
 def _ex_braid(k, t: float, u: float) -> None:
-    """The braid group: σ₁ is two strands crossing, and its inverse undoes it."""
+    """The braid group: σ1 is two strands crossing, and its inverse undoes it."""
     import school_courses as _C
-    k.section(k.by0, "\u8fab\u7fa4 \u03c3\u2081 \u00b7 \u53ef\u9006", 0.25)
+    k.section(k.by0, "\u8fab\u7fa4 \u03c31 \u00b7 \u53ef\u9006", 0.25)
     n = 3
     w = max(6, k.bw - 4)
     rows = max(6, min(18, k.by1 - k.by0 - 3))
@@ -1424,7 +1576,7 @@ def _ex_braid(k, t: float, u: float) -> None:
                   _mix(_C.BLUE, 0.7))
     k.put(k.bx0, k.by1 - 1, "\u4ea4\u53c9\u4e00\u6b21\u518d\u4ea4\u53c9\u56de\u53bb\uff0c"
                             "\u7ed3\u679c\u7b49\u4e8e\u6ca1\u52a8", _ui(0.5))
-    k.put(k.bx0, k.by1, "\u03c3\u2081 \u00b7 \u03c3\u2081\u207b\u00b9 = e", _mix(_C.GREEN, 0.7))
+    k.put(k.bx0, k.by1, "\u03c31 \u00b7 \u03c31^-1 = e", _mix(_C.GREEN, 0.7))
 
 
 def pane_landmark_crest(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
@@ -1626,6 +1778,28 @@ def pane_memory(s, x0, y0, x1, y1, t, lt, dur, u, layers: int = 1, ghost: float 
         oy = k.by0 + max(0, (k.bh - 5) // 2) + (off % 3) - (1 if layers > 3 else 0)
         for i, ch in enumerate(word):
             _block_letter(k, ox + i * cell_w, oy, ch, _C._mix(_C.AMBER, level))
+    # ...and the field around it, which was empty (batch 50, the user: "memory 字符画周边有些单调了，可以
+    # 加一些装饰（比如星纹）"). The sculpture is a graduation present photographed at night, so the
+    # decoration is its own backdrop: a field of stars that twinkle on the song clock. Three rules:
+    # deterministic (a hash of the index, never `random()` - `clock_probe --selftest` draws every row
+    # twice and compares), never on the word (the cell has to be blank already), and glyph-safe (`*`,
+    # `·`, `o` only - see `_sparkle`; `*`/`*` are in neither of the exporter's fonts).
+    if k.bw > 20 and k.bh > 6:
+        for i in range(max(10, int(k.bw * k.bh * 0.035))):
+            hx = (i * 2654435761 + layers * 40503) & 0xFFFF
+            hy = (i * 1103515245 + layers * 12345) & 0xFFFF
+            x = k.bx0 + hx % max(1, k.bw)
+            y = k.by0 + hy % max(1, k.bh)
+            if not (k.by0 + 1 < y < k.by1) or k.s.buf[y][x][0] not in ("", " "):
+                continue
+            tw = 0.30 + 0.70 * abs(math.sin(t * 1.6 + i * 0.7))
+            if (hx >> 5) % 11 == 0 and k.s.buf[y - 1][x][0] in ("", " ") \
+                    and k.s.buf[y + 1][x][0] in ("", " "):
+                _sparkle(k, x, y, _C.AMBER, centre=0.45 + 0.55 * tw)
+            elif (hx >> 3) % 5 == 0:
+                k.put(x, y, "o", _C._mix(_C.BLUE, 0.35 + 0.45 * tw))
+            else:
+                k.put(x, y, "\u00b7", _C._ui(0.25 + 0.5 * tw))
     k.put(k.bx0, k.by0, f"layers {layers}", _C._ui(0.5))
 
 
@@ -1713,6 +1887,7 @@ PANE_BY_NAME.update({
     # the closing three sections (`02b_图像对位与可视化表达.md` §4.3-4.6)
     "pane_converge": pane_converge,
     "pane_backlog": pane_backlog,
+    "pane_sw_project": pane_sw_project,
     "pane_knowledge": pane_knowledge,
     "pane_love_class": pane_love_class,
     # the four AI motifs. Their drawings live in `school_courses` with the rest of the diagrams - they

@@ -109,15 +109,21 @@ def panels():
     return SP if (SP is not None and VAR[0] == "school") else FP
 
 
-def next_chapter_num(t: float) -> str:
-    """The two digits of the chapter that *begins* after `t` - the number `draw_flood` stamps.
+def flood_stamp(t: float) -> str:
+    """What `draw_flood` stamps in the middle of the screen at 60 % of its shot.
 
-    That stamp is the film's own device (sec_chorus2.py:336-355) and it means "this is what is coming":
-    the film fires it at 146.24 s and `07 / EXECUTION` begins at 147.40. It was written as the literal
-    `"07"`, which is the film's answer and not this variant's - here `08 / 执行` begins at 147.52, so the
-    school screen was printing the film's chapter number over its own chapter bar. Reading the active
-    bar makes both right without a second drawing routine.
+    That stamp is the film's own device (sec_chorus2.py:336-355) and the film's own content is "what is
+    coming": it fires at 146.24 s and `07 / EXECUTION` begins at 147.40. It was written as the literal
+    `"07"`, which is the film's answer and not this variant's.
+
+    A variant may declare `STAMP` in its own data module to say what belongs there instead; with none,
+    the incoming chapter's number is read off the active bar and the original stays exactly as it was.
+    (`school_machine.STAMP = "SW"` - the user: "我让你改为 SW … 就只是把中央图形改为 SW", i.e. the bar
+    keeps the film's numbering and only this stamp changes.)
     """
+    own = getattr(panels(), "STAMP", None)
+    if own:
+        return str(own)
     bar = panels().CHAPTERS
     after = [lab for s, lab in bar if s > t]
     lab = after[0] if after else (bar[-1][1] if bar else "")
@@ -997,7 +1003,7 @@ def _wide_char(ch: str) -> bool:
 # above it - so this one string comparison is a fast "could this be wide" for the overwhelmingly common
 # case (ASCII). `Screen.fix_pair` runs per cell per frame, and `east_asian_width` there would cost 3 ms
 # of a 41.7 ms budget on its own.
-_WIDE_MIN = "\u1100"
+_WIDE_MIN = chr(0x1100)
 # a character no drawing can produce: `fix_pair` writes it into `prev` to force a repaired cell out
 _STALE = ("\x00", (0, 0, 0), (0, 0, 0))
 
@@ -2561,9 +2567,9 @@ def draw_flood(s: Screen, x0: int, y0: int, x1: int, y1: int, t: float, u: float
         s.put(xx, yy, FP.flood_cell(i, g, order, n),
               mix(ME_TEXT, 0.5 + 0.5 * (order[i] < g - 0.05)) if order[i] < g else ui(0.25))
     if u > 0.6:
-        # `07` was the film's chapter number written as a literal; the incoming chapter of *this*
-        # variant's bar is what the stamp means. See `next_chapter_num`.
-        block_word(s, x0, y0 + max(0, (y1 - y0) // 2 - 4), next_chapter_num(t), w, 9, mix(RED, 1.0))
+        # `07` was the film's chapter number written as a literal; what belongs there is the variant's
+        # own mark. See `flood_stamp`.
+        block_word(s, x0, y0 + max(0, (y1 - y0) // 2 - 4), flood_stamp(t), w, 9, mix(RED, 1.0))
 
 
 def draw_collapse(s: Screen, x0: int, y0: int, x1: int, y1: int, u: float) -> None:
@@ -2836,14 +2842,14 @@ def draw_dsh(s: Screen, x0: int, y0: int, x1: int, y1: int, t: float, window=Non
         if rows[0][0] in ("bub", "bubbot"):
             k = next((i for i, r in enumerate(rows) if r[0] == "bubtop"), None)
             rows = rows[k:] if k is not None else rows[1:]
-        rows.insert(0, ("dim", "⋯", 0))
+        rows.insert(0, ("dim", "...", 0))
     top = tbot - len(rows) + 1
     for i, (kind, txt, w) in enumerate(rows):
         yy = top + i
         if kind == "ai":
             s.put(ix, yy, txt, ui(0.85))
         elif kind == "card":
-            s.put(ix, yy, "\u25b8 " + txt, mix(accent, 0.9))
+            s.put(ix, yy, "> " + txt, mix(accent, 0.9))
         elif kind == "sub":
             s.put(ix + 2, yy, txt, ui(0.72))
         elif kind == "meta":
@@ -3207,7 +3213,7 @@ def _draw_machine(s: Screen, x0: int, y0: int, x1: int, y1: int, inner: int,
     cur = int(machine.get("cur") or 0) % len(rows)
     head = str(machine.get("head") or "")
     regs = str(machine.get("regs") or "")
-    hot = ("\u25b8 " + rows[cur])[:w].ljust(w)
+    hot = ("> " + rows[cur])[:w].ljust(w)
     if inner == 1:
         s.put(x0 + 2, y0 + 1, hot, BG, RED if err else ui(1.0))
         return
@@ -3816,7 +3822,7 @@ def draw_footer(s: Screen, d: Data, t: float, playing: bool, fps: float, ent: di
             import school_gate as _G
             waiting = _G.window_open(t)
             if waiting:
-                left += f"  \u2753 \u9009\u5b66\u9662\uff1a\u6309\u9996\u5b57\u6bcd "
+                left += f"  ? \u9009\u5b66\u9662\uff1a\u6309\u9996\u5b57\u6bcd "
                 left += f"{_G.window_left(t):3.1f}s \u540e\u9ed8\u8ba4\u8f6f\u4ef6\u5b66\u9662"
         except Exception:
             pass

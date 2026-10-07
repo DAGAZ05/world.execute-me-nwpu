@@ -119,7 +119,76 @@ def main() -> None:
     for family in ("quadrants", "braille", "sextants"):
         good = [name for name, fam in summary.items() if fam.get(family, "").startswith("ok")]
         print(f"{family:10s} usable in: {', '.join(good) if good else 'NONE'}")
-    raise SystemExit(0)
+    raise SystemExit(check_source() or 0)
+
+
+# ---------------------------------------------------------------- every glyph the project prints
+#
+# **The check the film needed and did not have** (batch 50). `FAMILIES` above measures glyphs the project
+# is *considering*; nothing measured the glyphs it already uses. The user's question about shot 8 ("stdout
+# 中的字体是什么") led to the answer that a terminal has no font of its own to choose - and then to the
+# question that does have an answer: which of the characters this project prints can the renderer draw?
+# `tui_shot.Painter` sends ASCII to Consolas and *everything else* to 微软雅黑, so a non-ASCII codepoint is
+# a `.notdef` box wherever msyh lacks it, and **eighteen of them were**: `▶ ◀ ▷ ▸ ▾ ✓ ✗ ⚠ ⇓ ∃ ∇ ⋯ ❓ ⟩`
+# and the subscripts `₀₁₂₄₅`. They were visible in exported frames as boxes (`▸` beside 大二, `✓`/`✗` in the
+# college gate, `▶`/`◀` on the deep-learning graph) and invisible to every other probe, because a box is
+# still ink.
+#
+# **The test is a rendering, not a cmap**, and that is not pedantry: `msyh.ttc`'s `cmap` table claims
+# `░` and `▒` are both absent, and the renderer draws `▒` correctly and `░` as a box. The reference is an
+# unassigned codepoint, whose mask *is* the `.notdef` the reader sees.
+RENDER_FONTS = {"ascii": "C:/Windows/Fonts/consola.ttf", "wide": "C:/Windows/Fonts/msyh.ttc"}
+#: glyphs the Painter draws as a *pattern* instead of a character, so a missing glyph does not matter
+PAINTED = set("\u2580\u2584\u2588\u2581\u2582\u2583\u2585\u2586\u2587\u2591\u2592\u2593\u258c\u2590")
+REFERENCE = 0x0378                            # unassigned: whatever it renders is the fallback
+
+
+def _mask(font, ch: str):
+    try:
+        m = font.getmask(ch, mode="L")
+    except Exception:                         # noqa: BLE001
+        return None
+    return (m.size, m.tobytes() if hasattr(m, "tobytes") else bytes(m))
+
+
+def check_source() -> int:
+    import re
+    sources = sorted((Path(__file__).resolve().parents[1] / "player" / "_tools").glob("*.py"))
+    esc = re.compile(r"\\u([0-9a-fA-F]{4})")
+    used: dict[int, set] = {}
+    for p in sources:
+        txt = p.read_text(encoding="utf8")
+        chars = {ch for ch in txt if ord(ch) > 127}
+        for m in esc.finditer(txt):
+            chars.add(chr(int(m.group(1), 16)))
+        for ch in chars:
+            used.setdefault(ord(ch), set()).add(p.name)
+    fonts, refs = {}, {}
+    for name, path in RENDER_FONTS.items():
+        try:
+            fonts[name] = ImageFont.truetype(path, 16)
+        except Exception:                     # noqa: BLE001
+            print(f"note: {path} cannot be loaded")
+            fonts[name] = ImageFont.load_default()
+        refs[name] = _mask(fonts[name], chr(REFERENCE))
+    bad, painted = [], []
+    for cp, where in sorted(used.items()):
+        if cp < 128:
+            continue                          # ASCII is Consolas's whole job
+        if chr(cp) in PAINTED:
+            painted.append((cp, where))
+            continue
+        reading = _mask(fonts["wide"], chr(cp))
+        if reading is None or not reading[1] or reading == refs["wide"]:
+            bad.append((cp, where))
+    print()
+    print(f"glyphs the project prints, against the renderer's fonts "
+          f"({len(used)} codepoints over {len(sources)} modules):")
+    for cp, where in bad:
+        print("  FAIL U+%04X renders as the fallback box  (%s)" % (cp, ",".join(sorted(where))[:70]))
+    print(f"  {len(bad)} missing, {len(painted)} drawn as patterns by the painter "
+          f"({len(painted)} of them)")
+    return 1 if bad else 0
 
 
 if __name__ == "__main__":

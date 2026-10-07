@@ -39,8 +39,19 @@ CJK = "C:/Windows/Fonts/msyh.ttc"
 # narrower than the cell, so a half-block pane came out as a grid of blocks with seams ("the avatar
 # looked averaged into flat grey" is what this file exists to prevent, and a seam every cell reads no
 # better). The colours are already exact: `▀` carries the upper colour in fg and the lower in bg.
-HALF_BLOCKS = {"\u2580": "top", "\u2584": "bot", "\u2588": "all"}
+HALF_BLOCKS = {"\u2580": "top", "\u2584": "bot", "\u2588": "all",
+               "\u258c": "left", "\u2590": "right"}
 RAMP_FILL = {"\u2581": 1, "\u2582": 2, "\u2583": 3, "\u2584": 4, "\u2585": 5, "\u2586": 6, "\u2587": 7}
+# ...and the three *shade* glyphs, which are the same problem and had the same fix available (batch 50).
+# msyh has `▒` and not `░` or `▓`, so two of the five levels of `SHADE = " ░▒▓█"` - the ramp every
+# `_Kit.shade` field, every sprite and every dither in the film is drawn with - came out as `.notdef`
+# boxes in every exported frame, and nothing noticed: a box is still ink, so `density_probe`, `pane_probe`
+# and `math_probe` all read the cell as drawn. Found by asking which glyphs the project prints that the
+# renderer's fonts lack (the question came from the user asking what font shot 8's stdout uses).
+#
+# The fix is the half-block fix: draw the pattern rather than the character. `░` is one pixel in four,
+# `▒` two, `▓` three, on a 2x2 order - which is what those glyphs are.
+SHADE_FILL = {"\u2591": 1, "\u2592": 2, "\u2593": 3}
 
 
 def _font(path: str, size: int):
@@ -55,6 +66,18 @@ class Painter:
         self.cw, self.ch = cw, ch
         self.f_ascii = _font(MONO, size)
         self.f_wide = _font(CJK, int(size * 1.05))
+        # one white dither mask per shade level, built once: `paste(colour, box, mask)` is a C-level call,
+        # where drawing the pattern pixel by pixel in Python would be ~40 rectangles a cell
+        self.shade = {}
+        for glyph, level in SHADE_FILL.items():
+            tile = Image.new("L", (cw, ch), 0)
+            px = tile.load()
+            for yy in range(ch):
+                for xx in range(cw):
+                    # a 2x2 ordered dither: level 1 = one corner, 2 = a checkerboard, 3 = all but a corner
+                    if (xx % 2) + 2 * (yy % 2) < level:
+                        px[xx, yy] = 255
+            self.shade[glyph] = tile
 
     def paint(self, s: T.Screen, path: Path, title: str = "") -> Path:
         w, h = s.cols * self.cw, s.rows * self.ch
@@ -78,10 +101,17 @@ class Painter:
                         d.rectangle([x * self.cw, base, x1p, base + self.ch // 2 - 1], fill=fg)
                     if kind in ("bot", "all"):
                         d.rectangle([x * self.cw, base + self.ch // 2, x1p, y1p], fill=fg)
+                    if kind == "left":
+                        d.rectangle([x * self.cw, base, x * self.cw + self.cw // 2 - 1, y1p], fill=fg)
+                    if kind == "right":
+                        d.rectangle([x * self.cw + self.cw // 2, base, x1p, y1p], fill=fg)
                 elif ch in RAMP_FILL and ch.strip():
                     y0 = base + self.ch - max(1, round(self.ch * RAMP_FILL[ch] / 8))
                     d.rectangle([x * self.cw, y0, (x + cells) * self.cw - 1,
                                  base + self.ch - 1], fill=fg)
+                elif ch in self.shade:
+                    im.paste(fg, (x * self.cw, base, (x + cells) * self.cw, base + self.ch),
+                             self.shade[ch])
                 elif ch.strip():
                     # Consolas has no U+2581..U+2587 (the waveform ramp) and no box drawing, and PIL
                     # draws those as `?` boxes - which looked exactly like the header being corrupted.

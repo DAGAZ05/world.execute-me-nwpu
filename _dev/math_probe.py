@@ -310,9 +310,12 @@ def main() -> None:
         return sum(1 for y in range(h + 4) for x in range(w + 6)
                    if s.buf[y][x][0] and s.buf[y][x][0] in where)
 
+    # the two directions are `→` and `←`: the graph used to be drawn with `▶`/`◀`, which **neither of the
+    # exporter's fonts has** - a `.notdef` box on every frame (batch 50's glyph audit). Same for the
+    # backward row's label, which was `∇`.
     corners = glyphs("\u250c\u2510\u2514\u2518")
-    fwd = glyphs("\u25b6")
-    bwd = glyphs("\u25c0")
+    fwd = glyphs("\u2192")
+    bwd = glyphs("\u2190")
     print(f"  pane_exec_dl       nodes {corners} corners, forward {fwd}, backward {bwd}")
     if not corners or not fwd or not bwd:
         bad.append("pane_exec_dl claims forward and backward passes through one graph and does not "

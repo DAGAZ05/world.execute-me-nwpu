@@ -5,14 +5,19 @@ module's docstring for the typo the shape prevents.
 
 The curriculum is the student's own correction and it drives the whole act:
 
-    大一  嵌入式电子微系统 · 程序设计基础（C 语言）· 数据结构
+    大一  嵌入式电子微系统 · 程序设计基础（C 语言）· 数据结构 · 高等数学 · 线性代数 ·
+          离散数学 · 大学物理 · 计算机导论 …
     大二  面向对象（java）· 软件工程 · 计算机网络 · 计算机操作系统 ·
-          计算机组成原理 · 数据库系统
-    大三  软件项目管理 · 算法设计 · 软件测试 · 深度学习 · 编译原理 · 大型工业软件
-    大四  毕设 · 实习
+          计算机组成原理 · 数据库系统 · 数字逻辑 · 汇编语言 · 计算方法 …
+    大三  算法设计 · 软件测试 · 深度学习 · 编译原理 · 大型工业软件 · 信号与线性系统 ·
+          软件项目管理 · 软件体系结构 · 人机交互 …
+    大四  毕设 · 实习 · 就业指导
 
-    The lists are the user's own (batch 34): the highlighted courses are the ones this variant treats
-    as the major's spine, and every other line of each year is a course that runs beside them.
+    The lists are the user's own (batch 34), filled out in batch 50 ("各年不止那几门课程"): the
+    starred courses are the ones this variant treats as the major's spine, and every other line of each
+    year is a course that runs beside them. **The dialogue does not count them** - batch 50's note is
+    "各年不止那几门课程，不要在对话中有相关断言" - so the lines say which year and what it is like, and
+    the timetable in the right column is where the courses are actually named.
 
 The song's twelve "Execution" hits fall inside 大二 and 大三; the year boundaries are what the
 *dialogue* tracks, so the audience hears the shape of the four years over the top of the course
@@ -25,9 +30,9 @@ ACT_TWO: list[tuple[float, str, str, str]] = [
     (134.50, "[gap] \u8fdb\u4e13\u4e1a", "ai", "\u8bb0\u4e0b\u4e86\u3002\u63a5\u4e0b\u6765\u8dd1\u7684\u5c31\u662f\u4f60\u4e13\u4e1a\u7684\u4e1c\u897f\u3002"),
     (134.50, "[gap] \u8fdb\u4e13\u4e1a", "sub", "\u4ece\u5927\u4e00\u5f00\u59cb\u3002\u6211\u8bf4\u6162\u4e00\u70b9\u3002"),
     (134.50, "[gap] \u8fdb\u4e13\u4e1a", "meta", "\u7528\u65f6 1.4 \u79d2|02:14"),
-    (138.00, "[gap] \u5927\u4e00", "ai", "\u5927\u4e00\u3002\u5148\u8bb0\u4f4f\u8fd9\u4e09\u95e8\u3002"),
+    (138.00, "[gap] \u5927\u4e00", "ai", "\u5927\u4e00\u3002\u5148\u8ba4\u8ba4\u5b83\u4eec\u3002"),
     (138.00, "[gap] \u5927\u4e00", "code", "\u5d4c\u5165\u5f0f\u5fae\u7535\u5b50\u7cfb\u7edf   \u7a0b\u5e8f\u8bbe\u8ba1\u57fa\u7840\uff08C \u8bed\u8a00\uff09   \u6570\u636e\u7ed3\u6784"),
-    (138.00, "[gap] \u5927\u4e00", "ai", "\u7b2c\u4e00\u95e8\u662f\u8ba9\u4f60\u628a\u4ee3\u7801\u653e\u5230\u771f\u5b9e\u7684\u677f\u5b50\u4e0a\u3002"),
+    (138.00, "[gap] \u5927\u4e00", "ai", "\u5148\u4ece\u628a\u4ee3\u7801\u653e\u5230\u771f\u5b9e\u7684\u677f\u5b50\u4e0a\u5f00\u59cb\u3002"),
     (138.00, "[gap] \u5927\u4e00", "sub", "\u4f60\u4f1a\u63a5\u7ebf\uff0c\u4f1a\u70e7\u574f\u4e1c\u897f\uff0c\u4f1a\u7b2c\u4e00\u6b21\u770b\u5230\u300c\u7a0b\u5e8f\u300d\u548c\u300c\u7535\u300d\u662f\u4e00\u56de\u4e8b\u3002"),
     (138.00, "[gap] \u5927\u4e00", "meta", "\u7528\u65f6 2.8 \u79d2|02:18"),
     (142.00, "[gap] \u6570\u636e\u7ed3\u6784", "user", "\u6570\u636e\u7ed3\u6784\u96be\u5417\uff1f"),
@@ -35,7 +40,7 @@ ACT_TWO: list[tuple[float, str, str, str]] = [
     (142.00, "[gap] \u6570\u636e\u7ed3\u6784", "sub", "\u7ea2\u9ed1\u6811\u4f60\u4f1a\u5728\u9ed1\u677f\u4e0a\u753b\u4e8c\u5341\u904d\uff0c\u8003\u8bd5\u53ea\u8003\u4e00\u9053\u3002"),
     (142.00, "[gap] \u6570\u636e\u7ed3\u6784", "meta", "\u7528\u65f6 2.4 \u79d2|02:22"),
     # ---- P7b 处决
-    (147.52, "Execution", "ai", "\u5927\u4e8c\u3002\u4e03\u95e8\u4e00\u8d77\u4e0a\u3002"),
+    (147.52, "Execution", "ai", "\u5927\u4e8c\u3002\u4e00\u8d77\u4e0a\u3002"),
     (147.52, "Execution", "sub", "\u6211\u4e0d\u62a5\u4e86\uff0c\u753b\u7ed9\u4f60\u770b\u3002"),
     (147.52, "Execution", "meta", "\u7528\u65f6 1.2 \u79d2|02:27"),
     (149.79, "Ein, dos", "user", "\u7b49\u4e00\u4e0b\u2014\u2014"),
@@ -51,9 +56,10 @@ ACT_TWO: list[tuple[float, str, str, str]] = [
     (162.23, "If I can, if I can", "user", "\u8dd1\u4e86\u8fd9\u4e48\u591a \u2014\u2014 \u8fd9\u4e9b\u8bfe\u5230\u5e95\u5728\u6559\u4ec0\u4e48\uff1f"),
     (162.23, "If I can, if I can", "ai", "\u6bcf\u4e00\u95e8\u90fd\u5728\u6559\u4f60\u5199\u540c\u4e00\u4e2a\u4e1c\u897f \u2014\u2014 \u4e00\u4e2a\u80fd\u88ab\u8bfb\u61c2\u7684\u6a21\u578b\u3002"),
     (162.23, "If I can, if I can", "meta", "\u7528\u65f6 2.4 \u79d2|02:42"),
-    (164.07, "Give them all the execution", "ai", "\u8f6f\u4ef6\u5de5\u7a0b\u4e00\u95e8\u8bfe\u5c31\u6709\u4e03\u5f20\u56fe\uff1a"),
-    (164.07, "Give them all the execution", "card", "\u9700\u6c42 \u00b7 DFD \u00b7 ER \u00b7 \u76d2\u56fe \u00b7 \u6d3b\u52a8\u56fe \u00b7 \u72b6\u6001\u56fe \u00b7 \u65f6\u5e8f\u56fe"),
-    (164.07, "Give them all the execution", "sub", "\u4e03\u5f20\u56fe\uff0c\u6700\u540e\u6536\u6210\u4e00\u5f20\u7c7b\u56fe\u3002"),
+    (164.07, "Give them all the execution", "ai", "\u8f6f\u4ef6\u5de5\u7a0b\u4e00\u95e8\u8bfe\u5c31\u8981\u753b\u4e00\u6574\u5957\u56fe\uff1a"),
+    (164.07, "Give them all the execution", "card", "\u9700\u6c42 \u00b7 \u6570\u636e\u5b57\u5178 \u00b7 \u7528\u4f8b\u56fe \u00b7 DFD \u00b7 ER \u00b7 \u7ed3\u6784\u56fe"),
+    (164.07, "Give them all the execution", "card", "\u63a5\u53e3 \u00b7 \u76d2\u56fe \u00b7 \u5224\u5b9a\u8868 \u00b7 \u6d3b\u52a8\u56fe \u00b7 \u72b6\u6001\u56fe \u00b7 \u65f6\u5e8f\u56fe"),
+    (164.07, "Give them all the execution", "sub", "\u753b\u5230\u6700\u540e\uff0c\u53ea\u5269\u4e00\u5f20\u7c7b\u56fe\u3002"),
     (164.07, "Give them all the execution", "meta", "\u7528\u65f6 3.0 \u79d2|02:44"),
     (166.05, "Then I can, then I can", "user", "\u4e3a\u4ec0\u4e48\u8981\u6536\u6210\u4e00\u5f20\uff1f"),
     (166.05, "Then I can, then I can", "ai", "\u56e0\u4e3a\u80fd\u8bfb\u61c2\u7684\u90a3\u4e00\u5f20\uff0c\u624d\u662f\u8981\u4ea4\u7ed9\u522b\u4eba\u7684\u3002"),
@@ -62,9 +68,9 @@ ACT_TWO: list[tuple[float, str, str, str]] = [
     (167.75, "Be your only execution", "sub", "\u8fd9\u662f\u6211\u80fd\u7ed9\u51fa\u7684\u6700\u50cf\u300c\u4e13\u4e00\u300d\u7684\u4e1c\u897f\u3002"),
     (167.75, "Be your only execution", "meta", "\u7528\u65f6 1.9 \u79d2|02:47"),
     (169.61, "If I can have you back", "user", "\u90a3\u5f20\u56fe\u4e4b\u540e\u5462 \u2014\u2014 \u5927\u4e09\u5462\uff1f"),
-    (169.61, "If I can have you back", "ai", "\u5927\u4e09\u3002\u56fe\u4e0a\u8fd9\u516d\u95e8\uff0c\u52a0\u4e0a\u4f60\u7684\u6bd5\u8bbe\u3002"),
-    (169.61, "If I can have you back", "code", "\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406  \u7b97\u6cd5\u8bbe\u8ba1  \u8f6f\u4ef6\u6d4b\u8bd5"),
-    (169.61, "If I can have you back", "code", "\u6df1\u5ea6\u5b66\u4e60      \u7f16\u8bd1\u539f\u7406  \u5927\u578b\u5de5\u4e1a\u8f6f\u4ef6"),
+    (169.61, "If I can have you back", "ai", "\u5927\u4e09\u3002\u56fe\u4e0a\u90a3\u51e0\u95e8\uff0c\u52a0\u4e0a\u4f60\u7684\u6bd5\u8bbe\u3002"),
+    (169.61, "If I can have you back", "code", "\u7b97\u6cd5\u8bbe\u8ba1  \u8f6f\u4ef6\u6d4b\u8bd5  \u6df1\u5ea6\u5b66\u4e60"),
+    (169.61, "If I can have you back", "code", "\u7f16\u8bd1\u539f\u7406  \u5927\u578b\u5de5\u4e1a\u8f6f\u4ef6  \u4fe1\u53f7\u4e0e\u7ebf\u6027\u7cfb\u7edf"),
     (169.61, "If I can have you back", "sub", "\u7b97\u6cd5\u8bbe\u8ba1\u662f\u628a\u6570\u636e\u7ed3\u6784\u91cc\u7684\u6811\uff0c\u6362\u6210\u5bf9\u590d\u6742\u5ea6\u672c\u8eab\u7684\u8010\u5fc3\u3002"),
     (169.61, "If I can have you back", "meta", "\u7528\u65f6 3.4 \u79d2|02:49"),
     (173.11, "Though we are trapped", "user", "\u53c8\u662f\u90a3\u4e2a\u6846\u3002"),

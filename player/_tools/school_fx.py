@@ -445,7 +445,7 @@ def _mix(colour, level: float = 1.0):
 
 
 def paste(s, cells, x0: int, y0: int, ink=None, dim: float = 1.0, box=None, flat: bool = False,
-          fast: bool = False, lift: float = LIFT, span: float = SPAN) -> None:
+          fast: bool = False, lift: float = LIFT, span: float = SPAN, ambient: float = 0.0) -> None:
     """Blit a sprite's cells onto the screen at `(x0, y0)`, clipped to `box` if given.
 
     The clip is what lets a plane fly *off* the edge rather than being cut into a rectangle, and what
@@ -463,12 +463,21 @@ def paste(s, cells, x0: int, y0: int, ink=None, dim: float = 1.0, box=None, flat
     dramatic hit. What the fast path drops is the `CLEAR` check, and dropping it is *correct* here rather
     than a shortcut: `CLEAR` protects cells that an earlier layer drew and this one is about to replace,
     and the vignette is inlined instead. Only full-frame sprites ask for it.
+
+    `ambient` is for a subject that is **black on a black ground**, and it is a *floor on the colour*
+    rather than on the brightness. `lift` multiplies the picture's own colour, so it can rescue a dark
+    grey aircraft and can never rescue a black one: the manta ray's body is (5, 8, 14) in the file, and
+    0.62 of that is still (3, 5, 9) on a (4, 7, 15) frame - the animal was on screen for two and a half
+    seconds as a few white markings sliding past (the user, batch 50: "魔鬼鱼没看出你放在哪里了").
+    `ambient` adds a flat amount to every cell the sprite *has ink on*, so the black body lands on a dark
+    visible tone and the pale markings stay pale - the silhouette is what makes it a manta.
     """
     if not cells:
         return
     grid, w, h = cells
     bx0, by0, bx1, by1 = box or (0, 0, s.cols - 1, s.rows - 1)
     ramp_n = len(SHADE) - 1
+    add = int(255 * ambient)
     for r in range(h):
         y = y0 + r
         if y < by0 or y > by1:
@@ -488,8 +497,10 @@ def paste(s, cells, x0: int, y0: int, ink=None, dim: float = 1.0, box=None, flat
                 k = drow[x] * dim * (lift + span * lv / ramp_n)
                 # the cell's two colour slots: the glyph's own colour, and - when the lower half of the
                 # cell also has ink - that half's colour as the background. See `sprite`.
-                bcol = FRAME_BG if bot is None else tuple(min(255, int(q * k)) for q in bot)
-                brow[x] = (ch, (int(col[0] * k), int(col[1] * k), int(col[2] * k)), bcol)
+                bcol = (FRAME_BG if bot is None else
+                        tuple(min(255, int(q * k) + add) for q in bot))
+                brow[x] = (ch, (min(255, int(col[0] * k) + add), min(255, int(col[1] * k) + add),
+                                min(255, int(col[2] * k) + add)), bcol)
                 wrow[x] = False
             continue
         for c in range(w):
@@ -513,9 +524,11 @@ def paste(s, cells, x0: int, y0: int, ink=None, dim: float = 1.0, box=None, flat
             # of once per channel keeps the second colour from costing anything: this path is the 285x90
             # low pass, the film's biggest sprite, and it is measured by `_dev/frame_probe.py`.
             k = dim * (lift + span * lv / ramp_n)
-            fg = (min(255, int(col[0] * k)), min(255, int(col[1] * k)), min(255, int(col[2] * k)))
+            fg = (min(255, int(col[0] * k) + add), min(255, int(col[1] * k) + add),
+                  min(255, int(col[2] * k) + add))
             bg = FRAME_BG if bot is None else (
-                min(255, int(bot[0] * k)), min(255, int(bot[1] * k)), min(255, int(bot[2] * k)))
+                min(255, int(bot[0] * k) + add), min(255, int(bot[1] * k) + add),
+                min(255, int(bot[2] * k) + add))
             s.put(x, y, ch, fg, bg)
 
 
@@ -590,7 +603,8 @@ def _wake(s, cols: int, rows: int, cx: int, cy: int, half_w: int, half_h: int, n
 def fly(s, cols: int, rows: int, t: float, u: float, name: str, y: float, rows_n: int = 0,
         size: int = 0, body: int = 3, delay: float = 0.0, tilt: bool = False,
         caption: str = "", reverse: bool = False, dy: float = 0.0, wave: float = 0.0,
-        spray: float = 0.0) -> None:
+        spray: float = 0.0, ambient: float = 0.0, lift: float = AIRCRAFT_LIFT,
+        span: float = AIRCRAFT_SPAN) -> None:
     """An aircraft crossing the frame, nose first, at the size the frame can carry.
 
     It enters and leaves *off* the screen, because the point of the effect is that the frame is a window
@@ -658,7 +672,7 @@ def fly(s, cols: int, rows: int, t: float, u: float, name: str, y: float, rows_n
                 ch, lv, rgb, bot = cell
                 row.append((ch, max(0, lv - 1), rgb, bot))
         thin.append(tuple(row))
-    paste(s, (tuple(thin), w, h), x, yy, lift=AIRCRAFT_LIFT, span=AIRCRAFT_SPAN)
+    paste(s, (tuple(thin), w, h), x, yy, lift=lift, span=span, ambient=ambient)
     trail = max(0, min(16, int(16 * (1 - abs(v - 0.5) * 2) + 5)))
     for k in range(trail):
         tx = x + w + 2 + k * 2 if reverse else x - 2 - k * 2
@@ -1975,8 +1989,12 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     #     49.11; it now lands on "Oh, we can travel" (50.95), which is the line about going somewhere.
     (52.30, 54.10, dive, dict(name="z20", x=0.70)),
     #     the manta swims through "In this strange, strange simulation" (71.40) and is out before the
-    #     eggplant line at 73.53. `spray` is the white noise wake of batch 49.
-    (71.50, 73.90, fly, dict(name="manta", y=0.30, size=0, rows_n=0, wave=1.0, dy=0.16, spray=1.0)),
+    #     eggplant line at 73.53. `spray` is the white noise wake of batch 49, and `ambient` is what makes
+    #     the animal *visible at all*: its body is black in the file, black times any lift is still black,
+    #     so the batch-50 fix is a floor on the colour rather than on the brightness (the user: "魔鬼鱼
+    #     没看出你放在哪里了" / "shot 35 附近的飞机是什么，看着不太清晰").
+    (71.50, 73.90, fly, dict(name="manta", y=0.30, size=0, rows_n=0, wave=0.7, dy=0.16, spray=1.0,
+                             ambient=0.11)),
     #     歼-20 on "From AM to PM" (93.52): the one line in the song that is literally about crossing the
     #     sky, and the aircraft that a NWPU student is meant to read as this school's own. A real diagonal
     #     (dy 0.45, climbing left-to-right) rather than the shallow rail it was.

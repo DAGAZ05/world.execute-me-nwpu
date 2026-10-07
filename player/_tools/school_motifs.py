@@ -246,22 +246,27 @@ def quantize(k, t: float) -> None:
     k.put(k.bx0 + 2 + int((t * 7.0) % max(1, n)), y - 1, "\u25bc", _mix(_C.AMBER, 0.9))
 
 
-@lru_cache(maxsize=1)
-def _dijkstra_anchor() -> float:
-    """When `pane_motif_dijkstra`'s own row starts, read out of the school's schedule.
+@lru_cache(maxsize=None)
+def _row_span(name: str) -> tuple[float, float]:
+    """`(start, end)` of the row the schedule gives `name`, read out of `school_panels`.
 
-    Read rather than written here so that re-timing the row re-phases the drawing with it. Only the
-    school schedules this motif (`school_motifs.draw_motif`'s band route was removed in batch 32), so a
-    miss cannot happen in a real frame and falls back to the song's first frame.
+    Read rather than written into the motif so that re-timing a row re-phases the drawing with it. Only
+    the school schedules these (`school_motifs.draw_motif`'s band route was removed in batch 32), so a
+    miss cannot happen in a real frame and falls back to the song's first second.
     """
     try:
         import school_panels as _SP
         for r in _SP.shot_rows():
-            if r.get("name") == "pane_motif_dijkstra":
-                return float(r["at"])
+            if r.get("name") == name:
+                return float(r["at"]), float(r["end"])
     except Exception:
         pass
-    return 0.0
+    return 0.0, 1.0
+
+
+def _dijkstra_anchor() -> float:
+    """When `pane_motif_dijkstra`'s own row starts."""
+    return _row_span("pane_motif_dijkstra")[0]
 
 
 # ------------------------------------------------------------------ the algorithm, not a picture of one
@@ -441,6 +446,73 @@ def dijkstra_route(k, t: float) -> None:
                 f" \u2192 {dist[u]} + {w} = {dist[u] + w}"
                 + ("\uff0c\u66f4\u65b0" if better else "\uff0c\u4e0d\u6539\u5584"))
     k.put(k.bx0, b0, foot, _ui(0.62))
+
+
+def matrix(k, t: float) -> None:
+    """A matrix times a vector, a row at a time - and the four courses that are all about it.
+
+    The user's note for batch 50: "增加矩阵的要素（线性代数、计算方法、离散数学、深度学习中均涉及矩阵）".
+    None of those four has a pane of its own - 线性代数, 计算方法 and 离散数学 are the supporting courses in
+    the timetable and 深度学习 is one of the sixteen hits - so the matrix is drawn as the **object they
+    share**, on the line that introduces the film's maths ("If I'm a set of points": a matrix is what you
+    do to a set of points, row by row).
+
+    What is on screen is the definition rather than a picture of one: `A` is a 5x5 matrix of real integers
+    and `x = (1, 2, 3, 4, 5)`, so `b_i = sum_j a_ij x_j` is arithmetic a reader can check, and the
+    highlight walks down the rows one cell per step - one row of `A` against the column `x`, which is the
+    one operation every one of those four courses opens with (a linear system, an elimination step, a
+    relation matrix, a dense layer).
+    """
+    k.section(k.by0, "\u77e9\u9635 \u00b7 A\u00b7x = b\uff1a\u4e00\u884c\u70b9\u4e00\u5217", 0.28)
+    n = 5
+    a = [[(i * 7 + j * 3 + 1) % 9 - 4 for j in range(n)] for i in range(n)]
+    x = [i + 1 for i in range(n)]
+    b = [sum(a[i][j] * x[j] for j in range(n)) for i in range(n)]
+    at, end = _row_span("pane_motif_matrix")
+    span = max(0.6, end - at)
+    ph = max(0.0, min(1.0, (t - at - 0.45) / max(0.4, span - 0.45)))
+    row = min(n - 1, int(ph * n))
+    if k.bw < 40 or k.bh < 6:
+        return
+    colw = 4                                  # one number plus its sign, in cells
+    mw = n * colw + 2
+    ax = k.bx0 + 1
+    vx = ax + mw + 4
+    bx = vx + 3 * colw + 4
+    top = k.by0 + 1
+    if bx + 2 * colw > k.bx1:
+        return
+    # the bracket pair, drawn from box corners: the two glyphs a terminal has for a matrix
+    for y in range(n):
+        k.put(ax, top + y, "\u2502", _ui(0.5))
+        k.put(ax + mw - 1, top + y, "\u2502", _ui(0.5))
+    k.put(ax, top - 1, "\u250c", _ui(0.5))
+    k.put(ax + mw - 1, top - 1, "\u2510", _ui(0.5))
+    k.put(ax, top + n, "\u2514", _ui(0.5))
+    k.put(ax + mw - 1, top + n, "\u2518", _ui(0.5))
+    for i in range(n):
+        live = i == row
+        for j in range(n):
+            cell = "%3d" % a[i][j]
+            col = _mix(_C.AMBER, 0.95) if live else _ui(0.55)
+            k.put(ax + 1 + j * colw, top + i, cell, col)
+        k.put(ax + mw + 1, top + i, "\u00b7" if live else " ", _mix(_C.RED, 0.9))
+    k.put(vx - 3, top + n // 2, "\u00d7", _ui(0.7))
+    for i in range(n):
+        k.put(vx, top + i, "%3d" % x[i], _mix(_C.BLUE, 0.95) if i == row else _ui(0.6))
+    k.put(bx - 3, top + n // 2, "=", _ui(0.7))
+    for i in range(n):
+        shown = i <= row
+        k.put(bx, top + i, "%3d" % b[i] if shown else "  ?",
+              _mix(_C.GREEN, 0.95) if i == row else (_ui(0.6) if shown else _ui(0.28)))
+    # the arithmetic of the row being read, spelled out: the pane says true things about itself
+    i = row
+    terms = " + ".join(f"{a[i][j]}\u00b7{x[j]}" for j in range(n))
+    k.put(k.bx0, top + n + 2, f"b{i + 1} = {terms}"[: max(1, k.bw - 1)], _mix(_C.GREEN, 0.85))
+    k.put(k.bx0, k.by1 - 1, "\u7ebf\u6027\u4ee3\u6570 \u00b7 \u8ba1\u7b97\u65b9\u6cd5 \u00b7 "
+                            "\u79bb\u6563\u6570\u5b66 \u00b7 \u6df1\u5ea6\u5b66\u4e60", _ui(0.6))
+    k.put(k.bx0, k.by1, "\u56db\u95e8\u8bfe\u91cc\u90fd\u662f\u540c\u4e00\u5f20\u8868\uff1a"
+                        "\u4e00\u884c\u70b9\u4e00\u5217", _mix(_C.AMBER, 0.7))
 
 
 def epicycles(k, t: float) -> None:
@@ -892,14 +964,14 @@ def powerdown(k, t: float) -> None:
 
 
 def bessel(k, t: float) -> None:
-    """A circular plate mode, `J\u2084(j\u2084,\u2085 r)\u00b7cos 4\u03b8`, drawn as sand would show it.
+    """A circular plate mode, `J4(j4,5 r)\u00b7cos 4\u03b8`, drawn as sand would show it.
 
     `想法.md` asks for this next to the Chladni figure under 振动, and it is the *other* half of the same
     physics: a square plate has `cos(n\u03c0x)cos(m\u03c0y)` modes and a circular one has Bessel modes. The
     Bessel function is approximated rather than imported - twelve terms of its series is plenty at this
     resolution - and the sand piles where the plate does not move.
     """
-    k.section(k.by0, "\u5706\u677f\u6a21\u6001 \u00b7 J\u2084(j\u2084,\u2085r)cos4\u03b8", 0.28)
+    k.section(k.by0, "\u5706\u677f\u6a21\u6001 \u00b7 J4(j4,5r)cos4\u03b8", 0.28)
     w, h = k.bw, k.by1 - k.by0 - 1
     if w < 10 or h < 4:
         return
@@ -1033,7 +1105,7 @@ def en_limit(k, t: float) -> None:
         y = mid - int((lo - hi) * v * 0.5)
         k.put(k.bx0 + 6 + i, max(hi, min(lo, y)), "\u2022",
               _mix(_C.GREEN if i >= n_at else _C.DIM, 0.9))
-    k.vline(k.bx0 + 6 + n_at, hi, lo, "\u254c", _mix(_C.RED, 0.7))
+    k.vline(k.bx0 + 6 + n_at, hi, lo, ":", _mix(_C.RED, 0.7))
     # N is labelled *inside* the band, not one row above it: at `hi - 1` it lands on whatever the host
     # pane drew on its top row - which only a dump shows, because the label is still inside the pane
     k.put(k.bx0 + 7 + n_at, min(lo, hi + 1), "N", _mix(_C.RED, 0.9))
@@ -1042,31 +1114,60 @@ def en_limit(k, t: float) -> None:
 
 
 def binary(k, t: float) -> None:
-    """Two stars spiralling together: `a \u221d (t_c \u2212 t)^{1/4}`, and the chirp that gives them away.
+    """Two stars spiralling together: `a = a0 (t_c - t)^1/4`, and the chirp that gives them away.
 
     `想法.md` asks for "双星旋近 a∝(t_c−t)^¼" under 电与时间. The separation shrinks as a quarter power of
     the time left, so it looks almost static and then rushes - which is why gravitational-wave
     observatories see a chirp. Both the narrowing orbit and the rising frequency are drawn.
+
+    **It was a still frame** (batch 50, the user: "双星旋进的图案似乎被吞了"). The pair orbited an ellipse
+    of `bw // 5` cells - two single cells, at the left of a band 90 cells wide - and both the phase and
+    the countdown ran on the *song's* clock (`left = 8 - t % 8`), so across the row's 1.4 s the separation
+    moved from 12.1 to 10.6 cells and nothing else changed: a viewer saw a dot. What the drawing needs is
+    the three things that make a binary legible - **the orbit drawn**, the two stars drawn as stars rather
+    than single cells, and the whole inspiral happening *inside the slot*, which is what `_row_span` is
+    for. The quarter-power law is kept: widening it early and rushing at the end is the physics the
+    caption names.
     """
+    at, end = _row_span("pane_motif_binary")
     k.section(k.by0, "\u53cc\u661f\u65cb\u8fd1 a \u221d (t_c\u2212t)^\u00bc", 0.28)
-    cx = k.bx0 + min(24, k.bw // 2)
+    # the row's first ~0.45 s is its transition, which moves the whole column; timing the merger to the
+    # *visible* part keeps the inspiral out from under a page turn
+    span = max(0.8, end - at)
+    vis = max(0.5, span - 0.45)
+    ph = max(0.0, min(1.0, (t - at - 0.45) / vis))
+    cx = k.bx0 + min(30, k.bw // 2)
     cy = (k.by0 + k.by1) // 2
-    rmax = max(4, min(20, k.bw // 5))
-    ry = max(2, min(9, (k.by1 - k.by0) // 3))
-    # one merger every 8 seconds: `left` is the time to coalescence
-    left = 8.0 - (t % 8.0)
-    a = rmax * min(1.0, (left / 8.0) ** 0.25)
-    ang = t * (2.0 + 6.0 / max(0.35, left))
+    rmax = max(8, min(26, k.bw // 3))
+    ry = max(3, min(11, (k.by1 - k.by0) // 3))
+    left = span - (t - at)                                    # time to coalescence, on the row's clock
+    a = max(1.0, rmax * min(1.0, max(0.0, 1.0 - ph)) ** 0.25)
+    turns = 1.0 * ph + 1.6 * ph ** 3                          # orbits seen, accelerating toward merger
+    ang = 2 * math.pi * turns
+    # ---- the orbit itself: without a drawn ellipse two dots are two dots
+    steps = 96
+    for i in range(steps):
+        th = 2 * math.pi * i / steps
+        k.put(int(cx + a * math.cos(th)), int(cy + ry * (a / rmax) * math.sin(th)),
+              "\u00b7", _mix(_C.BLUE, 0.45))
+    # ---- the two stars, as a plus of five cells each, with their trails bright enough to read
     for i, col in ((0, _C.AMBER), (1, _C.BLUE)):
         th = ang + i * math.pi
-        x = int(cx + a * math.cos(th))
-        y = int(cy + ry * (a / rmax) * math.sin(th))
-        k.put(x, y, "\u25cf" if a > 6 else "\u2022", _mix(col, 0.95))
-        for pr in range(1, 4):                       # the trails they leave
-            th2 = th - pr * 0.22
+        sx = int(cx + a * math.cos(th))
+        sy = int(cy + ry * (a / rmax) * math.sin(th))
+        k.put(sx, sy, "\u25cf", _mix(col, 1.0))
+        for dx, dy in ((0, -1), (0, 1), (-1, 0), (1, 0)):
+            k.put(sx + dx, sy + dy, "\u00b7", _mix(col, 0.72))
+        for pr in range(1, 7):
+            th2 = th - pr * 0.20
             k.put(int(cx + a * math.cos(th2)), int(cy + ry * (a / rmax) * math.sin(th2)),
-                  "\u00b7", _mix(col, 0.35 / pr))
-    k.put(k.bx0, k.by1 - 1, f"\u5269\u4e0b {left:4.1f} s\uff1a\u8f68\u9053\u8d8a\u5c0f\uff0c"
+                  "\u00b7", _mix(col, 0.62 - 0.07 * pr))
+    if ph > 0.9:                                              # the merger: the two become one
+        r = int(1 + (ph - 0.9) * 60)
+        for dx in range(-r, r + 1):
+            k.put(cx + dx, cy, "*" if abs(dx) % 2 else "\u00b7",
+                  _mix(_C.AMBER, 1.0 - abs(dx) / max(1, r)))
+    k.put(k.bx0, k.by1 - 1, f"\u5269\u4e0b {max(0.0, left):4.1f} s\uff1a\u8f68\u9053\u8d8a\u5c0f\uff0c"
                             f"\u9891\u7387\u8d8a\u9ad8", _mix(_C.AMBER, 0.75))
     chirp = max(6, k.bw - 6)
     for i in range(chirp):
@@ -1161,7 +1262,7 @@ def one_path(k, t: float) -> None:
     dl = int(t * 1.3) % levels
     ty = k.by0 + 2 + dl * 2
     if ty <= k.by1 - 1:
-        k.put(node_x(dl, path_at(dl)), ty, "▶", _mix(_C.AMBER, 0.95))
+        k.put(node_x(dl, path_at(dl)), ty, "→", _mix(_C.AMBER, 0.95))
     k.put(k.bx0, k.by1, f"{2 ** levels} 条可能，只有 1 条真的跑了",
           _ui(0.5))
 
@@ -1198,7 +1299,7 @@ def resonance(k, t: float) -> None:
         prev = y
     px = k.bx0 + int((w - 1) * (f0 - 0.02) / 1.7)
     k.put(px, k.by0 + 1, "▼", _mix(_C.AMBER, 0.9))
-    k.put(k.bx0, k.by1, "f = f₀ 时振幅最大：频率对上了",
+    k.put(k.bx0, k.by1, "f = f0 时振幅最大：频率对上了",
           _ui(0.5))
 
 
@@ -1209,6 +1310,7 @@ MOTIFS = {
     # "byrne" is not scheduled any more: its plate sat on a line about selection (see `one_path`)
     "quantize": ("2\u2075\u00b3 \u91cf\u5316", quantize),
     "dijkstra": ("Dijkstra \u6700\u77ed\u8def", dijkstra_route),
+    "matrix": ("\u77e9\u9635 A\u00b7x", matrix),
     "epicycles": ("\u672c\u8f6e", epicycles),
     "hearts9": ("\u4e5d\u79cd\u5fc3\u5f62", hearts9),
     "fork_bomb": ("fork \u70b8\u5f39", fork_bomb),
