@@ -767,7 +767,11 @@ def ops_machine(t: float, ops) -> dict | None:
     if t < MACHINE_FROM:
         return None
     if GIT_FROM <= t < GIT_TO:
-        return {"title": "git bash", "rows": [GIT_LINE], "cur": 0, "head": "", "regs": ""}
+        # `tone` makes the box amber whatever the shot's alert colour is, and drops the inverted cursor
+        # bar: this line is a sentence, not a listing's current instruction (the user: "这一行不要有红色框，
+        # git bash 改为黄色").
+        return {"title": "git bash", "rows": [GIT_LINE], "cur": 0, "head": "", "regs": "",
+                "tone": "amber"}
     name = ""
     for op in (ops or ()):
         op = str(op)

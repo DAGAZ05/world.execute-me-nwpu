@@ -3184,13 +3184,17 @@ def draw_ops(s: Screen, x0: int, y0: int, x1: int, y1: int, t: float, ops: list,
     `school_panels.ops_machine` for where it comes from.
     """
     err = alert == "err"
-    s.box(x0, y0, x1, y1, (machine or {}).get("title") or ("exec" if machine else "ops"),
-          0.45, RED if err else ui(1.0))
+    # ...and a content that names its own tone overrides the shot's: the `git bash` window at the end of
+    # the major section is the machine *committing*, not the machine failing, so it is amber whatever the
+    # film's alert colour is underneath (the user: "这一行不要有红色框，git bash 改为黄色").
+    tone = (machine or {}).get("tone")
+    col = ANOM if tone == "amber" else (RED if err else ui(1.0))
+    s.box(x0, y0, x1, y1, (machine or {}).get("title") or ("exec" if machine else "ops"), 0.45, col)
     NOGHOST.append((x0, y0, x1, y1))     # a character ticker and a ghost is two words stacked
     CLEAR.append((x0, y0, x1, y1))       # ...and it is text: no vignette, and the cut does not hold it
     inner = y1 - y0 - 1
     if machine:
-        _draw_machine(s, x0, y0, x1, y1, inner, machine, err)
+        _draw_machine(s, x0, y0, x1, y1, inner, machine, col, plain=(tone == "amber"))
         return
     if inner < 1 or not ops:
         return
@@ -3207,13 +3211,18 @@ def draw_ops(s: Screen, x0: int, y0: int, x1: int, y1: int, t: float, ops: list,
 
 
 def _draw_machine(s: Screen, x0: int, y0: int, x1: int, y1: int, inner: int,
-                  machine: dict, err: bool) -> None:
+                  machine: dict, col, plain: bool = False) -> None:
     """The ops panel as a program listing: heading, instructions, registers.
 
     Degrades by dropping, in this order, the register line, the rows around the cursor and then the
     heading - never by drawing an empty box. The pane above decides how many rows this gets, and a
     panel that answers "not enough room" with nothing at all is worse than one that answers with the
     instruction the machine is on.
+
+    `col` is the panel's colour (the shot's own, or the content's if it named a tone - see `draw_ops`),
+    and `plain` drops the inverted "current row" bar: the listing's cursor line is a cursor, but the
+    `git bash` window's single line is a sentence the viewer is meant to read, and a full-width
+    background behind it framed it in red (the user: "这一行不要有红色框").
     """
     w = max(4, x1 - x0 - 3)
     rows = [str(r) for r in machine.get("rows") or ()]
@@ -3223,13 +3232,20 @@ def _draw_machine(s: Screen, x0: int, y0: int, x1: int, y1: int, inner: int,
     head = str(machine.get("head") or "")
     regs = str(machine.get("regs") or "")
     hot = ("> " + rows[cur])[:w].ljust(w)
+
+    def line(yy: int, text: str, active: bool) -> None:
+        if active and not plain:
+            s.put(x0 + 2, yy, text, BG, col)
+        else:
+            s.put(x0 + 2, yy, text, col)
+
     if inner == 1:
-        s.put(x0 + 2, y0 + 1, hot, BG, RED if err else ui(1.0))
+        line(y0 + 1, hot, True)
         return
     if head:
-        s.put(x0 + 2, y0 + 1, head[:w], RED if err else mix(ui(1.0), 0.85))
+        s.put(x0 + 2, y0 + 1, head[:w], col if plain else mix(col, 0.85))
     if inner == 2:
-        s.put(x0 + 2, y0 + 2, hot, BG, RED if err else ui(1.0))
+        line(y0 + 2, hot, True)
         return
     regs_row = 1 if (regs and inner >= 4) else 0
     body0, body1 = y0 + 2, y1 - regs_row - 1
@@ -3243,7 +3259,7 @@ def _draw_machine(s: Screen, x0: int, y0: int, x1: int, y1: int, inner: int,
             break          # fewer rows of content than the box has room for: the rest of the box is blank
         yy = body0 + k
         if idx == cur:
-            s.put(x0 + 2, yy, hot, BG, RED if err else ui(1.0))
+            line(yy, hot, True)
         else:
             s.put(x0 + 2, yy, rows[idx][:w], ui(max(0.40, 0.80 - abs(idx - cur) * 0.10)))
     if regs_row:
