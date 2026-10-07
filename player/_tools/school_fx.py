@@ -1525,25 +1525,6 @@ def _cells(s, grid, w: int, h: int, ox: int, oy: int, bx0: int, by0: int, bx1: i
             wrowf[x] = False
 
 
-def covers_band(t: float) -> bool:
-    """Is a `behind` event live, i.e. has something just been painted over the reading layer?
-
-    `tui_live.draw` asks this after the full-frame layer and re-draws the lyric band if it says yes.
-
-    "Behind" has always meant *behind the words*: `flash(behind=True)` dims a photograph so the dialogue
-    stays readable. Until the library moved to the bottom-left corner ("图书馆放在左下角") it was never
-    asked to prove it - at `y=0.0` it sat above the band and never touched it. In the corner it covers
-    the band's own rows, and a photograph does not dim text it has replaced.
-
-    Measured before writing any of this: the library's four seconds (03:13.5-03:17.5) are *past the last
-    lyric* - `Data.line_at` has nothing to draw from 01:00 into the tail, so the band's own rows are
-    empty there and nothing is being covered today. This is therefore insurance rather than a repair,
-    and it is cheap insurance: the call is a box and a caret in those frames, and it is what keeps the
-    promise true the first time a `behind` event lands on a sung line.
-    """
-    return any(start <= t < end and kw.get("behind") for start, end, _fn, kw in EVENTS)
-
-
 def particles(s, cols: int, rows: int, t: float, u: float, n: int = 90, hue=(120, 200, 255),
               rise: bool = True, y0: int = 2, y1: int = 0) -> None:
     """A sparse particle field - the AI-couplet background.
@@ -2185,10 +2166,12 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     #     last two lines and dimmed - but at 0.62 with its contrast held up, not at the 0.42 that made it
     #     invisible. `x=0.0` puts it against the left edge; `y=0.78` rather than `1.0`
     #     keeps the film's own footer and progress bar (the last four rows) out of it, which is what "the
-    #     corner" means once there is a status line down there. Its rows do cover the lyric band, and that
-    #     is free here: 03:13.5 is past the last lyric (see `covers_band`). It is a keyed cut-out, so the
-    #     cells where the photograph has no ink stay transparent and the dialogue is only covered where
-    #     the building actually is.
+    #     corner" means once there is a status line down there. Its rows do cover the band's box, and that
+    #     is free here: the band is empty from 193.30 to the last `Execution` (`Data.line_at` has nothing
+    #     to draw), and `draw` now draws the words between this photograph and the rest of the layer, so
+    #     it is behind them by construction rather than by a redraw afterwards. It is a keyed cut-out, so
+    #     the cells where the photograph has no ink stay transparent and the dialogue is only covered
+    #     where the building actually is.
     (193.50, 197.50, flash, dict(name="library", fill=0.62, x=0.0, y=0.78, behind=True, dim=0.62,
                                  contrast=1.1)),
     # --- the whole body, once, on the last line of the song: he has been a face in the window for three
@@ -2228,34 +2211,62 @@ SHOCKS.extend([
 _BROKEN: set = set()
 
 
-def draw(s, cols: int, rows: int, t: float) -> int:
+def draw(s, cols: int, rows: int, t: float, words=None) -> int:
     """Draw every event live at `t`. Returns how many drew - the callers report it, nothing waits on it.
 
     The loop is over the whole list, which is short; an event outside its window costs a comparison. The
     events are independent, so several can be live at once and they layer in list order - that is the
     "animation can be parallel" the film was missing, and it needed no scheduler to get it.
+
+    **Two passes, because `behind` means behind the *words*, and the words are not the last layer**
+    (batch 57). A `behind` photograph is a backdrop: `flash(behind=True)` dims it (`dim`) so the dialogue
+    on top of it stays readable, and that promise needs the words drawn after the photograph and before
+    everything else the layer draws. Until this batch the caller made that happen from *outside* -
+    `tui_live.draw` re-drew the band after the whole layer had run - which put the band on top of the
+    layer's sprites as well: 航小天's full body (`stand`, 193.60-199.00) has its legs inside the band's
+    own box (x98..195, y35..47), the library backdrop is live over 193.50-197.50, so for those four
+    seconds the insurance redraw painted the band over his legs. The user: "有一小段航小天全身图没有位于
+    最上图层". So the layer owns the order and calls `words` between the passes: photographs, words,
+    everything else. `words=None` - the default, and what `warm` uses - skips the middle pass.
+
+    (The words are still the *band's* content rather than a per-rect intersection: the band is drawn by
+    `tui_live.draw_lyrics`, which lays its text out for the whole box, and clipping it to a photograph's
+    corner would clip the sentence. What the order fixes is who wins over whom, which is the whole of the
+    complaint.)
     """
     n = 0
+    behind = False
     for start, end, fn, kw in EVENTS:
-        if not (start <= t < end):
-            continue
-        u = (t - start) / max(1e-6, end - start)
-        try:
-            fn(s, cols, rows, t, u, **kw)
+        if kw.get("behind") and start <= t < end:
+            _run(s, cols, rows, t, start, end, fn, kw)
             n += 1
-        except Exception as exc:
-            # ...whoever is watching gets a line, once per event. It used to be a bare `pass`, and that
-            # is how the 运-20 disappeared for a whole batch: `paste(fast=True)` referenced a name that
-            # does not exist in this module, the exception was swallowed here, and the frame simply had
-            # no aircraft in it - no warning, no trace, nothing on screen to explain it. `_BROKEN` keeps
-            # it to one line per event rather than one per frame at 24 fps.
-            if fn not in _BROKEN:
-                _BROKEN.add(fn)
-                import sys as _sys
-                print(f"warning: school_fx event {getattr(fn, '__name__', fn)} failed ({exc})",
-                      file=_sys.stderr, flush=True)
+            behind = True
+    if behind and words is not None:
+        words()
+    for start, end, fn, kw in EVENTS:
+        if not kw.get("behind") and start <= t < end:
+            _run(s, cols, rows, t, start, end, fn, kw)
+            n += 1
     # the character art is not on the event list: it is printed when its own pane is up
     return n
+
+
+def _run(s, cols: int, rows: int, t: float, start: float, end: float, fn, kw: dict) -> None:
+    """One event at `t`, with the warning a swallowed exception has to print.
+
+    It used to be a bare `pass` inside `draw`, and that is how the 运-20 disappeared for a whole batch:
+    `paste(fast=True)` referenced a name that does not exist in this module, the exception was swallowed
+    there, and the frame simply had no aircraft in it - no warning, no trace, nothing on screen to
+    explain it. `_BROKEN` keeps it to one line per event rather than one per frame at 24 fps.
+    """
+    try:
+        fn(s, cols, rows, t, (t - start) / max(1e-6, end - start), **kw)
+    except Exception as exc:
+        if fn not in _BROKEN:
+            _BROKEN.add(fn)
+            import sys as _sys
+            print(f"warning: school_fx event {getattr(fn, '__name__', fn)} failed ({exc})",
+                  file=_sys.stderr, flush=True)
 
 
 # There used to be a second layer here - `GLYPH_EVENTS` / `draw_glyphs` - which printed supplied character

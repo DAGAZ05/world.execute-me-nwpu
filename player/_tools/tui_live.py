@@ -3425,6 +3425,23 @@ def draw_pressure(s: Screen, d: Data, t: float, x0: int, y0: int, x1: int, y1: i
         s.put(x + 1 + max(0, (len(shown) - len(tid)) // 2), y + 1, tid,
               mix(UI, 0.15 if flick else max(0.2, 0.45 * level)))
         x += wpl
+
+
+def _band_restore(s: Screen, d: Data, t: float) -> None:
+    """Redraw the stdout band - the words - between the layer's `behind` photographs and its sprites.
+
+    Called by `school_fx.draw` once per frame in which a `behind` event drew (see the note there). It is
+    insurance rather than a repair, and the measurement is still the one batch 26 took: the band is empty
+    for the library's four seconds - `Data.line_at` has nothing between `Trapped in lo-o-ve`'s fade-out
+    and the last `Execution` - so no sung word is being covered today. What it exists for is the rule a
+    `behind` photograph is *defined* by: the words are drawn after it. The reason it is a callback rather
+    than the two lines that used to sit in `draw`, after the whole layer, is that "after the photograph"
+    is not the same place as "after everything": 航小天's legs are inside this box (batch 57).
+    """
+    if BAND_BOX[2] > BAND_BOX[0]:
+        draw_lyrics(s, d, t, BAND_BOX[0], BAND_BOX[1], BAND_BOX[2], BAND_BOX[3])
+
+
 def draw_lyrics(s: Screen, d: Data, t: float, x0: int, y0: int, x1: int, y1: int) -> None:
     """The stdout band: the line being typed, its token chips with their token ids, and the log."""
     win = pressure_window(d.lines) if PRESSURE[0] else None
@@ -3977,16 +3994,16 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
     if SP is not None and VAR[0] == "school":
         try:
             import school_fx as _FX
-            _FX.draw(s, cols, rows, t)
+            # The layer draws its `behind` photographs first and calls this between the two passes, so
+            # the words land on the backdrop and *everything else* lands on the words. It used to be
+            # done here, after the whole layer had run, which put the band on top of the layer's own
+            # sprites too: the library's backdrop is live over 193.50-197.50 and 航小天's legs are
+            # inside the band's box, so the redraw painted them over for those four seconds (batch 57,
+            # the user: "有一小段航小天全身图没有位于最上图层").
+            _FX.draw(s, cols, rows, t, lambda: _band_restore(s, d, t))
             # and the transitions after even that: a page turn and a breaking screen move the chrome
             # too, which is the difference between a panel effect and a film transition
             _FX.transition(s, cols, rows, t)
-            # ...and then the band goes back on top of any backdrop that has just been painted over it.
-            # A `behind` photograph is *behind the words*; the band's rows are what "the words" means,
-            # and the library now sits in the bottom-left corner over them (`school_fx.covers_band` has
-            # the measurement - those four seconds are past the last lyric, so this is insurance).
-            if _FX.covers_band(t) and BAND_BOX[2] > BAND_BOX[0]:
-                draw_lyrics(s, d, t, BAND_BOX[0], BAND_BOX[1], BAND_BOX[2], BAND_BOX[3])
         except Exception as exc:
             print(f"warning: the full-frame layer failed ({exc})", file=sys.stderr, flush=True)
     # tuikit.py:468-476's post, and the cut's reveal, both after everything else has been drawn
