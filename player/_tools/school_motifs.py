@@ -246,62 +246,6 @@ def quantize(k, t: float) -> None:
     k.put(k.bx0 + 2 + int((t * 7.0) % max(1, n)), y - 1, "\u25bc", _mix(_C.AMBER, 0.9))
 
 
-@lru_cache(maxsize=None)
-def _crack_path(w: int, h: int):
-    """The least-cost path across the crack field, by **Dijkstra**. `((x, y), ...)` from left to right.
-
-    This replaces a three-candidate greedy step that was not Dijkstra and was also wrong twice over
-    (batch 43, by reading it):
-
-      * `if i == 0 or cost(nx, ny) < cost(x + 1, y)` - the `i == 0` arm is unconditional, so the *first*
-        candidate always won without being compared, and the other two were compared against a baseline
-        that had already been overwritten by that first arm (`y` is reassigned inside the loop, so
-        `cost(x + 1, y)` is no longer the cost of the original cell). A "cheapest neighbour" that never
-        evaluates the first neighbour and measures the rest from a moving origin;
-      * it is one step of lookahead, so the path is greedy - it cannot find the cheapest *route*, only
-        the cheapest *next cell*. The pane is titled `Dijkstra 裂纹` and its caption says the crack is
-        "最便宜的那条路": a greedy descent can be arbitrarily far from that.
-
-    A real Dijkstra over the same deterministic field. It is computed **once per (w, h)** and cached -
-    the field is a pure function of the coordinates, so the path never changes while the pane is up, and
-    the per-frame cost of the whole motif is one slice.
-    """
-    import heapq
-
-    def cost(x: int, y: int) -> int:
-        return ((x * 2654435761 + y * 40503) >> 7) % 100
-
-    start = (0, h // 2)
-    goal_x = w - 1
-    dist = {start: cost(*start)}
-    prev: dict = {}
-    pq = [(dist[start], start)]
-    seen = set()
-    while pq:
-        d, node = heapq.heappop(pq)
-        if node in seen:
-            continue
-        seen.add(node)
-        x, y = node
-        if x == goal_x:                      # popped at its final distance: the path is settled
-            path = [(x, y)]
-            while (x, y) in prev:
-                x, y = prev[(x, y)]
-                path.append((x, y))
-            path.reverse()
-            return tuple(path)
-        for dx, dy in ((1, -1), (1, 0), (1, 1), (0, -1), (0, 1), (-1, 0)):
-            nx, ny = x + dx, y + dy
-            if not (0 <= nx < w and 0 <= ny < h):
-                continue
-            nd = d + cost(nx, ny)
-            if nd < dist.get((nx, ny), 1 << 30):
-                dist[(nx, ny)] = nd
-                prev[(nx, ny)] = (x, y)
-                heapq.heappush(pq, (nd, (nx, ny)))
-    return ()
-
-
 @lru_cache(maxsize=1)
 def _dijkstra_anchor() -> float:
     """When `pane_motif_dijkstra`'s own row starts, read out of the school's schedule.
@@ -320,45 +264,183 @@ def _dijkstra_anchor() -> float:
     return 0.0
 
 
-def dijkstra_cracks(k, t: float) -> None:
-    """Cracks grown by Dijkstra: the shortest path from one edge point to another, on a random field.
+# ------------------------------------------------------------------ the algorithm, not a picture of one
+#
+# Batch 49. The pane used to draw `Dijkstra 裂纹`: a crack grown along the least-cost route over a hash
+# field, with a real Dijkstra *inside* it (`_crack_path`) deciding the route. The user's note on seeing
+# it: "我要求的 dijkstra 是 dijkstra 算法，不是裂纹" - a drawing whose subject is a crack teaches
+# nothing about the algorithm, and the algorithm was hidden in a helper nobody could see. What follows
+# is the run itself: a weighted graph, the frontier closing, and every label change on screen.
+#
+# Six nodes on a 3x2 lattice, so each edge is one straight run of cells (`─`, `│`, `╲`) and its weight
+# has a cell to sit in. `S -> T` costs 7 (S-A-C-T); the diagonal S-C is there to be *relaxed and lose*,
+# and T->D is the last relaxation that improves nothing - both are steps a viewer can read off the table.
 
-    `想法.md` lists "Dijkstra 裂纹" under 碎片, and it is the honest version of a crack: a crack
-    is not random, it is the *cheapest* way through the material. The field is a deterministic hash, the
-    path is the least-cost route across it (`_crack_path`, a real Dijkstra), and the growth runs on its
-    own row's clock so the crack opens across the slot it was given.
+_D_NODES = ("S", "A", "D", "B", "C", "T")
+#: node -> (column, row) on the lattice
+_D_AT = {0: (0, 0), 1: (1, 0), 2: (2, 0), 3: (0, 1), 4: (1, 1), 5: (2, 1)}
+#: (a, b, weight) - undirected, and the run relaxes both ends
+_D_EDGES = ((0, 1, 4), (1, 2, 5), (0, 3, 2), (1, 4, 1), (2, 5, 2), (3, 4, 8), (4, 5, 2), (0, 4, 10))
+#: seconds per step; 15 steps is 2.25 s, which is the visible life of the row (see `school_panels`)
+_D_STEP = 0.15
+_D_HOLD = 0.7                    # how long the finished run sits before the wave starts again
+
+
+@lru_cache(maxsize=1)
+def _dijkstra_run():
+    """Dijkstra from `S`, as one snapshot per step: `[(settled, dist, parent, step), ...]`.
+
+    A real run - take the unsettled node with the smallest tentative distance, then relax every edge
+    out of it - and the **snapshots are the drawing**, because the algorithm is the picture: which nodes
+    are settled, what every label currently says, and which edge is being looked at right now. `step` is
+    `("lift", u, None, 0, True)` or `("relax", u, v, w, improved)`.
+
+    The first snapshot is the initial state (`d[S] = 0`, everything else unknown), so `len(run)` is one
+    more than the number of steps and the drawing indexes it directly.
     """
-    k.section(k.by0, "Dijkstra \u88c2\u7eb9", 0.28)
-    w, h = k.bw, k.by1 - k.by0 - 1
-    if w < 12 or h < 4:
+    n = len(_D_NODES)
+    dist: list = [None] * n
+    parent: list = [None] * n
+    dist[0] = 0
+    settled: set = set()
+    run = [(frozenset(settled), tuple(dist), tuple(parent), None)]
+    while len(settled) < n:
+        cand = [i for i in range(n) if i not in settled and dist[i] is not None]
+        if not cand:
+            break
+        u = min(cand, key=lambda i: dist[i])
+        settled.add(u)
+        run.append((frozenset(settled), tuple(dist), tuple(parent), ("lift", u, None, 0, True)))
+        for a, b, w in _D_EDGES:
+            v = b if a == u else (a if b == u else None)
+            if v is None or v in settled:
+                continue
+            nd = dist[u] + w
+            old = dist[v]
+            better = old is None or nd < old
+            if better:
+                dist[v] = nd
+                parent[v] = u
+            run.append((frozenset(settled), tuple(dist), tuple(parent),
+                        ("relax", u, v, w, better, old)))
+    return tuple(run)
+
+
+def _seg(k, x0: int, y0: int, x1: int, y1: int, colour) -> None:
+    """A straight run of line glyphs between two cells: `─`, `│`, `╲` or `╱`, whichever the slope is."""
+    dx, dy = x1 - x0, y1 - y0
+    steps = max(abs(dx), abs(dy))
+    if steps <= 0:
         return
-    path = _crack_path(w, h)
-    if not path:
+    ch = "\u2500" if dy == 0 else ("\u2502" if dx == 0 else
+                                   ("\u2572" if (dx > 0) == (dy > 0) else "\u2571"))
+    for i in range(steps + 1):
+        k.put(x0 + int(round(dx * i / steps)), y0 + int(round(dy * i / steps)), ch, colour)
+
+
+def dijkstra_route(k, t: float) -> None:
+    """`Dijkstra 最短路` - the algorithm running, one relaxation at a time.
+
+    Left: the graph, with the settled set, the frontier and the shortest-path tree as they stand. Right:
+    the label table (`d[v]` and `π[v]`), which is where the algorithm's actual output lives - the
+    numbers change on screen and a viewer can check the arithmetic of the step named in the footer.
+    """
+    run = _dijkstra_run()
+    k.section(k.by0, "\u6bcf\u6b21\u53d6 d \u6700\u5c0f\u7684\u672a\u5b9a\u8282\u70b9\uff0c"
+                     "\u677e\u5f1b\u5b83\u7684\u6bcf\u6761\u8fb9", 0.28)
+    if k.bw < 46 or k.bh < 6:
         return
-    # the crack opens along the settled path; the leading cell is the brightest.
-    #
-    # Anchored on this row's own start rather than on `t % 6.0` (batch 48). Looping on the song clock is
-    # right for every other motif - their slots run five to ten seconds, so a cycle lands whole - but this
-    # row's *visible* life is 2.16 s, because `shot_flood` takes the whole frame at 144.16. On an absolute
-    # 6 s cycle the pane would arrive with the crack already grown and then snap back to 25 % four frames
-    # before it disappears; on the row's clock it opens from 20 % to full across the 1.6 s a viewer
-    # actually gets, which is the one thing the drawing is about.
-    ph = (t - _dijkstra_anchor()) % 6.0
-    grown = max(2, int(len(path) * min(1.0, 0.20 + ph / 2.0)))
-    grown = min(grown, len(path))
-    for i in range(grown):
-        x, y = path[i]
-        px, py = (path[i - 1] if i else path[0])
-        if i and y < py:
-            ch = "\u2571"
-        elif i and y > py:
-            ch = "\u2572"
+    cycle = len(run) * _D_STEP + _D_HOLD
+    i = min(len(run) - 1, int(((t - _dijkstra_anchor()) % cycle) / _D_STEP))
+    settled, dist, parent, step = run[i]
+    cur = step[1] if step else None
+    edge_now = (min(step[1], step[2]), max(step[1], step[2])) if step and step[2] is not None else None
+
+    t0, b0 = k.by0 + 1, k.by1
+    gw = max(30, int(k.bw * 0.56))
+    gx = (k.bx0 + 3, k.bx0 + gw // 2, k.bx0 + gw - 3)
+    gr = (t0 + 1, max(t0 + 5, b0 - 2))
+    tree = {(min(parent[v], v), max(parent[v], v))
+            for v in range(len(_D_NODES)) if parent[v] is not None}
+
+    # ---- the edges and their weights, then the same edges again for the state they are in
+    for a, b, w in _D_EDGES:
+        (ca, ra), (cb, rb) = _D_AT[a], _D_AT[b]
+        key = (min(a, b), max(a, b))
+        if key == edge_now:
+            col = _mix(_C.RED, 1.0 if step[4] else 0.45)
+        elif key in tree:
+            col = _mix(_C.BLUE, 0.95)
         else:
-            ch = "\u2500" if i else "\u25cf"
-        k.put(k.bx0 + x, k.by0 + 1 + y, ch,
-              _mix(_C.RED, 0.45 + 0.5 * (i / max(1, grown - 1))))
-    k.put(k.bx0, k.by1, "\u88c2\u7eb9\u4e0d\u662f\u968f\u673a\u7684\uff0c\u662f\u6700\u4fbf\u5b9c"
-                        "\u7684\u90a3\u6761\u8def", _ui(0.5))
+            # `_ui` carries the film's global drain and it is at 0.42 by 02:22, so an un-settled edge
+            # has to ask for a high level to be a line at all: at 0.28 this graph read as an empty box
+            # (measured on the rendered frame, batch 49).
+            col = _ui(0.62)
+        if ra == rb:                                        # a horizontal edge on one of the two rows
+            _seg(k, gx[ca] + 1, gr[ra], gx[cb] - 1, gr[rb], col)
+        elif ca == cb:                                      # a vertical edge in one of the columns
+            _seg(k, gx[ca], gr[ra] + 1, gx[cb], gr[rb] - 1, col)
+        else:                                               # the one diagonal, S -> C
+            sx = 1 if cb > ca else -1
+            sy = 1 if rb > ra else -1
+            _seg(k, gx[ca] + sx, gr[ra] + sy, gx[cb] - sx, gr[rb] - sy, col)
+        # the weight, off the line rather than on it: above a top row, below a bottom one, beside a
+        # vertical, and below-left on the diagonal
+        if ra == rb:
+            wy = gr[ra] - 1 if ra == 0 else gr[ra] + 1
+            k.put((gx[ca] + gx[cb]) // 2, wy, str(w), _ui(0.72) if key != edge_now else col)
+        elif ca == cb:
+            k.put(gx[ca] + 2, (gr[0] + gr[1]) // 2, str(w), _ui(0.72) if key != edge_now else col)
+        else:
+            k.put((gx[ca] + gx[cb]) // 2 - 3, (gr[0] + gr[1]) // 2 + 1, str(w),
+                  _ui(0.6) if key != edge_now else col)
+
+    # ---- the nodes
+    for v, name in enumerate(_D_NODES):
+        cx, ry = gx[_D_AT[v][0]], gr[_D_AT[v][1]]
+        if v in settled:
+            col = _mix(_C.AMBER, 1.0) if v == cur else _mix(_C.BLUE, 1.0)
+        elif dist[v] is not None:
+            col = _mix(_C.AMBER, 0.8)
+        else:
+            col = _ui(0.5)
+        k.put(cx, ry, name, col)
+
+    # ---- the label table: the algorithm's output, and the only place the numbers are written down
+    tx = k.bx0 + gw + 2
+    if tx < k.bx1 - 6:
+        k.put(tx, t0, "d[v]  \u03c0[v]", _ui(0.6))
+        for v, name in enumerate(_D_NODES):
+            y = t0 + 1 + v
+            if y > gr[1]:
+                break
+            if v in settled:
+                col, word = _mix(_C.BLUE, 0.95), "\u5df2\u5b9a"
+            elif dist[v] is not None:
+                col, word = _mix(_C.AMBER, 0.85), "\u524d\u6cbf"
+            else:
+                col, word = _ui(0.35), "\u672a\u8fbe"
+            if v == cur:
+                col = _mix(_C.RED, 1.0)
+            num = "--" if dist[v] is None else f"{dist[v]:>2}"
+            par = "-" if parent[v] is None else _D_NODES[parent[v]]
+            k.put(tx, y, f"{name} {num}   {par}   {word}", col)
+        k.put(tx, t0 + 1 + len(_D_NODES) + 1,
+              f"\u6b65 {i:>2}/{len(run) - 1}  d[T] = "
+              + ("--" if dist[5] is None else str(dist[5])), _ui(0.6))
+
+    # ---- the footer says what this step *is*, so the numbers can be checked against it
+    if step is None:
+        foot = "\u521d\u59cb\u5316\uff1ad[S]=0\uff0c\u5176\u4f59\u672a\u77e5"
+    elif step[0] == "lift":
+        foot = (f"\u53d6\u51fa {_D_NODES[step[1]]}\uff08d = {dist[step[1]]}\uff09"
+                f"\uff0c\u5b83\u5df2\u786e\u5b9a")
+    else:
+        _, u, v, w, better, old = step
+        foot = (f"\u677e\u5f1b {_D_NODES[u]}\u2192{_D_NODES[v]}\uff1a{old if old is not None else '--'}"
+                f" \u2192 {dist[u]} + {w} = {dist[u] + w}"
+                + ("\uff0c\u66f4\u65b0" if better else "\uff0c\u4e0d\u6539\u5584"))
+    k.put(k.bx0, b0, foot, _ui(0.62))
 
 
 def epicycles(k, t: float) -> None:
@@ -508,7 +590,13 @@ def fork_bomb(k, t: float) -> None:
             k.put(x0 + 2, y, "\u2588" * fill, _mix(_C.GREEN if g == gen else _C.BLUE, 0.7))
     k.put(k.bx1 - 18, k.by0 + 1, f"\u4ee3 {gen}", _mix(_C.AMBER, 0.9))
     k.put(k.bx1 - 18, k.by0 + 2, f"{2 ** gen:5d} \u8fdb\u7a0b", _mix(_C.RED, 0.9))
-    k.put(k.bx0, k.by1, ":(){ :|:& };:  \u2014\u2014 \u5341\u4e8c\u4ee3\u5c31\u662f 4096", _ui(0.5))
+    # Batch 49, the user: "fork 炸弹下面的文字中有乱码（？）". It was not mojibake - it was the fork
+    # bomb's own one-liner, drawn correctly - but ` :(){ :|:& };:` **reads** as corruption: twelve cells
+    # of punctuation with no word attached. On a screen where everything else is a labelled drawing, a
+    # bare shell definition is indistinguishable from a decoding failure, so the line says what it is and
+    # what it does, and the one-liner is kept as the thing being named rather than as the whole caption.
+    k.put(k.bx0, k.by1, "\u672c\u4f53  :(){ :|:& };:  \u2014\u2014 \u81ea\u5df1\u8c03\u7528\u81ea"
+                        "\u5df1\uff0c\u5341\u4e8c\u4ee3\u7ffb\u5230 4096", _ui(0.55))
 
 
 def sine(k, t: float) -> None:
@@ -719,38 +807,54 @@ def fragmentation(k, t: float) -> None:
                         "\u2014\u2014 \u6574\u7406\u4e0d\u662f\u5220\u9664", _ui(0.5))
 
 
+#: the five coverage glyphs a brightness key can land on, indexed by `v // 22`. The colour is per cell
+#: and cannot be tabulated here: `_mix` goes through the palette the player installs at start-up.
+_PIXEL_GLYPH = " \u2591\u2592\u2593\u2588"
+
+
 def pixelsort(k, t: float) -> None:
     """Pixel sorting: the frame's own rows, ordered by brightness, as a sort you can watch.
 
     `想法.md` puts "GPU 像素排序" under 崩溃, and the crash section is where the machine stops being able
-    to hold its own picture together. Drawing it as an *almost sorted* field - a few passes of
-    bubble/insertion over a brightness key - is both the algorithm and the collapse, and it is very
-    legible: unsorted noise resolves into a gradient and then into bands.
+    to hold its own picture together. Drawing it as a *partially* sorted field - passes of an insertion
+    sort over a brightness key - is both the algorithm and the collapse, and it is very legible:
+    unsorted noise resolves into a gradient and then into bands.
+
+    **Two defects, and the second was hiding the first** (batch 49, the user: "GPU 像素排序在演出中没有
+    视觉变化"). ① `seed.sort()` sat between the hash and the sort, so the insertion sort ran over an
+    already sorted list: `srt` was the finished gradient at *every* pass count, and the only cell that
+    changed across the row's whole 4.17 s was the caption's `第 N 趟`. The audit that added the pass count
+    was reading that caption, which is why it reported a sort in progress. ② The count was capped at six
+    (`min(1.0, ...) * 6`) of a ninety-five-cell row, so even unsorted it could only ever order the first
+    six cells. `passes` is now a share of the row's own width: the sorted region sweeps left to right
+    across the whole drawing and the raw hash is what it is sweeping through.
     """
     k.section(k.by0, "GPU \u50cf\u7d20\u6392\u5e8f \u00b7 \u6309\u4eae\u5ea6", 0.28)
     w, h = k.bw, k.by1 - k.by0 - 1
     if w < 8 or h < 3:
         return
-    passes = int(min(1.0, (t % 4.0) / 3.0) * 6)
+    # 2.6 s to sort the row, then 0.8 s of the finished gradient before the wave starts again: the
+    # row runs 02:02.0-02:06.2, so a viewer sees the sweep, the completion and one restart.
+    passes = int(min(1.0, (t % 3.4) / 2.6) * w)
     for j in range(h):
         y = k.by0 + 1 + j
+        # **Not pre-sorted.** The line `seed.sort()` used to sit right here, before `srt = seed[:]`, and
+        # it made everything below it a no-op: the "sort in progress" was an insertion sort run over an
+        # already sorted list, so `srt` was the finished gradient at every `passes` and the only cell
+        # that changed across the row's whole 4.17 s was the caption's pass number. That is exactly what
+        # the user reported in batch 49 - "GPU 像素排序在演出中没有视觉变化" - and it is why the audit that
+        # counted the passes could not see it: it was measuring the caption. The hash stays as drawn; the
+        # *sort* is what makes the row resolve.
         seed = [((i * 2654435761 + j * 40503) >> 11) % 100 for i in range(w)]
-        seed.sort()
-        # `passes` passes of an **insertion** sort - which is what the caption and the comment here both
-        # say. The first version ran a bubble pass and, from the fourth pass on, jumped straight to
-        # `sorted(seed)`: the audit measured exactly one cell changing in 4.17 s, i.e. the pane that is
-        # supposed to be a sort in progress showed a finished one.
-        srt = seed[:]
-        for p in range(passes):
-            v = srt[p]
-            q = p
-            while q > 0 and srt[q - 1] > v:
-                srt[q] = srt[q - 1]
-                q -= 1
-            srt[q] = v
+        # `passes` passes of an **insertion** sort, in closed form: after `k` passes an insertion sort
+        # holds `sorted(seed[:k])` followed by the untouched rest, because pass `p` inserts element `p`
+        # into the prefix of the first `p` elements. Writing it out is the same drawing - checked against
+        # the loop on 4000 random rows, 0 differences - and it is O(w log w) instead of O(w^2): the loop
+        # was 9025 comparisons per row x 11 rows per frame and it took the film's worst frame from
+        # t=193.69 to t=62.23 (38.8 ms of a 41.7 ms budget) the moment `passes` was allowed past six.
+        srt = sorted(seed[:passes]) + seed[passes:]
         for i, v in enumerate(srt):
-            ch = " \u2591\u2592\u2593\u2588"[min(4, v // 22)]
-            k.put(k.bx0 + i, y, ch, _mix(_C.AMBER, 0.25 + 0.7 * v / 100))
+            k.put(k.bx0 + i, y, _PIXEL_GLYPH[min(4, v // 22)], _mix(_C.AMBER, 0.25 + 0.7 * v / 100))
     # ...and the caption describes what is on screen: the row is sorted *along itself* by the brightness
     # key, so nothing "floats up" - which is what the first version's caption said.
     k.put(k.bx0, k.by1, f"\u7b2c {passes} \u8d9f\uff1a\u4e00\u884c\u91cc\u7684\u989c\u8272\u6b63\u5728"
@@ -1104,7 +1208,7 @@ MOTIFS = {
     "phyllotaxis": ("\u53f6\u5e8f", phyllotaxis),
     # "byrne" is not scheduled any more: its plate sat on a line about selection (see `one_path`)
     "quantize": ("2\u2075\u00b3 \u91cf\u5316", quantize),
-    "dijkstra": ("Dijkstra \u88c2\u7eb9", dijkstra_cracks),
+    "dijkstra": ("Dijkstra \u6700\u77ed\u8def", dijkstra_route),
     "epicycles": ("\u672c\u8f6e", epicycles),
     "hearts9": ("\u4e5d\u79cd\u5fc3\u5f62", hearts9),
     "fork_bomb": ("fork \u70b8\u5f39", fork_bomb),

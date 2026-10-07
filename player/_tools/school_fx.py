@@ -552,14 +552,50 @@ def _undulate(cells, t: float, amp: float = 2.0, speed: float = 2.4, wavelength:
     return tuple(out), w, h
 
 
+def _fly_at(cols: int, rows: int, size: int, v: float, y: float, dy: float, tilt: bool,
+            reverse: bool) -> tuple[int, int]:
+    """Where `fly`'s sprite sits at `v` (0 = off the right edge, 1 = off the left).
+
+    Split out for `spray`: a wake has to be drawn at the positions the sprite *actually occupied*, and
+    the only way to know those is to ask the same function that put it there.
+    """
+    span = (size + cols) * v - size
+    x = int(cols - size - span) if reverse else int(span)
+    yy = int(rows * y + dy * (v - 0.5) * rows)
+    if tilt:
+        yy += int(math.sin(v * math.pi) * 4)          # a shallow climb, out and back
+    return x, yy
+
+
+def _wake(s, cols: int, rows: int, cx: int, cy: int, half_w: int, half_h: int, n: int) -> None:
+    """`n` white noise dots scattered around a cell - one sample of the trail a swimmer leaves.
+
+    The user's note for the manta: "魔鬼鱼游动时增加白色噪点轨迹". The dots are a deterministic hash of
+    the index rather than `random()`: the film has to render the same frame twice (`clock_probe`'s
+    self-test draws every row twice and compares), so nothing here may be unseeded. `░` on one dot in
+    three gives the cluster a little texture instead of reading as a dotted line.
+    """
+    for i in range(n):
+        hx = (i * 2654435761 + (i >> 3) * 40503) & 0xFFFF
+        hy = (i * 1103515245 + (i >> 2) * 12345) & 0xFFFF
+        px = cx + hx % (2 * half_w + 1) - half_w
+        py = cy + hy % (2 * half_h + 1) - half_h
+        if not (0 <= px < cols and 0 <= py < rows):
+            continue
+        ch = "\u2591" if (hx >> 4) % 3 == 0 else "\u00b7"
+        level = 0.55 + 0.45 * ((hx >> 2) % 100) / 100.0
+        s.put(px, py, ch, (int(190 * level + 45), int(198 * level + 48), int(210 * level + 45)))
+
+
 def fly(s, cols: int, rows: int, t: float, u: float, name: str, y: float, rows_n: int = 0,
         size: int = 0, body: int = 3, delay: float = 0.0, tilt: bool = False,
-        caption: str = "", reverse: bool = False, dy: float = 0.0, wave: float = 0.0) -> None:
+        caption: str = "", reverse: bool = False, dy: float = 0.0, wave: float = 0.0,
+        spray: float = 0.0) -> None:
     """An aircraft crossing the frame, nose first, at the size the frame can carry.
 
-    It enters and leaves *off* the screen, because the point of the effect is that the frame is a
-    window rather than a box: at `u=0` the nose is past the right edge and at `u=1` the tail is past
-    the left, so the crossing never looks like a sprite sliding inside a border.
+    It enters and leaves *off* the screen, because the point of the effect is that the frame is a window
+    rather than a box: at `u=0` the nose is past the right edge and at `u=1` the tail is past the
+    left, so the crossing never looks like a sprite sliding inside a border.
 
     Four things were wrong with the first version and all four are the user's notes:
 
@@ -576,7 +612,7 @@ def fly(s, cols: int, rows: int, t: float, u: float, name: str, y: float, rows_n
         them. The aircraft pass a number because for them the sky above and below is disposable.
 
     `wave` puts a travelling ripple through the sprite (`_undulate`) for the one thing in the set that
-    swims rather than flies.
+    swims rather than flies, and `spray` is the white wake that swimmer leaves (see `_wake`).
     """
     v = max(0.0, min(1.0, (u - delay) / max(1e-6, 1.0 - delay)))
     size = size or max(40, int(cols * 0.46))
@@ -590,12 +626,25 @@ def fly(s, cols: int, rows: int, t: float, u: float, name: str, y: float, rows_n
         return
     if wave:
         cells = _undulate(cells, t, amp=max(1.0, wave * cells[2] * 0.11))
-    span = (size + cols) * v - size
-    x = int(cols - size - span) if reverse else int(span)
-    yy = int(rows * y + dy * (v - 0.5) * rows)
-    if tilt:
-        yy += int(math.sin(v * math.pi) * 4)          # a shallow climb, out and back
+    x, yy = _fly_at(cols, rows, size, v, y, dy, tilt, reverse)
     grid, w, h = cells
+    # The wake goes down *before* the sprite, so the dots the body covers are the ones it has reached.
+    # Two things keep it a trail rather than a fog, and the first version was a fog (measured on the
+    # rendered frame): the samples are the sprite's **left edge** at earlier `v` - the tail - not its
+    # centre, so the dots stay behind the swimmer instead of around it; and the band is eight cells
+    # either side of that edge, because the sprite itself is 90 cells wide and a band scaled to the body
+    # spread noise over half the frame and broke up the dialogue underneath. Eight samples at 0.011 `v`
+    # is about 25 cells of trail; the pitch follows the swimming curve because the positions come from
+    # `_fly_at`. ~110 `put`s, which is under half a millisecond (`frame_probe` checks the window).
+    if spray:
+        half_w, half_h = 8, max(2, h // 5)
+        for j in range(1, 6):
+            vj = v - j * 0.009
+            if vj <= 0.0:
+                break
+            px, py = _fly_at(cols, rows, size, vj, y, dy, tilt, reverse)
+            _wake(s, cols, rows, px, py + h // 2, half_w, half_h,
+                  max(1, int(30 * spray * (1.0 - j / 7.0))))
     # thin the rows outside the fuselage, then blit: done here rather than in `paste` so the rule stays
     # with the thing it is about
     mid = h // 2
@@ -1891,7 +1940,7 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     #     屏幕": it ends up 285x90 cells in a 197x52 frame, i.e. larger than the screen and clipped by it,
     #     which is what standing in a gateway looks like. There is only **one** gate picture in the film:
     #     the second one (01:24.70) is gone - "校门、校徽的大图出现了多次，仅保留第一次".
-    (0.60, 3.30, flash, dict(name="gate", zoom=0.20, fill=1.45, caption="\u897f\u5317\u5de5\u4e1a\u5927\u5b66 \u00b7 1938")),
+    (0.60, 3.30, flash, dict(name="gate", zoom=0.20, fill=1.45)),
     # --- the crest, big, right after (its own pane is a watermark; this is the hit)
     (3.60, 5.10, flash, dict(name="crest", caption="\u516c\u8bda\u52c7\u6bc5")),
     # --- "Fill in my data parameters": 何尊, and therefore the earliest 中国. Drawn from the vector the
@@ -1904,50 +1953,61 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     #     solved from that coverage rather than given as a share of the frame (`lowpass` has the sum), and
     #     `peak` is only a cap: at 197x52 it comes out at the full width, 63 rows of sprite and a hull
     #     34 rows tall, and the frame shakes (`SHOCKS`).
-    (11.20, 13.10, lowpass, dict(name="y20", y=0.42, caption="\u8fd0-20 \u63a0\u7a7a")),
-    # --- "so dizzy": 直-20, once, coming *down* the frame - the one direction a helicopter reads in, and
-    #     deliberately not a horizontal crossing: the user's note was "飞机不用只是横向飞"
-    (49.20, 51.00, dive, dict(name="z20", x=0.70, caption="\u76f4-20 \u4e0b\u964d")),
+    #
+    #     **No captions on any of these pictures any more** (batch 49). The user's note: "飞机、魔鬼鱼、
+    #     校门、图书馆、航小天、铸剑雕塑、对话雕塑这些图片都不要附近文字". Every one of them is a
+    #     photograph or a work of art filling the frame; a label under it turns the frame into a slide with
+    #     a caption. What a viewer needs to know is already in the pane, the ops ticker or the lyric band.
+    (11.20, 13.10, lowpass, dict(name="y20", y=0.42)),
     # --- 魔鬼鱼, once, swimming: a diagonal crossing at its own shape's size, rippling as it goes
-    # --- the fourth route: the design's four aircraft are 运-20 (the low pass), 歼-20 (the three-hit
-    #     fly), 直-20 (the descent) and ARJ21 - which had its file, its name and no event at all until
-    #     batch 31's audit counted them. It crosses the instrumental gap at 21 s, high and small.
-    (21.00, 23.40, fly, dict(name="arj21", y=0.28, size=0, rows_n=13, body=4,
-                                 caption="ARJ21 \u00b7 \u652f\u7ebf\u5ba2\u673a")),
-    (55.00, 57.40, fly, dict(name="manta", y=0.30, size=0, rows_n=0, wave=1.0, dy=0.16,
-                             caption="\u9b54\u9b3c\u9c7c")),
-    # --- the first chorus: 歼-20, once, on a diagonal
-    (58.90, 61.10, fly, dict(name="j20", y=0.30, rows_n=13, size=0, body=4, tilt=True, dy=0.30,
-                             caption="\u6b7c-20")),
+    # --- the fourth route: the design's four aircraft are 运-20 (the low pass), 歼-20 (the fly),
+    #     直-20 (the descent) and ARJ21 - which had its file, its name and no event at all until batch
+    #     31's audit counted them. It crosses the instrumental gap at 21 s, high and small. 运-20 and
+    #     ARJ21 are the two the user asked to leave alone.
+    (21.00, 23.40, fly, dict(name="arj21", y=0.28, size=0, rows_n=13, body=4)),
+    # --- **the aircraft are spread across the song now** (batch 49, the user: "飞机演出太集中了，运20 和
+    #     ARJ21 可以保持不变，后面几个都要后移，并且让歼20 斜向飞"). They used to be three in ten seconds
+    #     (49.20 / 55.00 / 58.90) with nothing for the next hundred; now each one owns a different part of
+    #     the song, and the three gaps are 19 s, 20 s and 6 s instead of 5 s and 4 s.
+    #
+    #     直-20 comes *down* the frame - the one direction a helicopter reads in - and it is deliberately
+    #     not a horizontal crossing ("飞机不用只是横向飞"). It used to sit on "So dizzy, so dizzy" at
+    #     49.11; it now lands on "Oh, we can travel" (50.95), which is the line about going somewhere.
+    (52.30, 54.10, dive, dict(name="z20", x=0.70)),
+    #     the manta swims through "In this strange, strange simulation" (71.40) and is out before the
+    #     eggplant line at 73.53. `spray` is the white noise wake of batch 49.
+    (71.50, 73.90, fly, dict(name="manta", y=0.30, size=0, rows_n=0, wave=1.0, dy=0.16, spray=1.0)),
+    #     歼-20 on "From AM to PM" (93.52): the one line in the song that is literally about crossing the
+    #     sky, and the aircraft that a NWPU student is meant to read as this school's own. A real diagonal
+    #     (dy 0.45, climbing left-to-right) rather than the shallow rail it was.
+    (91.60, 93.80, fly, dict(name="j20", y=0.62, rows_n=13, size=0, body=4, dy=-0.45)),
     # --- 总师文化: the five firsts, on the line that claims uniqueness. **No picture.** It was the gate
     #     again (70x22, then 139x44), and the user's note is that the gate and the crest each appear once
     #     - "校门、校徽的大图出现了多次，仅保留第一次". The line is carried by the right column, which has
     #     had `pane_landmark_dialogue` on it since 84.60, and by the ops ticker ("总师摇篮 · 第一架小型
     #     无人机" is the row's own `ops`, so nothing is lost with the caption).
     # --- "Challenging your God": the sword, over everything
-    (125.50, 128.20, flash, dict(name="sword", cols_n=76, rows_n=24,
-                                 caption="\u4e3e\u5251\u7684\u4e0d\u662f\u795e")),
+    (125.50, 128.20, flash, dict(name="sword", cols_n=76, rows_n=24)),
     # --- "If I can, if I can": 航小天 打篮球 is **not on this list**. It covers the chat window, so it is
     #     drawn by the layer that owns that window (`WINDOW_EVENTS`, below) - see the note in `dunk` for
     #     why that is a layering fix and not a tidy-up. The score is unchanged: 58.65 is the first line,
     #     160 frames at 14 fps is five loops to the frame, so the window is 58.65 + 160/14 = 70.08, and
     #     the dialogue inside it is trimmed rather than hidden behind the picture (see `school_lines`).
     # --- the AI couplet: a particle field over the convergence. The manta used to be here as well, which
-    #     made three appearances of it; it swims once, at 55.00.
+    #     made three appearances of it; it swims once, at 71.50.
     (162.30, 169.40, particles, dict(n=70, hue=(120, 200, 255))),
     # --- P8: the hands, the biggest hit in the film, at the line about the algebra of love
-    (184.40, 187.40, flash, dict(name="dialogue", cols_n=88, rows_n=26,
-                                 caption="\u4e00\u4e2a\u7c7b\uff0c\u4e24\u4e2a\u89d2\u8272\uff0c\u4e00\u4e2a\u65b9\u6cd5")),
+    (184.40, 187.40, flash, dict(name="dialogue", cols_n=88, rows_n=26)),
     # --- the closing: the library at night, in the **bottom-left corner** ("图书馆放在左下角"), behind the
-    #     last two lines and dimmed - but at 0.62 with its contrast held up and a caption, not at the
-    #     0.42 that made it invisible. `x=0.0` puts it against the left edge; `y=0.78` rather than `1.0`
+    #     last two lines and dimmed - but at 0.62 with its contrast held up, not at the 0.42 that made it
+    #     invisible. `x=0.0` puts it against the left edge; `y=0.78` rather than `1.0`
     #     keeps the film's own footer and progress bar (the last four rows) out of it, which is what "the
     #     corner" means once there is a status line down there. Its rows do cover the lyric band, and that
     #     is free here: 03:13.5 is past the last lyric (see `covers_band`). It is a keyed cut-out, so the
     #     cells where the photograph has no ink stay transparent and the dialogue is only covered where
     #     the building actually is.
     (193.50, 197.50, flash, dict(name="library", fill=0.62, x=0.0, y=0.78, behind=True, dim=0.62,
-                                 contrast=1.1, caption="\u56fe\u4e66\u9986 \u00b7 \u706f\u8fd8\u4eae\u7740")),
+                                 contrast=1.1)),
     # --- the whole body, once, on the last line of the song: he has been a face in the window for three
     #     and a half minutes and this is the only place the film shows that he has legs. He stands on the
     #     **right**, which is the chat window's side after the 02:16.9 swap - the user asked for the left
@@ -1963,8 +2023,7 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     #     too. This one is kept - the user asked for it in batch 20 - and kept *small*, so it is a mark
     #     rather than the emblem's second plate.
     (176.30, 178.20, emerge, dict(name="crest", caption="\u516c\u8bda\u52c7\u6bc5")),
-    (203.00, 206.20, flash, dict(name="sword", cols_n=80, rows_n=26,
-                                 caption="\u5728\u94f8\u5251\u5417\uff1f")),
+    (203.00, 206.20, flash, dict(name="sword", cols_n=80, rows_n=26)),
 ]
 
 # The frame's own shocks: `tui_live.fx_shake` asks `shock(t)` and shakes by that much, so the variant

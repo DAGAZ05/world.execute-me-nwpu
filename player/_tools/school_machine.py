@@ -22,20 +22,23 @@ from __future__ import annotations
 
 # --------------------------------------------------------------------------- the chapter bar
 #
-# Eight labels, ten entries: the last two are the two halves of P7, which the film also splits
-# (07 EXECUTION / 08 EVAL: LOVE). Kept to `NN / 名字` because that is the film's own shape and the
-# header reserves its width from the string length.
+# Ten labels, and **no chapter numbers**: `SW / 名字`. The film's bar is `NN / NAME` and this variant
+# copied the shape, but the numbers were never part of this cut - the user's note on seeing `07`/`08`
+# stamped over the flood (batch 49): "你添加的 08/09 实在意义不明，我的制作里开头就没有标章节号，将你私自
+# 安的 08/09 改成 SW". `SW` is the school - 软件学院 - so the bar names the *section of the machine* the
+# song is in and nothing else. The header reserves its width from the string length, so the width is
+# taken from the label itself (`tui_live.draw`), and `CHAPTER_TAGS` still answers by name.
 CHAPTERS: list[tuple[float, str]] = [
-    (0.00, "00 / \u4e0a\u7535"),
-    (16.00, "01 / \u521d\u59cb\u5316"),
-    (29.28, "02 / \u5b9a\u4e49"),
-    (44.04, "03 / \u7535\u4e0e\u65f6\u95f4"),
-    (58.65, "04 / \u526f\u6b4c\u4e00"),
-    (73.53, "05 / \u4e07\u7269\u7686\u70b9"),
-    (103.03, "06 / \u4f60\u8d70\u4e86"),
-    (125.33, "07 / \u975e\u6cd5\u53c2\u6570"),
-    (147.52, "08 / \u6267\u884c"),
-    (162.23, "09 / \u8f6f\u5de5\u4e0e\u7231"),
+    (0.00, "SW / \u4e0a\u7535"),
+    (16.00, "SW / \u521d\u59cb\u5316"),
+    (29.28, "SW / \u5b9a\u4e49"),
+    (44.04, "SW / \u7535\u4e0e\u65f6\u95f4"),
+    (58.65, "SW / \u526f\u6b4c\u4e00"),
+    (73.53, "SW / \u4e07\u7269\u7686\u70b9"),
+    (103.03, "SW / \u4f60\u8d70\u4e86"),
+    (125.33, "SW / \u975e\u6cd5\u53c2\u6570"),
+    (147.52, "SW / \u6267\u884c"),
+    (162.23, "SW / \u8f6f\u5de5\u4e0e\u7231"),
 ]
 
 # the labels the film's own code looks up by tag. `film_panels.chapter_start` is used by `her_style`

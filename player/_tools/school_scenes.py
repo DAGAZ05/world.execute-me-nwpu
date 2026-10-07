@@ -976,16 +976,16 @@ def pane_landmark_dialogue(s, x0, y0, x1, y1, t, lt, dur, u, phase=None, max_pha
     and 2 (`max_phase=1` from the schedule) and act 3 is its own row on its own lyric, selected by
     `phase=2` - the same mechanism `pane_memory` uses to be six drawings: the schedule says which one,
     rather than the drawing guessing from the clock.
+
+    **No words on it** (batch 49, the user: "对话雕塑…不要附近文字"). The phase titles and captions used
+    to name the act; the crop already does. The `✧ ✦ ✧` mark between the hands stays - it is the star
+    the pane is about, not a label for it.
     """
     import school_courses as _C
     if phase is None:
         phase = 0 if lt < 1.2 else (1 if lt < 2.4 else 2)
     phase = max(0, min(int(phase), int(max_phase)))
-    titles = ("\u5bf9\u8bdd \u00b7 we can unite", "\u5bf9\u8bdd \u00b7 so deeply",
-              "\u5bf9\u8bdd \u00b7 the only God")
-    caps = ("\u4e24\u53ea\u624b\u8fd8\u6ca1\u78b0\u5230", "\u624b\u6307\u4e4b\u95f4\u90a3\u9897\u661f",
-            "\u53ea\u5269\u90a3\u9897\u661f")
-    k, ox, oy = _landmark("dialogue", s, x0, y0, x1, y1, u, titles[phase], caps[phase],
+    k, ox, oy = _landmark("dialogue", s, x0, y0, x1, y1, u, "", "",
                           dim=1.0 if phase < 2 else 0.35)
     # the star: the one thing in this pane that moves, and it pulses on the song's beat
     if phase >= 1:
@@ -993,8 +993,6 @@ def pane_landmark_dialogue(s, x0, y0, x1, y1, t, lt, dur, u, phase=None, max_pha
         cy = max(k.by0, oy - 1)
         pulse = 0.55 + 0.45 * abs(math.sin(lt * 3.2))
         k.put(cx - 3, cy, "\u2727 \u2726 \u2727", _mix(_C.AMBER, pulse))
-        if phase == 2:
-            k.put(cx - 8, cy + 2, "\u4e0d\u662f\u63a5\u89e6\uff0c\u662f\u90a3\u9897\u661f", _ui(0.6))
 
 
 def pane_landmark_sword(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
@@ -1004,12 +1002,15 @@ def pane_landmark_sword(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     over the twelve "Execution" hits as the thing being executed. The pane does not know which it is -
     it draws the work and a white sweep passes over it once per shot, which reads as a blade being
     drawn either way.
+
+    **No words on it** (batch 49, the user: "铸剑雕塑…不要附近文字"): the pane used to print `为国铸剑`
+    above the plate and `举剑的不是神` under it. The plate is the 为国铸剑 sculpture, and a title saying so
+    is the third thing on screen saying what the picture already is.
     """
-    k, ox, oy = _landmark("sword", s, x0, y0, x1, y1, u, "\u4e3a\u56fd\u94f8\u5251",
-                          "\u4e3e\u5251\u7684\u4e0d\u662f\u795e")
+    k, ox, oy = _landmark("sword", s, x0, y0, x1, y1, u, "", "")
     # The sweep is on the pane's own clock, not on the reveal: on `u` it crosses the plate once, in the
-    # last frame of the slot, and the pane - a photograph with a caption - is then still for the other
-    # eleven seconds of it. On `lt` the blade is drawn again and again, which is what the plate is of.
+    # last frame of the slot, and the pane - a photograph - is then still for the other eleven seconds of
+    # it. On `lt` the blade is drawn again and again, which is what the plate is of.
     sweep = int(k.bw * ((lt * 0.35) % 1.0))
     if 0 < sweep < k.bw:
         for r in range(max(0, oy), min(k.by1, oy + k.bh) + 1):
@@ -1558,7 +1559,14 @@ def pane_fragments(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         elif i < cut:
             continue                           # deleted
         else:
-            k.put(x, y, "\u2591", _C._ui(0.34))
+            # Batch 49, the user: "无意义的碎片中灰色碎片太暗了，看不清，需要调亮". Two things were
+            # stacking against it and both had to go: the glyph was `░` (a quarter-covered cell) and the
+            # colour was `_ui(0.34)` - and `_ui` carries the film's global drain, which is at 0.42 by
+            # 02:00, so the cell was (29, 31, 34) on a (4, 7, 15) background. That is a *black* cell with
+            # a shade glyph in it. `▒` is twice the coverage and the level is now 0.85, which lands about
+            # four times the ink: the fragments have to be visible or "erase the pointless fragments" is
+            # an instruction with nothing to erase.
+            k.put(x, y, "\u2592", _C._ui(0.85))
     k.put(k.bx0, k.by1 - 1, f"{cut} / {total} \u5df2\u5220", _C._ui(0.5))
     k.put(k.bx0, k.by1, "\u788e\u7247\u4e0d\u662f\u75d5\u8ff9\uff0c\u5220\u4e86\u5c31\u6ca1\u4e86",
           _C._mix(_C.BLUE, 0.7))
