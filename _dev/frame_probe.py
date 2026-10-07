@@ -17,6 +17,7 @@ So this measures the cost, in the two ways it is actually paid:
     python _dev/frame_probe.py --sizes 197x52,120x34
     python _dev/frame_probe.py --budget 41.7       what a warm worst frame must stay under
     python _dev/frame_probe.py --reps 5            more warm passes, for a machine doing other things
+    python _dev/frame_probe.py --no-cuts           the old grid alone (21 points, much faster)
 
 Two things this had to learn, both of them measured:
 
@@ -69,7 +70,7 @@ TIMES = [5.0, 11.5, 20.0, 35.0, 50.0, 63.0, 80.0, 100.0, 120.0, 133.0, 148.0, 15
 
 
 def sample_times(with_cuts: bool = True) -> list[float]:
-    """`TIMES`, plus the middle of every cut's transition.
+    """`TIMES`, plus the middle of every cut's transition, plus the middle of every full-frame event.
 
     **This grid used to be the whole story, and it was under-sampling.** It reported "0 sizes over
     budget" for batches while `_dev/stage_probe.py` - which samples the middle of each transition -
@@ -77,6 +78,14 @@ def sample_times(with_cuts: bool = True) -> list[float]:
     193.46 is a row start, so 193.69 is exactly half a beat into that row's transition, and the nearest
     point on this grid was 30 s away. A transition moves a whole column of cells, so it is precisely the
     kind of frame a gate has to look at, and the gate was looking between them.
+
+    **Batch 56 found the same hole one layer up: events.** The 运-20 low pass is the film's largest
+    sprite, and its most expensive frame is the one where its ink covers the whole screen - the *middle
+    of the event*, which is neither a grid point nor a cut middle. The gate read 40.4 ms for the song
+    while the pass peak was 47.8 ms at t=12.20, over budget for about half a second, and nothing here
+    looked at it. `_dev/frame_sweep.py` (every frame in a range, 0.05 s) is what found it, and this
+    closes the hole the cheap way: a full-frame sprite is the one thing in the film that changes every
+    cell at once, so an event's own middle belongs on the sample list for the same reason a cut's does.
     """
     if not with_cuts:
         return list(TIMES)
@@ -84,6 +93,8 @@ def sample_times(with_cuts: bool = True) -> list[float]:
     out = set(TIMES)
     for at, (_kind, dur) in _fxc._cuts().items():
         out.add(round(at + dur * 0.5, 4))
+    for start, end, _fn, _kw in _fxc.EVENTS:
+        out.add(round((start + end) * 0.5, 4))
     return sorted(out)
 
 
@@ -99,7 +110,7 @@ def main() -> None:
     a = ap.parse_args()
     times = sample_times(a.cuts)
     print(f"sampling {len(times)} times"
-          f"{' (the grid plus the middle of every cut)' if a.cuts else ''}")
+          f"{' (the grid plus the middle of every cut and every event)' if a.cuts else ''}")
 
     # exactly what the player does (`tui_live.main`), for the reason written there
     gc.disable()

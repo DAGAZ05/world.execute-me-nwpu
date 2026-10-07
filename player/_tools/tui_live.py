@@ -1318,6 +1318,17 @@ class Screen:
             has something else;
           * a placeholder with **no character to its left** is not half of anything: it is repaired to a
             space here, which clears whatever the terminal still has in that column.
+
+        **The row is one write, and the run's column is counted, not measured** (batch 56). Both are the
+        same argument `paste(fast=True)` makes, one layer up. A full-frame sprite crossing a full-frame
+        transition - the 运-20 low pass over the 12.47/13.20 cuts - changes essentially every cell, and
+        the film's most expensive frame was **19.6 ms of this function alone**: a photo's cells nearly
+        all carry a colour of their own, so a row becomes ~200 runs of one cell, each one an `out.write`
+        with four integers formatted into it. Writing the row's escapes as one string, and replacing
+        `_text_w(run)` - a generator, a `_wide_char` call and a `unicode.east_asian_width` lookup per
+        character, for a width the loop has already been adding up in `col` - removes most of it.
+        `_dev/ansi_probe.py` decodes this stream back into a screen and diffs it against the buffer, so
+        the change is checked against the thing the addressing has to be right for.
         """
         if self.prev is None:
             out.write("\x1b[2J")
@@ -1326,17 +1337,20 @@ class Screen:
         for y in range(self.rows):
             row, old = self.buf[y], self.prev[y]
             wide = self.wide[y]
+            parts: list[str] = []
             x = 0
             col = 1                        # the terminal's column for cell `x`, 1-based
             while x < self.cols:
-                # the pair check is gated, not free: it is worth a call only where a two-cell relationship
-                # can be wrong, which is a cell that holds a wide character or a placeholder. A stray
-                # `""` without the flag (the other way a pair can disagree) is unreachable now that every
-                # writer goes through `set_cell`, and `normalise` covers it if one ever appears.
-                if wide[x] or _maybe_wide(row[x][0]):
-                    if self.fix_pair(x, y):
-                        row = self.buf[y]      # `fix_pair` may have rewritten this cell
+                # the pair check is gated, not free: it is worth a call only where a two-cell
+                # relationship can be wrong, which is a cell that holds a wide character or a
+                # placeholder. A stray `""` without the flag (the other way a pair can disagree) is
+                # unreachable now that every writer goes through `set_cell`, and `normalise` covers it
+                # if one ever appears.
                 ch = row[x][0]
+                if wide[x] or _maybe_wide(ch):
+                    if self.fix_pair(x, y):
+                        row = self.buf[y]  # `fix_pair` may have rewritten this cell
+                    ch = row[x][0]
                 here = 0 if (ch == "" and wide[x]) else (2 if _wide_char(ch) else 1)
                 if row[x] == old[x]:
                     x += 1
@@ -1345,13 +1359,13 @@ class Screen:
                 ch, fg, bg = row[x]
                 if ch == "" and wide[x]:
                     pch, pfg, pbg = row[x - 1]
-                    out.write(f"\x1b[{y + 1};{col - 2}H"
-                              f"\x1b[38;2;{pfg[0]};{pfg[1]};{pfg[2]}m"
-                              f"\x1b[48;2;{pbg[0]};{pbg[1]};{pbg[2]}m" + pch)
+                    parts.append(f"\x1b[{y + 1};{col - 2}H"
+                                 f"\x1b[38;2;{pfg[0]};{pfg[1]};{pfg[2]}m"
+                                 f"\x1b[48;2;{pbg[0]};{pbg[1]};{pbg[2]}m" + pch)
                     written += 2
                     x += 1
-                    col += 0
                     continue
+                start = col                    # where this run's text goes; `col` is its width by then
                 run = [ch]
                 x += 1
                 col += here
@@ -1362,9 +1376,9 @@ class Screen:
                     run.append(c)
                     x += 1
                     col += 0 if (c == "" and wide[x - 1]) else (2 if _wide_char(c) else 1)
-                out.write(f"\x1b[{y + 1};{max(1, col - _text_w(run))}H"
-                          f"\x1b[38;2;{fg[0]};{fg[1]};{fg[2]}m"
-                          f"\x1b[48;2;{bg[0]};{bg[1]};{bg[2]}m" + "".join(run))
+                parts.append(f"\x1b[{y + 1};{start}H"
+                             f"\x1b[38;2;{fg[0]};{fg[1]};{fg[2]}m"
+                             f"\x1b[48;2;{bg[0]};{bg[1]};{bg[2]}m" + "".join(run))
                 written += len(run)
                 # a run that ends on a wide character has just painted over the column after it: if the
                 # buffer has a cell of its own there (rather than that character's placeholder, which the
@@ -1372,6 +1386,8 @@ class Screen:
                 if (_wide_char(run[-1]) and x < self.cols
                         and not (row[x][0] == "" and wide[x])):
                     old[x] = None
+            if parts:
+                out.write("".join(parts))
         out.flush()
         self.prev = [r[:] for r in self.buf]
         return written
@@ -1647,16 +1663,6 @@ def _morph_mask(u: float, order: tuple, k: int, t: float):
     if th > v:
         return False, False                                 # not arrived yet
     return True, abs(th - v) < MORPH_EDGE
-
-
-def _text_w(run) -> int:
-    """How many terminal columns a run of cells occupies: a wide character is two, a placeholder none.
-
-    `len(run)` is the number of *cells* and it is not the number of columns, which is the difference
-    between addressing a run correctly and shifting every character on the row by however much Chinese
-    came before it. A `""` in a run is always a placeholder - `Screen.put` writes it only there.
-    """
-    return sum(0 if c == "" else (2 if _wide_char(c) else 1) for c in run)
 
 
 def _glitch(t: float, k: int) -> str:

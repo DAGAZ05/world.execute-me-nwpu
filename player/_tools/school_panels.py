@@ -326,6 +326,17 @@ LANDMARK_ROWS: list[dict] = [
     # ~57 s. See `pane_landmark_dialogue`.
     dict(at=54.74, name="pane_landmark_dialogue", lyric="And we can unite",
          ops=["UNITE", "\u5bf9\u8bdd"], mascot=False, args=dict(max_phase=1)),
+    # **The binary stars had 1.43 s and that was not enough to watch** (batch 56, the user: "双星旋进的时间
+    # 太短了，适当加点"). The row is what the drawing reads for its own clock (`school_motifs._row_span`),
+    # so lengthening the row *is* lengthening the inspiral: 60.57-64.29 is 3.72 s, of which 0.45 s is the
+    # transition, so the quarter-power law now has 3.27 s of visible life instead of 0.98. The time comes
+    # from `pane_motif_pixelsort`, which had 4.17 s and keeps 1.88 - still over the 1.2 s floor the span
+    # probe enforces, and the sorting sweep it draws is a loop, so it reads at any length.
+    #
+    # ...and it takes it from the *next lyric line*, not from a round number: `at` is a lyric time
+    # (`input/lyrics.lrc`) everywhere in this table, and the first draft of this row used 64.00, which is
+    # in the middle of "Then I can, then I can" and therefore a boundary the song does not have. 64.29 is
+    # where "Be your only satisfaction" begins, which is also the line `pane_motif_pixelsort` now names.
     dict(at=60.57, name="pane_motif_binary", lyric="Give you all the simulations",
          ops=["0101", "模拟"], mascot=False),
     # 62.00-70.00 was the cat, held for eight seconds across five different lines - including "I will run
@@ -333,7 +344,7 @@ LANDMARK_ROWS: list[dict] = [
     # below); here the hands carry "Then I can / satisfaction" and the conditional device carries
     # "If I can make you happy / I will run the execution", which is an `If ... then ...` like all the
     # others the device is for.
-    dict(at=62.00, name="pane_motif_pixelsort", lyric="Then I can, then I can",
+    dict(at=64.29, name="pane_motif_pixelsort", lyric="Be your only satisfaction",
          ops=["PIXELSORT", "排序"], mascot=False),
     dict(at=66.17, name="pane_motif_galaxy", lyric="If I can make you happy",
          ops=["GALAXY", "星系"], mascot=False),

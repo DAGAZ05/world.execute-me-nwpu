@@ -538,6 +538,13 @@ def paste(s, cells, x0: int, y0: int, ink=None, dim: float = 1.0, box=None, flat
     seconds as a few white markings sliding past (the user, batch 50: "魔鬼鱼没看出你放在哪里了").
     `ambient` adds a flat amount to every cell the sprite *has ink on*, so the black body lands on a dark
     visible tone and the pale markings stay pale - the silhouette is what makes it a manta.
+
+    **The `fast` loop is clipped, not tested** (batch 56). It walks the sprite's own bounding box, which
+    for the 运-20 is 285x90 cells - 25 650 of them - where a 197x52 frame can hold 10 244: about 15 000
+    were being visited only to be rejected, each with two comparisons, two index adds and a slice. The
+    visible range is solved once per axis instead, and it matters where it is paid: the pass's own peak
+    frame measured over the budget, and the clip is 4-7 ms of what it costs (priced on that frame in
+    `04_验证记录/批次56_掠空降速与双星时长.md` §1.3, which also has the before/after numbers).
     """
     if not cells:
         return
@@ -545,31 +552,39 @@ def paste(s, cells, x0: int, y0: int, ink=None, dim: float = 1.0, box=None, flat
     bx0, by0, bx1, by1 = box or (0, 0, s.cols - 1, s.rows - 1)
     ramp_n = len(SHADE) - 1
     add = int(255 * ambient)
-    for r in range(h):
-        y = y0 + r
-        if y < by0 or y > by1:
-            continue
-        row = grid[r]
-        if fast:
+    if fast:
+        c0, c1 = max(0, bx0 - x0), min(w - 1, bx1 - x0)
+        r0, r1 = max(0, by0 - y0), min(h - 1, by1 - y0)
+        if c0 > c1 or r0 > r1:
+            return
+        for r in range(r0, r1 + 1):
+            y = y0 + r
+            row = grid[r]
             brow, wrow, drow = s.buf[y], s.wide[y], s.dim[y]
-            for c in range(w):
-                x = x0 + c
-                if x < bx0 or x > bx1:
-                    continue
+            for c in range(c0, c1 + 1):
                 cell = row[c]
                 if cell is None:
                     continue
+                x = x0 + c
                 ch, lv, rgb, bot = cell
                 col = ink or rgb
                 k = drow[x] * dim * (lift + span * lv / ramp_n)
                 # the cell's two colour slots: the glyph's own colour, and - when the lower half of the
                 # cell also has ink - that half's colour as the background. See `sprite`.
-                bcol = (FRAME_BG if bot is None else
-                        tuple(min(255, int(q * k) + add) for q in bot))
+                if bot is None:
+                    bcol = FRAME_BG
+                else:
+                    bcol = (min(255, int(bot[0] * k) + add), min(255, int(bot[1] * k) + add),
+                            min(255, int(bot[2] * k) + add))
                 brow[x] = (ch, (min(255, int(col[0] * k) + add), min(255, int(col[1] * k) + add),
                                 min(255, int(col[2] * k) + add)), bcol)
                 wrow[x] = False
+        return
+    for r in range(h):
+        y = y0 + r
+        if y < by0 or y > by1:
             continue
+        row = grid[r]
         for c in range(w):
             x = x0 + c
             if x < bx0 or x > bx1:
@@ -777,7 +792,7 @@ def _caption(s, cols: int, rows: int, y: int, text: str, colour) -> None:
     `CLEAR` is the project's list of rects that are *read* rather than watched, and registering the row is
     what makes the opening motto arrive whole. The crest flash (3.60 s) lands on a cut, and `fx_reveal`
     holds the old picture in every cell whose slot in the cut's own order has not come yet - which is
-    right for a picture and wrong for a sentence: replayed through the real loop (`_dev/_b51live.py`), the
+    right for a picture and wrong for a sentence: replayed through the real loop (`_dev/live_replay.py`), the
     motto came up as `公诚 毅  三实一新` - `勇` still the *old* frame's blank at 93, the `·` at 98 still
     the ops box's own border - and stayed that way for the rest of the cut. That is exactly the frame the
     user reported ("开头校徽下，'公诚勇毅，三实一新'的校训未显示完整"), and it is why a caption that is six
@@ -2092,7 +2107,31 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     #     校门、图书馆、航小天、铸剑雕塑、对话雕塑这些图片都不要附近文字". Every one of them is a
     #     photograph or a work of art filling the frame; a label under it turns the frame into a slide with
     #     a caption. What a viewer needs to know is already in the pane, the ops ticker or the lyric band.
-    (11.20, 13.10, lowpass, dict(name="y20", y=0.42)),
+    #
+    #     **It was too fast, and slowing it down is not just "a longer window"** (batch 56, the user:
+    #     "运20飞得太快了，导致其快飞出时残影较严重，适当降点速"). 1.9 s for 482 cells of travel - the
+    #     frame's width plus a sprite 1.45x the frame - is 254 cells/s, i.e. 10.6 cells every frame at 24
+    #     fps, and a sprite that moves that far between frames leaves a readable trail of its own previous
+    #     positions near the end, where it is smallest and the smear is largest relative to it.
+    #
+    #     The obvious change - keep 11.20 and push the end out to 14.60, 3.4 s of 142 cells/s - was
+    #     **over the frame budget**, and it is the reason this batch has a renderer in it. The aircraft's
+    #     cost is set by how much of the frame its ink covers, and a full-frame cut already costs 24-34 ms
+    #     of the 41.7: sweeping every frame from 10.5 to 17.0 (`_dev/frame_sweep.py`, 0.05 s, finer than 24
+    #     fps) put 11.20-14.60 at **43.3-51.9 ms** at 13.20-13.43, where the widest part of the pass sits
+    #     on the `pane_countdown` -> `pane_landmark_hezun` cut. The same sweep found the *old* window's
+    #     own peak over budget too - **47.8 ms at t=12.20**, since `frame_probe` samples the middle of
+    #     every cut and the middle of this pass is not one - which turned into a fix rather than a
+    #     footnote: `Screen.render_diff` writes a row at a time and `paste(fast=True)` clips its loops
+    #     (both in this batch) took the peak frame to **38.1 ms**.
+    #
+    #     So the pass is 10.65-13.17: 2.52 s for the same 482 cells, 142 -> **191 cells/s, 8.1 a frame**,
+    #     i.e. 76 % of the speed the user called too fast, and its widest stretch (u 0.28-0.72, where the
+    #     ink covers most of the frame) lands in 11.36-12.47 - the cut-free second between the 10.90 skew
+    #     and the 12.47 page cut, which is also `Set up our new world`, the lyric this aircraft is filed
+    #     under in the aircraft table. It still crosses `And let's begin the simulation`, whose own
+    #     dialogue is the one that promises it: "会先跑很久什么都不发生。但你会看到东西飞过去。"
+    (10.65, 13.17, lowpass, dict(name="y20", y=0.42)),
     # --- 魔鬼鱼, once, swimming: a diagonal crossing at its own shape's size, rippling as it goes
     # --- the fourth route: the design's four aircraft are 运-20 (the low pass), 歼-20 (the fly),
     #     直-20 (the descent) and ARJ21 - which had its file, its name and no event at all until batch
@@ -2177,9 +2216,11 @@ EVENTS: list[tuple[float, float, object, dict]] = [
 
 # The frame's own shocks: `tui_live.fx_shake` asks `shock(t)` and shakes by that much, so the variant
 # does not need a second pass over the finished buffer. One entry, and it is 运-20 going over: the window
-# is the middle of the low pass (11.20-13.10), where the aircraft is closest and largest.
+# is the middle of the low pass, where the aircraft is closest and largest. It follows the event's own
+# centre - 11.91 for the 10.65-13.17 pass of batch 56, where it was 12.15 for the original 11.20-13.10
+# and 12.90 for the 3.4 s one that batch first tried (see the note on the event).
 SHOCKS.extend([
-    (11.85, 12.45, 1.0),
+    (11.61, 12.21, 1.0),
 ])
 
 
