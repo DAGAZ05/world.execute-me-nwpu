@@ -43,15 +43,22 @@ ACT_TWO: list[tuple[float, str, str, str]] = [
     (147.52, "Execution", "ai", "\u5927\u4e8c\u3002\u4e00\u8d77\u4e0a\u3002"),
     (147.52, "Execution", "sub", "\u6211\u4e0d\u62a5\u4e86\uff0c\u753b\u7ed9\u4f60\u770b\u3002"),
     (147.52, "Execution", "meta", "\u7528\u65f6 1.2 \u79d2|02:27"),
-    (149.79, "Ein, dos", "user", "\u7b49\u4e00\u4e0b\u2014\u2014"),
-    (149.79, "Ein, dos", "ai", "\u6765\u4e0d\u53ca\u4e86\uff0c\u5df2\u7ecf\u5f00\u59cb\u4e86\u3002"),
-    (149.79, "Ein, dos", "meta", "\u7528\u65f6 1.0 \u79d2|02:38"),
-    (150.66, "Trios, ne", "ai", "\u8ba1\u7f51\u3001\u673a\u64cd\u3002"),
-    (150.66, "Trios, ne", "sub", "\u673a\u64cd\u7684\u5b9e\u9a8c\u8bfe\u5728 OpenEuler \u4e0a\u505a\uff0c\u4f60\u4f1a\u8bb0\u4f4f\u90a3\u5957\u547d\u4ee4\u884c\u3002"),
-    (150.66, "Trios, ne", "meta", "\u7528\u65f6 1.2 \u79d2|02:39"),
-    (151.45, "Fem, liu", "ai", "\u8ba1\u7ec4\u3001\u6570\u636e\u5e93\u3002"),
-    (151.45, "Fem, liu", "sub", "\u8865\u7801\u4e58\u6cd5\u662f\u8ba1\u7ec4\u7684\u7b2c\u4e00\u4e2a\u574e\u3002\u6570\u636e\u5e93\u7528 PostgreSQL\u3002"),
-    (151.45, "Fem, liu", "meta", "\u7528\u65f6 1.4 \u79d2|02:40"),
+    # **These three were 9.00 s early** (batch 52): they sat on 149.79 / 150.66 / 151.45, which are
+    # `Execution` lines - the fourth, fifth and sixth of the twelve - while the countdown lyrics `Ein, dos`
+    # / `Trios, ne` / `Fem, liu` are at 158.79 / 159.66 / 160.45. The rows' own timestamps said
+    # `02:38` / `02:39` / `02:40`, i.e. the timestamps agreed with the lyrics and the `t` did not, and the
+    # six gauges those answers are *about* are at 158.79-161.51 - so the exchange about "一共多少门 /
+    # 计网、机操 / 计组、数据库" was landing nine seconds before the numbers it names. `_dev/chat_audit.py`
+    # finds this class by comparing every row's `t` with its lyric's own time in `input/lyrics.lrc`.
+    (158.79, "Ein, dos", "user", "\u7b49\u4e00\u4e0b\u2014\u2014"),
+    (158.79, "Ein, dos", "ai", "\u6765\u4e0d\u53ca\u4e86\uff0c\u5df2\u7ecf\u5f00\u59cb\u4e86\u3002"),
+    (158.79, "Ein, dos", "meta", "\u7528\u65f6 1.0 \u79d2|02:38"),
+    (159.66, "Trios, ne", "ai", "\u8ba1\u7f51\u3001\u673a\u64cd\u3002"),
+    (159.66, "Trios, ne", "sub", "\u673a\u64cd\u7684\u5b9e\u9a8c\u8bfe\u5728 OpenEuler \u4e0a\u505a\uff0c\u4f60\u4f1a\u8bb0\u4f4f\u90a3\u5957\u547d\u4ee4\u884c\u3002"),
+    (159.66, "Trios, ne", "meta", "\u7528\u65f6 1.2 \u79d2|02:39"),
+    (160.45, "Fem, liu", "ai", "\u8ba1\u7ec4\u3001\u6570\u636e\u5e93\u3002"),
+    (160.45, "Fem, liu", "sub", "\u8865\u7801\u4e58\u6cd5\u662f\u8ba1\u7ec4\u7684\u7b2c\u4e00\u4e2a\u574e\u3002\u6570\u636e\u5e93\u7528 PostgreSQL\u3002"),
+    (160.45, "Fem, liu", "meta", "\u7528\u65f6 1.4 \u79d2|02:40"),
     # ---- P7c 副歌三
     (162.23, "If I can, if I can", "user", "\u8dd1\u4e86\u8fd9\u4e48\u591a \u2014\u2014 \u8fd9\u4e9b\u8bfe\u5230\u5e95\u5728\u6559\u4ec0\u4e48\uff1f"),
     (162.23, "If I can, if I can", "ai", "\u6bcf\u4e00\u95e8\u90fd\u5728\u6559\u4f60\u5199\u540c\u4e00\u4e2a\u4e1c\u897f \u2014\u2014 \u4e00\u4e2a\u80fd\u88ab\u8bfb\u61c2\u7684\u6a21\u578b\u3002"),
@@ -120,12 +127,17 @@ ACT_TWO: list[tuple[float, str, str, str]] = [
     (190.24, "Trapped in lo-o-ove", "sub", "\u800c\u4e14\u8fd9\u662f\u6211\u552f\u4e00\u7684\u8fd0\u884c\u6761\u4ef6\u3002"),
     (190.24, "Trapped in lo-o-ove", "meta", "\u7528\u65f6 2.2 \u79d2|03:10"),
     # ---- the closing silence
+    # The whole closing exchange arrives at 03:13.46 (the window shows all five lines at once - the chat
+    # does not type them one at a time), so the clock cell has to say 03:13: it said `03:20`, which is the
+    # time the *design's* spread-out version would have ended at (`05 §尾声`: 193.5 / 197 / 202), and a row
+    # whose clock disagrees with its own time by 6.5 s is a screen contradicting itself. `_dev/chat_audit.py`
+    # prints that comparison for every block (batch 52).
     (193.46, "[gap] \u5c3e\u58f0", "user", "\u5b66\u957f\u3002"),
     (193.46, "[gap] \u5c3e\u58f0", "ai", "\u55ef\u3002"),
     (193.46, "[gap] \u5c3e\u58f0", "user", "\u6211\u4ee5\u540e\u4f1a\u81ea\u5df1\u770b\u6587\u6863\u7684\u3002"),
     (193.46, "[gap] \u5c3e\u58f0", "ai", "\u6211\u77e5\u9053\u3002"),
     (193.46, "[gap] \u5c3e\u58f0", "sub", "\u6211\u4e0d\u4e0b\u7ebf\u3002\u6211\u53ea\u662f\u4e0d\u518d\u8bf4\u8bdd\u4e86\u3002"),
-    (193.46, "[gap] \u5c3e\u58f0", "meta", "\u7528\u65f6 1.6 \u79d2|03:20"),
+    (193.46, "[gap] \u5c3e\u58f0", "meta", "\u7528\u65f6 1.6 \u79d2|03:13"),
     (205.56, "Execution", "ai", "\u53bb\u8dd1\u5427\u3002"),
     (205.56, "Execution", "meta", "\u7528\u65f6 0.5 \u79d2|03:25"),
 ]

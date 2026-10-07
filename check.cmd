@@ -13,7 +13,7 @@ rem "'Run' is not recognized", "'verdict' is not recognized", and so on, for fou
 rem comments above it. The checks all still ran; the noise was the tell. Everything user-facing that
 rem is not ASCII lives in the Python tools this calls.
 rem
-rem   check.cmd          the fast set: twelve probes, about a minute
+rem   check.cmd          the fast set: fourteen probes, about a minute
 rem   check.cmd --full   and the two whole-song sweeps (a few minutes more)
 setlocal
 set FAIL=0
@@ -61,6 +61,14 @@ python _dev\math_probe.py || set FAIL=1
 echo.
 echo === glyph_probe     every glyph the project prints, against the fonts the renderer has
 python _dev\glyph_probe.py || set FAIL=1
+
+echo.
+echo === chat_audit      dialogue rows: time vs its own lyric, and its own clock vs its own time
+python _dev\chat_audit.py || set FAIL=1
+
+echo.
+echo === chat_doc        the lyric-to-dialogue table: is 05_ still what the code says
+python _dev\chat_doc.py --check || set FAIL=1
 
 echo.
 echo === frame_probe     how long a frame takes, cold and warm, against the 24 fps budget

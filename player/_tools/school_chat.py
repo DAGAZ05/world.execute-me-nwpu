@@ -42,122 +42,20 @@ NAME = "航小天"
 STATE = "在线上"
 
 
-def _x(role: str, text: str) -> tuple[str, str]:
-    return (role, text)
-
-
 # --------------------------------------------------------------------------- the conversation
 #
-# Written against `03_批次设计/batch_01.md`, one entry per lyric line, in the order the lyrics
-# arrive. `t` is the time the *answer* lands - the student's question is placed a little before it,
-# so the line is being read when the word is sung. Times come from `input/lyrics.lrc`.
+# The conversation is **not** here. It is `school_lines.ACT_ONE` + `school_lines_act2.ACT_TWO`, folded
+# into blocks at the bottom of this file by `_blocks`.
 #
-# The blank second element of the two-tuples below is the lyric line the exchange belongs to; it is
-# kept beside the entry rather than in it because `dsh_window` must return the film's own two-tuple
-# shape. It is there for whoever reads this file next, not for the layout.
+# There used to be a second copy right here: a `DIALOGUE` list with the first thirty seconds typed out as
+# `_x("user", ...)` calls, left over from the batch-1 design (the one that still had an Arduino board and
+# a UML class inside the first ten seconds - the thing the act-one rule below forbids). It was superseded
+# when the flat row files were written and **nothing read it**, so it was a second source of truth sitting
+# in the same file as the first: the batch-51 regeneration of `05_歌词会话对照_v2.md` read it by mistake
+# and produced a table whose first three exchanges do not exist in the player. It is deleted (batch 52).
 #
-# 00:00.03 - 00:30.89 is written here; the rest of the song is in `school_dialogue.SECOND_HALF`,
-# chained below. The split is size, not structure: `DIALOGUE` is the whole song either way, and
-# `_DIALOGUE` is what every function in this file reads.
-
-DIALOGUE: list[tuple[float, str, list[tuple[str, str]]]] = [
-    (0.03, "Switch on the power line", [
-        _x("user", "学长，软件学院大一，报到了。还没开学，我先给板子通上电。"),
-        _x("ai", "欢迎来到西北工业大学。长安校区，东祥路 1 号。"),
-        _x("ai", "你手上那块是 UNO，插上 USB 就能亮 —— 但你得先把电源线接对。"),
-        _x("meta", "用时 0.4 秒"),
-        _x("meta", "00:01"),
-    ]),
-    (1.33, "Remember to put on protection", [
-        _x("user", "接线之前要注意什么吗？"),
-        _x("ai", "防静电。手环接地，别摸金手指。"),
-        _x("sub", "这条不是客套 —— 你上学期会亲手拆掉至少一块板子。"),
-        _x("meta", "用时 1.1 秒"),
-        _x("meta", "00:02"),
-    ]),
-    (3.58, "Lay down your pieces", [
-        _x("user", "好。那我现在手上有哪些东西？"),
-        _x("ai", "一块 UNO、一个超声波模块、一个红外测距、一块 LCD1602、一块面包板、若干杜邦线。"),
-        _x("ai", "先把它们摆好，别急着插。"),
-        _x("meta", "用时 1.6 秒"),
-        _x("meta", "00:05"),
-    ]),
-    (5.16, "And let's begin object creation", [
-        _x("user", "摆好了。然后呢？写代码？"),
-        _x("ai", "先别写。想一想你要造的是什么。"),
-        _x("sub", "软件工程的第一课不是敲键盘，是决定「世界上有哪些东西」。"),
-        _x("code", "class World(UNO):"),
-        _x("code", "    sensors = [Ultrasonic, Infrared]"),
-        _x("code", "    display = LCD1602"),
-        _x("meta", "用时 2.0 秒"),
-        _x("meta", "00:07"),
-    ]),
-    (7.19, "Fill in my data parameters", [
-        _x("user", "参数填什么？"),
-        _x("ai", "填真的。别写 foo、bar。"),
-        _x("sub", "你写进去的每一个数，将来都要能对上现实。"),
-        _x("code", "name     = \"西北工业大学\""),
-        _x("code", "campus   = \"长安校区 · 东祥路1号\""),
-        _x("code", "founded  = 1938"),
-        _x("code", "colleges = 24"),
-        _x("meta", "用时 2.3 秒"),
-        _x("meta", "00:09"),
-    ]),
-    (9.75, "Initialization", [
-        _x("user", "初始化到底在做什么？"),
-        _x("ai", "把刚才那堆东西，变成「一个」东西。"),
-        _x("sub", "数学上这件事叫权重初始化。你大一会遇到它：He 初始化，方差 2/n。"),
-        _x("meta", "用时 1.1 秒"),
-        _x("meta", "00:10"),
-    ]),
-    (10.90, "Set up our new world", [
-        _x("user", "那我们的世界是什么样子的？"),
-        _x("ai", "三个旋臂。航空、航天、航海。"),
-        _x("sub", "这不是比喻 —— 你走在校园里，抬头就是这三样东西。"),
-        _x("meta", "用时 1.5 秒"),
-        _x("meta", "00:12"),
-    ]),
-    (12.47, "And let's begin the simulation", [
-        _x("user", "跑起来会怎么样？"),
-        _x("ai", "会先跑很久什么都不发生。这很正常。"),
-        _x("sub", "仿真最耗人的不是算，是等。"),
-        _x("meta", "用时 0.8 秒"),
-        _x("meta", "00:13"),
-    ]),
-    # ---------------------------------------------------------------- the gap (no lyrics)
-    # 12.47 - 29.28 s is the film's first instrumental gap and this variant's first silence. Rule R2
-    # of batch 1: a gap is 航小天 talking alone, and what he talks through is a *list* - here the
-    # whole four years, printed a line at a time. It is the one place the audience is allowed to read
-    # an entire curriculum before the lyrics start pushing the picture around.
-    (14.00, "[gap] 四年课表", [
-        _x("ai", "趁它跑，我说一下这四年的安排。"),
-        _x("code", "大一   嵌入式电子微系统        程序设计（C）"),
-        _x("code", "大二   软件工程               面向对象"),
-        _x("code", "      计算机网络             计算机操作系统"),
-        _x("code", "      计算机组成原理          数据库"),
-        _x("code", "大三   软件项目管理            软件测试"),
-        _x("code", "      深度学习               工业模型"),
-        _x("code", "      大型工业软件"),
-        _x("ai", "你会觉得它很长。它确实很长。"),
-        _x("meta", "用时 2.3 秒"),
-        _x("meta", "00:14"),
-    ]),
-    (29.28, "If I'm a set of point", [
-        _x("user", "学长，我问个可能有点蠢的问题。"),
-        _x("user", "这些数学，到底有什么用？"),
-        _x("ai", "不蠢。这是这四年最该问的问题。"),
-        _x("ai", "如果我是点集，我就把维数给你。"),
-        _x("meta", "用时 1.9 秒"),
-        _x("meta", "00:29"),
-    ]),
-    (30.89, "Then I will give you my dimension", [
-        _x("ai", "维数。"),
-        _x("ai", "一个点没有长度，但一堆点可以有一维、二维、三维。"),
-        _x("sub", "你将来写图形程序，第一件事就是决定你有几维。"),
-        _x("meta", "用时 1.2 秒"),
-        _x("meta", "00:31"),
-    ]),
-]
+# `dsh_window` must return the film's own two-tuple shape, so the lyric tag each exchange hangs on lives
+# beside the entry rather than in it; see `_blocks`.
 
 # --------------------------------------------------------------------------- the whole song
 #
@@ -293,59 +191,128 @@ def window(t: float) -> tuple[str, tuple[str, str, str], list[tuple[str, str]]]:
     return expression_at(t), THEME, items
 
 
-def check_coverage() -> list[str]:
-    """Every lyric line must be handled; returns the ones that are not.
-
-    `01_歌词分析.md` counts 82 timed lyric lines and 3 instrumental gaps. A line is *handled* either
-    by having its own exchange or by being the second half of a pair.
-
-    **...and the pairing rule is now checked rather than granted.** It used to be
-    `not ln.startswith(("To ", "Then "))` - a blanket exemption for any line beginning with those two
-    words - which made this function incapable of ever failing: with 98 timed lines, 83 own exchanges,
-    16 `To`/`Then` lines and the 4 `COVERED_BY_PICTURE` lines, the three sets account for every line by
-    construction, so it returned `[]` whatever the film did. Batch 38's lyrics audit called it "a
-    constructive green light" and it was right.
-
-    What the docstring *claims* is the real rule, and it is testable: every `To`/`Then` line is the
-    completion of the line that opened the pair, so its opener - the nearest earlier line that is not
-    itself a `To`/`Then` - must be handled. Measured (batch 38): all 16 satisfy it, so tightening the
-    check costs nothing today and makes it able to fail tomorrow. The 4 picture-covered lines are the
-    one exemption left, and it is a **named list** rather than a pattern, which is what
-    `COVERED_BY_PICTURE` was already for.
-    """
+def lyric_lines() -> list[tuple[float, str]]:
+    """`(time, text)` for every timed line of `input/lyrics.lrc` - the list `check_coverage` walks."""
     import re
-    lrc = ROOT_LRC
-    if not lrc.exists():
+    out: list[tuple[float, str]] = []
+    if not ROOT_LRC.exists():
+        return out
+    for ln in ROOT_LRC.read_text(encoding="utf-8-sig").splitlines():
+        m = re.match(r"^\[(\d+):(\d+\.\d+)\](.*)", ln)
+        if m and m.group(3).strip():
+            out.append((int(m.group(1)) * 60 + float(m.group(2)), m.group(3).strip()))
+    return out
+
+
+def why_no_exchange(t: float, text: str, lines: list[tuple[float, str]] | None = None,
+                    depth: int = 0) -> str:
+    """Why this lyric line has no exchange of its own, as a short phrase for a reader.
+
+    `""` means it *has* one (or is the completion of a pair whose opener has one). `"UNEXPLAINED"` means
+    nothing accounts for it, which is what `check_coverage` reports. The five reasons, in the order they
+    are tried:
+
+      1. **it has its own exchange** - a block in `_DIALOGUE` hangs on that line, at that time;
+      2. **it completes a pair** - a `To`/`Then` line whose opener is itself handled. That is the IF/THEN
+         device (`05_歌词会话对照_v2.md` §4): `To AC, to DC` finishes `Switch my current`;
+      3. **a picture is covering the window** at that moment - measured from `school_fx.WINDOW_EVENTS`,
+         the layer that draws *inside* the chat window. The basketball (58.65-70.08) covers four lines of
+         the first chorus and nothing else does;
+      4. **the previous exchange still holds the screen** - a block's own `用时 X 秒` cell says how long it
+         stays, so `I will run the execution` (01:51.86) is inside the 3.4 s answer that opened at
+         01:49.61 rather than being a line with nothing under it;
+      5. **the stretch is declared silent** - `SILENT_SPANS`, a named list with a reason and a time range,
+         for the one place where the film deliberately stops talking: the twelve `Execution` hits, which
+         the right column's course drawings carry.
+
+    **Why the old check could not fail (twice over).** It was `not ln.startswith(("To ", "Then "))` - a
+    blanket exemption that made it return `[]` by construction (batch 38 fixed that half) - plus a *string*
+    set, `COVERED_BY_PICTURE`, compared against a set of tags. Text-keyed exemptions exempt **every
+    occurrence**: all twelve `Execution` lines were exempted by the one block that hangs on the first of
+    them, and `I will run the execution` at 01:51.86 was exempted by the basketball that covers its
+    01:08.20 occurrence. That is how a "what is said over which lyric" table can look complete while a
+    line has no answer under it. Everything here is keyed by time instead (batch 52), so both of those
+    have to be *declared* - the Execution run as a named silent span, the four chorus lines by the picture
+    that really covers them - and this function is what `05_歌词会话对照_v2.md` prints as the reason.
+    """
+    if any(tag == text and abs(bt - t) <= 0.6 for bt, tag, _b in _DIALOGUE):
+        return ""
+    lines = lyric_lines() if lines is None else lines
+    # ...then the three *measured* reasons, before the pair rule: a half-line inside the basketball
+    # window is covered by the basketball, not by the line it completes (the opener of `Then I can, then I
+    # can` at 01:02.41 is `Give you all the simulations` at 01:00.57, which is itself under the picture).
+    import school_fx as _FX
+    for s, e, fn, _kw in _FX.WINDOW_EVENTS:
+        if s <= t < e:
+            return f"**没有对话**：{s:.2f}-{e:.2f} 的 `{fn.__name__}` 画在会话窗里，把这一段盖住了"
+    # ...the pair rule next, *before* rules 4 and 5, because "this is the second half of the line before
+    # it" is the informative answer for a `To`/`Then` line and the design's own reason (§4). It has to come
+    # after the picture rule, though: a half-line inside the basketball window is covered by the picture,
+    # not by the line it completes.
+    # The index is found with a loose tolerance on purpose: the film's own timeline
+    # (`word_timeline.json`) and `lyrics.lrc` disagree by up to 0.64 s on a few lines, so a `To S, to M`
+    # at 01:37.70 in one file is at 01:37.32 in the other and a 0.05 s match made this function report
+    # the pair as unaccounted for.
+    i = next((k for k, (lt, lx) in enumerate(lines) if lx == text and abs(lt - t) <= 0.75), None)
+    if text.startswith(("To ", "Then ")) and depth < 4 and i is not None:
+        j = i - 1
+        while j >= 0 and lines[j][1].startswith(("To ", "Then ")):
+            j -= 1
+        if j >= 0:
+            opener_t, opener = lines[j]
+            if why_no_exchange(opener_t, opener, lines, depth + 1) == "":
+                return f"**没有新对话**：这是半句，补完 `{opener}`（§4 IF/THEN 装置），画面承接上一句"
+            return f"**没有对话**：这是半句，而它补完的 `{opener}` 也没有对话"
+        return f"**没有对话**：这是半句，但表里找不到它补完的那一句"
+    for bt, d in declared_spans():
+        if 0.0 <= t - bt <= d + 0.3:
+            return f"**没有新对话**：上一句的回答还在屏上（`{bt:.2f}` 那一块自称停留 {d:.1f} 秒）"
+    for s, e, why in SILENT_SPANS:
+        if s <= t < e:
+            return f"**没有对话**：{why}"
+    return "UNEXPLAINED"
+
+
+def check_coverage() -> list[str]:
+    """Every lyric line must be handled; returns the ones that are not. See `why_no_exchange`."""
+    lines = lyric_lines()
+    if not lines:
         return ["(no lyrics.lrc to check against)"]
-    lines = [ln.split("]", 1)[1].strip() for ln in lrc.read_text(encoding="utf-8-sig").splitlines()
-             if re.match(r"^\[\d+:\d+", ln)]
-    lines = [ln for ln in lines if ln]
-    have = {tag for _t, tag, _b in _DIALOGUE}
-    handled = have | set(COVERED_BY_PICTURE)
-    bad = []
-    for i, ln in enumerate(lines):
-        if ln in handled:
-            continue
-        if ln.startswith(("To ", "Then ")):
-            # the completion of a pair: its opener has to be handled, or the pair says nothing
-            j = i - 1
-            while j >= 0 and lines[j].startswith(("To ", "Then ")):
-                j -= 1
-            opener = lines[j] if j >= 0 else ""
-            if opener not in handled:
-                bad.append(f"{ln}  (its opener {opener!r} is not handled either)")
-            continue
-        bad.append(ln)
+    bad: list[str] = []
+    for t, text in lines:
+        why = why_no_exchange(t, text, lines)
+        if why == "UNEXPLAINED":
+            bad.append(f"{text}  @{t:.2f}")
+        elif "也没有对话" in why or "找不到它补完" in why:
+            bad.append(f"{text}  @{t:.2f}  ({why.strip('*')})")
     return bad
 
 
-# The four lines of the first chorus, which the animation covers: see `check_coverage`.
-COVERED_BY_PICTURE = frozenset((
-    "Give you all the simulations",
-    "Be your only satisfaction",
-    "If I can make you happy",
-    "I will run the execution",
-))
+# The one stretch where the film deliberately stops talking, with the reason. A lyric line inside one of
+# these is handled by the *declaration*, not by a block - which is why it has to say why.
+SILENT_SPANS: tuple[tuple[float, float, str], ...] = (
+    (148.00, 161.51,
+     "十二次 Execution：右栏的课图一张张出框，左窗只有开头那一句「大二。一起上。」（05 §6 第 8 条）"),
+)
+
+
+def declared_spans() -> list[tuple[float, float]]:
+    """`(block time, how long it says it holds the screen)` - the `用时 X 秒` cell of each block.
+
+    It is the block's own claim about its duration, and rule 4 of `check_coverage` reads it: a lyric line
+    that arrives while the previous answer says it is still on screen is answered by that answer. Blocks
+    without the cell contribute nothing, so a missing cell is never an exemption.
+    """
+    import re
+    out: list[tuple[float, float]] = []
+    for t, _tag, block in _DIALOGUE:
+        for role, txt in block:
+            if role != "meta":
+                continue
+            m = re.search(r"用时\s*([0-9.]+)\s*秒", txt)
+            if m:
+                out.append((t, float(m.group(1))))
+    return out
 
 
 from pathlib import Path as _P            # noqa: E402
