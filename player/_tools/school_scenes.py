@@ -399,6 +399,24 @@ def pane_three_arms(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
             s.put(lx, ly, label, _mix(ANOM, 0.9))
             if h >= 9:
                 s.put(lx, ly + 1, sub, _ui(0.55))
+    # ---- the outer field (batch 51, the user: "学校部分某些右侧 panel 的图像周边比较空旷，可以使用装饰
+    #      填充，也可以重复多个图形"). Three more arms, interleaved between the three and drawn dimmer and
+    #      longer, so the galaxy has the outer structure a three-armed galaxy actually has - and a dust of
+    #      stars between them. The six arms are still one figure: the labels ride the three bright ones.
+    import school_courses as _CC
+    for a in range(3):
+        theta0 = a * (2 * math.pi / 3) + phase + math.pi / 3
+        for k2 in range(1, 44):
+            f2 = k2 / 43.0
+            if f2 > min(1.0, grow * 1.2):
+                break
+            th = theta0 + f2 * 1.8
+            r = rmax * 1.22 * f2
+            xx = int(round(cx + r * math.cos(th)))
+            yy = int(round(cy + r * math.sin(th) * 0.5))
+            if x0 <= xx <= x1 and y0 <= yy <= y1 and k2 % 2:
+                s.put(xx, yy, "\u00b7", _mix(ME_TEXT, 0.10 + 0.28 * f2))
+    _CC.dust(s, x0, y0, x1, y1, t, int(max(20, w * h * 0.05)), seed=7, colour=ME_TEXT, spread=0.5)
 
 
 def pane_countdown(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
@@ -715,7 +733,12 @@ def pane_sw_project(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         project management that cannot ship is not showing project management.
     """
     import school_courses as _C
-    k = _kit(s, x0, y0, x1, y1, 0, "\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406")
+    # The heading names both halves of the course (batch 51: "软件项目管理任务看板那，抬头课程名改为
+    # '软件项目管理/软件开发综合训练'"): they are one line of the college's 培养方案 - the theory and the
+    # course-long project that runs beside it - and this pane draws both of them, a sprint's ceremonies and
+    # the board the project is worked on.
+    k = _kit(s, x0, y0, x1, y1, 0, "\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406 / \u8f6f\u4ef6\u5f00\u53d1"
+                                    "\u7efc\u5408\u8bad\u7ec3")
     if k is None or k.bw < 40 or k.bh < 8:
         return
     k.section(k.by0, "\u654f\u6377 \u00b7 \u51b2\u523a \u00b7 \u770b\u677f", 0.28)
@@ -1790,11 +1813,13 @@ def pane_memory(s, x0, y0, x1, y1, t, lt, dur, u, layers: int = 1, ghost: float 
             hy = (i * 1103515245 + layers * 12345) & 0xFFFF
             x = k.bx0 + hx % max(1, k.bw)
             y = k.by0 + hy % max(1, k.bh)
-            if not (k.by0 + 1 < y < k.by1) or k.s.buf[y][x][0] not in ("", " "):
+            if not (k.by0 + 1 < y < k.by1) or not _C.blank(k.s, x, y):
                 continue
             tw = 0.30 + 0.70 * abs(math.sin(t * 1.6 + i * 0.7))
-            if (hx >> 5) % 11 == 0 and k.s.buf[y - 1][x][0] in ("", " ") \
-                    and k.s.buf[y + 1][x][0] in ("", " "):
+            # `_sparkle` is five cells, not one, so all five have to be free before it is drawn: a star
+            # whose *centre* is blank can still land its left or right arm on half of a wide glyph.
+            star = ((x, y - 1), (x - 1, y), (x + 1, y), (x, y + 1))
+            if (hx >> 5) % 11 == 0 and all(_C.blank(k.s, xx, yy) for xx, yy in star):
                 _sparkle(k, x, y, _C.AMBER, centre=0.45 + 0.55 * tw)
             elif (hx >> 3) % 5 == 0:
                 k.put(x, y, "o", _C._mix(_C.BLUE, 0.35 + 0.45 * tw))
@@ -1850,7 +1875,7 @@ def _motif(name: str):
         k = _kit(s, x0, y0, x1, y1, 0, title)
         if k is None or k.bh < 5:
             return
-        band = max(4, min(k.bh - 2, 15))
+        band = max(4, min(k.bh - 2, _M.BAND_MAX.get(name, 99)))
         fn(k.sub(k.bx0, k.by0 + 1, k.bx1, k.by0 + band), t)
 
     pane.__name__ = "pane_motif_" + name

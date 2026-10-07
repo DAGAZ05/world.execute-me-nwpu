@@ -33,6 +33,26 @@ _CA = 2.1
 BOX_H = _C.BOX_H
 BOX_V = _C.BOX_V
 
+# How many rows of its pane each drawing may take. `school_scenes._motif` draws a motif in a band at the
+# *top* of the pane and this caps how tall that band may be. It used to be a flat fifteen rows, which was
+# right while these were `想法.md`'s motifs drawn as bands under somebody else's pane, and wrong once the
+# promotion made them panes in their own right: at 197x52 a motif pane's body is twenty-seven rows, so
+# fifteen of them were drawn and twelve stayed black - which is the emptiness the user reported this batch
+# as "学校部分某些右侧 panel 的图像周边比较空旷". The cap is now the drawing's own business.
+#
+# The entries below are the exceptions, and they are exceptions because `density_probe` measured them: a
+# drawing that is a *field* (one mark per cell, all the way across) stops being a drawing and becomes
+# texture as soon as it is given the whole box, and the probe's criterion for that is a third of the cells
+# inked - `pixelsort` and the Chladni plate were past half of it. Everything else scales with the box,
+# which is also what makes the drawings bigger rather than merely taller.
+BAND_MAX: dict[str, int] = {
+    # measured, not guessed: at the pane's full height these two ink 0.74 and 0.71 of their cells (the
+    # probe's wall threshold is 0.55) and at fifteen rows they ink 0.40 and 0.33. The ordering sort and the
+    # plate are the two drawings here whose subject *is* density, so they keep the band they were drawn in.
+    "pixelsort": 15,
+    "chladni": 15,
+}
+
 
 def _ph(t: float, period: float, offset: float = 0.0) -> float:
     """A 0..1 phase on the *song's* clock, which is what makes two drawings independent."""
@@ -572,6 +592,35 @@ def epicycles(k, t: float) -> None:
     k.put(cx + sx + 6, cy - 1, "\u4efb\u4f55\u66f2\u7ebf\u90fd\u662f", _ui(0.55))
     k.put(cx + sx + 6, cy, "\u4e00\u5806\u5300\u901f\u65cb\u8f6c\u4e4b\u548c", _ui(0.55))
     k.put(cx + sx + 6, cy + 2, "\u5305\u62ec\u8fd9\u4e2a", _mix(_C.RED, 0.85))
+    # ---- the same decomposition, three more times (batch 51, the user: "也可以重复多个图形（比如心形曲线
+    #      可以画朝向不同的几个）"). Each is the *same* coefficient list under a rotation - a complex multiply
+    #      by e^{iθ} - so they are not three drawings of hearts, they are the one heart at three orientations,
+    #      which is the point the pane is making. Smaller and dimmer, and drawn on blank cells only.
+    #
+    # The first attempt put all three at `k.bx1 - r - 2`, i.e. in a vertical stack against the right edge,
+    # at 0.30/0.24/0.20 of `sx` - six cells across and four rows tall, which at that size is a blob and not
+    # a heart, and it left the forty columns *between* the caption and the edge as empty as before. They
+    # now take the free band to the right of the caption - the pane is 97 cells wide and the drawing plus
+    # its two captions only reach the fortieth - at 0.60/0.44/0.34 of `sx`, which is 13, 10 and 7 cells
+    # across: enough rows for the cusp and the two lobes to survive being drawn with one glyph per cell.
+    if k.bw > 46 and k.bh > 8:
+        r0 = int(0.60 * sx)
+        fx0, fx1 = cx + sx + 18 + r0, k.bx1 - 3 - r0
+        for frac, dy, s3, rot, lv in ((0.00, -3, 0.60, 0.6, 0.62),
+                                      (0.50, 1, 0.44, -0.9, 0.50),
+                                      (0.90, 4, 0.34, 2.2, 0.40)):
+            if fx1 <= fx0:
+                break
+            hx = fx0 + int(frac * (fx1 - fx0))
+            rad = int(0.7 * s3 * sy) + 1
+            hy = min(max(cy + dy, k.by0 + 1 + rad), k.by1 - 1 - rad)
+            ca, sa = math.cos(rot), math.sin(rot)
+            for (x0p, y0p) in path:
+                xr = (x0p * ca - y0p * sa) * s3
+                yr = (x0p * sa + y0p * ca) * s3
+                px2, py2 = int(hx + xr * sx), int(hy + yr * sy)
+                if _C.blank(k.s, px2, py2):
+                    k.put(px2, py2, "\u2022", _mix(_C.RED, lv))
 
 
 def hearts9(k, t: float) -> None:
@@ -819,7 +868,11 @@ def galaxy(k, t: float) -> None:
     # is 2 px tall, so `rx = 2 * ry` in cells. The first version took `bw // 4` for rx and the band's own
     # height for ry (23 cells against 4 rows at 95x11), which is a 2.9:1 ellipse - the arms came out as a
     # nearly straight horizontal smear (batch 31's audit measured it).
-    ry = max(2, min(6, (k.by1 - k.by0) // 2 - 1))
+    # ...and the cap is the box's, not a constant: `min(6, ...)` was written for the eleven-row band these
+    # drawings used to live in, and once the band became the pane (see `BAND_MAX`) it left a 24-cell galaxy
+    # in the middle of a 95x25 one - the same emptiness by another route. `bw // 5` keeps a wide, short box
+    # from making a galaxy wider than the room its three labels need.
+    ry = max(2, min(11, (k.by1 - k.by0) // 2 - 1, k.bw // 5))
     rx = 2 * ry
     cx = k.bx0 + rx + 2
     cy = (k.by0 + k.by1) // 2
@@ -845,6 +898,12 @@ def galaxy(k, t: float) -> None:
     k.put(k.bx0 + 2 * rx + 4, cy - 1, "r = a\u00b7e^{b\u03b8}\uff1a\u81c2\u4e0d\u662f\u76f4\u7684", _ui(0.5))
     k.put(k.bx0 + 2 * rx + 4, cy, "\u4e09\u6761\u81c2\uff0c\u5dee\u4e00\u4e2a\u4e09\u5206\u4e4b\u4e00\u5708",
           _ui(0.45))
+    # ...and what a galaxy is *in*: the arms can only be `2 * ry` wide because a face-on disc is round, so
+    # half the box they are given is sky. Filling it with stars is not decoration here - it is the other
+    # half of the picture, and it is drawn on blank cells, so it can never touch the arms or the labels.
+    if k.bh > 8 and k.bw > 40:
+        _C.dust(k.s, k.bx0, k.by0 + 1, k.bx1, k.by1 - 1, t, max(24, k.bw * k.bh // 14), seed=5,
+                colour=(150, 190, 255), spread=0.5)
 
 
 def fragmentation(k, t: float) -> None:
@@ -1069,6 +1128,42 @@ def stardiff(k, t: float) -> None:
             y = int(cy + s2 * math.sin(a) * 0.14)
             k.put(x, y, "\u2591", _ui(0.2))
     k.put(cx - 2, cy, "\u25cf", _mix(_C.INK, 1.0))
+    # ---- the same figure again, and again: a point source through *this* aperture makes this star at any
+    #      distance, so a field of them is the same physics and not wallpaper (batch 51, the user: "也可以
+    #      重复多个图形"). This is also why they are at different sizes and turned differently: they are
+    #      the one aperture pointed at a cluster of stars, near ones big and far ones small.
+    #
+    # `stardiff`'s band is only thirteen rows, so the main star's radius is five - which is exactly why the
+    # first attempt (two copies at 0.55 and 0.34 of that) came out as two four-cell smudges against the
+    # right edge with forty empty columns in front of them. The copies here are built from the free band's
+    # own width instead: the biggest echo is drawn at the main star's own radius so the pair reads as the
+    # same figure twice, and the rest step down from there.
+    if k.bw > 44 and r >= 4:
+        x_lo, x_hi = cx + r + 3, k.bx1 - 3
+        y_lo, y_hi = k.by0 + 1, k.by1 - 2
+        for fx, fy, s3, off in ((0.045, 0.16, 1.00, 0.9),
+                                (0.300, 0.74, 0.72, -0.6),
+                                (0.560, 0.30, 0.52, 1.7),
+                                (0.790, 0.62, 0.40, -1.3),
+                                (0.960, 0.24, 0.30, 0.4),
+                                (0.170, 0.50, 0.26, 2.4)):
+            if x_hi <= x_lo or y_hi <= y_lo:
+                break
+            cx2 = x_lo + int(fx * (x_hi - x_lo))
+            cy2 = y_lo + int(fy * (y_hi - y_lo))
+            rr = max(2, int(r * s3))
+            for i2 in range(blades * 2):
+                a2 = spin + off + i2 * math.pi / blades
+                for step in range(rr):
+                    x2 = int(cx2 + step * math.cos(a2))
+                    y2 = int(cy2 + step * math.sin(a2) * 0.5)
+                    if _C.blank(k.s, x2, y2):
+                        k.put(x2, y2, "\u00b7" if step > rr * 0.35 else "\u2022",
+                              _mix(_C.AMBER if i2 % 2 else _C.BLUE, 0.55 * s3 * (1 - step / rr)))
+            if _C.blank(k.s, cx2, cy2):
+                k.put(cx2, cy2, "\u25cf", _mix(_C.INK, 0.7 if s3 < 0.9 else 1.0))
+        _C.dust(k.s, k.bx0, k.by0 + 1, k.bx1, k.by1 - 2, t, max(18, k.bw * k.bh // 22), seed=3,
+                colour=_C.BLUE, spread=0.45)
     k.put(k.bx0, k.by1, "\u516d\u7247\u53f6\u7ed9\u5341\u4e8c\u6761\u661f\u8292\uff1a"
                         "\u53f6\u6570 n \u2192 2n \u6761", _ui(0.5))
 

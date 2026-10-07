@@ -673,12 +673,12 @@ def fly(s, cols: int, rows: int, t: float, u: float, name: str, y: float, rows_n
                 row.append((ch, max(0, lv - 1), rgb, bot))
         thin.append(tuple(row))
     paste(s, (tuple(thin), w, h), x, yy, lift=lift, span=span, ambient=ambient)
-    trail = max(0, min(16, int(16 * (1 - abs(v - 0.5) * 2) + 5)))
-    for k in range(trail):
-        tx = x + w + 2 + k * 2 if reverse else x - 2 - k * 2
-        if 0 <= tx < cols:
-            s.put(tx, yy + mid, "\u00b7" if k % 2 else "\u2500",
-                  (70 - k * 3, 170 - k * 7, 220 - k * 6))
+    # **No dotted line behind the aircraft** (batch 51: "ARJ21、歼20 图像（其他飞机、魔鬼鱼看下是不是也有）
+    # 的左方跟着虚线，删掉"). There was one - sixteen cells of `·`/`─` in a blue ramp, drawn at the sprite's
+    # mid row - and it read as a *leader line* pointing at the picture rather than as a wake: a jet does
+    # not leave a dotted rule behind it, and the manta already has the white spray it is supposed to have
+    # (`spray`, batch 49). Deleting it is the whole fix; the aircraft enter and leave the frame off-screen,
+    # which is the motion cue the shot actually wants.
     if caption and 0 <= x <= cols - len(caption) - 2:
         s.put(x, min(rows - FOOTER_KEEP, yy + h + 1), caption, (160, 205, 245))
 
@@ -709,6 +709,60 @@ def dive(s, cols: int, rows: int, t: float, u: float, name: str, x: float = 0.5,
     if caption:
         s.put(max(0, min(cols - len(caption) - 1, xx + w // 2)), rows - FOOTER_KEEP, caption,
               (160, 205, 245))
+
+
+def _text_w(text: str) -> int:
+    """`text`'s width in terminal cells: `len()` is not it, and every caption here is Chinese.
+
+    Not called `_cells` - that name is already the half-block plotter's (line 1401), and a caption that
+    raises `TypeError: _cells() missing 9 required positional arguments` inside `draw`'s `except` is a
+    caption that silently does not appear (the first run of this fix did exactly that).
+    """
+    try:
+        import tui_live as _T
+        return _T.dw(text)
+    except Exception:
+        return len(text)
+
+
+def _centre(text: str, cols: int) -> int:
+    """The first column that centres `text` **in cells**, not in characters.
+
+    `len()` counts a Chinese character as one and it occupies two columns, so `(cols - len(caption)) // 2`
+    put every Chinese caption two to six cells right of centre - visible on the opening motto, which is
+    where the user noticed it (batch 51: "开头校徽下，'公诚勇毅，三实一新'的校训未显示完整"). `tui_live.dw`
+    is the project's own measurement; the import is inside the function because `tui_live` imports this
+    module (the same lazy import `_box` uses).
+    """
+    return max(1, (cols - _text_w(text)) // 2)
+
+
+def _caption(s, cols: int, rows: int, y: int, text: str, colour) -> None:
+    """A caption under a plate: centred in cells, and **registered as text** before it is drawn.
+
+    `CLEAR` is the project's list of rects that are *read* rather than watched, and registering the row is
+    what makes the opening motto arrive whole. The crest flash (3.60 s) lands on a cut, and `fx_reveal`
+    holds the old picture in every cell whose slot in the cut's own order has not come yet - which is
+    right for a picture and wrong for a sentence: replayed through the real loop (`_dev/_b51live.py`), the
+    motto came up as `公诚 毅  三实一新` - `勇` still the *old* frame's blank at 93, the `·` at 98 still
+    the ops box's own border - and stayed that way for the rest of the cut. That is exactly the frame the
+    user reported ("开头校徽下，'公诚勇毅，三实一新'的校训未显示完整"), and it is why a caption that is six
+    cells of text was reading as three fragments.
+
+    Registering the row makes `fx_reveal` copy it straight out of the new frame (its last loop does that
+    for every `CLEAR` rect) and keeps the vignette off it, which is what `CLEAR` is for. The rect is added
+    *before* the `put` so that the `put` itself sees it.
+    """
+    y = min(rows - FOOTER_KEEP, max(0, y))
+    x = _centre(text, cols)
+    try:
+        import tui_live as _T
+        x1 = min(cols - 1, x + _text_w(text) - 1)
+        if x1 > x:
+            _T.CLEAR.append((x, y, x1, y))
+    except Exception:
+        pass
+    s.put(x, y, text, colour)
 
 
 def flash(s, cols: int, rows: int, t: float, u: float, name: str, cols_n: int = 0,
@@ -788,8 +842,14 @@ def flash(s, cols: int, rows: int, t: float, u: float, name: str, cols_n: int = 
     paste(s, cells, x0, y0, dim=(dim if dim > 0.0 else (0.42 if behind else 1.0)) * fade,
           fast=(w * h >= 1500))
     if caption:
-        s.put(max(1, (cols - len(caption)) // 2), min(rows - FOOTER_KEEP, max(0, y0) + min(h, rows) + 1), caption,
-              tuple(int(k * fade) for k in (255, 210, 120)))
+        # ...at the row the picture will *end* at, not the one it is at this frame. The caption used to
+        # follow the growing sprite (`max(0, y0) + min(h, rows) + 1` with `h` on the growth), so it walked
+        # down eight rows during the crest's first half second and left a copy behind on each of them -
+        # which `fx_reveal` then held, so the screen showed two or three fragments of the same sentence.
+        # A sentence does not slide down a picture; `_fit_box` at z=1 is where it belongs.
+        _, h_final = _fit_box(name, bw, bh, 1.0)
+        _caption(s, cols, rows, int((rows - h_final) * y) + h_final + 1, caption,
+                 tuple(int(k * fade) for k in (255, 210, 120)))
 
 
 def _fit_box(name: str, bw: int, bh: int, z: float = 1.0) -> tuple[int, int]:
@@ -907,8 +967,11 @@ def emerge(s, cols: int, rows: int, t: float, u: float, name: str, caption: str 
     _, w, h = cells
     paste(s, cells, max(0, (cols - w) // 2), max(0, (rows - h) // 2 - 1), dim=fade)
     if caption and u > 0.55:
-        s.put(max(1, (cols - len(caption)) // 2), min(rows - FOOTER_KEEP, (rows + h) // 2 + 1),
-              caption, tuple(int(k * fade) for k in (220, 230, 255)))
+        # the same rule as `flash`'s: the row the crest *ends* at (0.26 of the frame), not the one the dot
+        # it is growing out of is at - a caption that follows the growth leaves a copy on every row it
+        # passes, and the cut reveal holds them.
+        _caption(s, cols, rows, (rows + max(1, int(rows * 0.26))) // 2 + 1, caption,
+                 tuple(int(k * fade) for k in (220, 230, 255)))
 
 
 def plate(s, cols: int, rows: int, t: float, u: float, name: str, cols_n: int = 0, rows_n: int = 0,
@@ -975,8 +1038,7 @@ def plate(s, cols: int, rows: int, t: float, u: float, name: str, cols_n: int = 
                 ch_, lv = cell
                 s.put(ox + c, oy + r, ch_, tuple(int(v * dim * lv / 255) for v in (176, 206, 245)))
     if caption and u > 0.35:
-        s.put(max(1, (cols - len(caption)) // 2), min(rows - FOOTER_KEEP, (rows + ch) // 2 + 1), caption,
-              (255, 210, 120))
+        _caption(s, cols, rows, (rows + ch) // 2 + 1, caption, (255, 210, 120))
 
 
 @lru_cache(None)
@@ -1955,8 +2017,12 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     #     which is what standing in a gateway looks like. There is only **one** gate picture in the film:
     #     the second one (01:24.70) is gone - "校门、校徽的大图出现了多次，仅保留第一次".
     (0.60, 3.30, flash, dict(name="gate", zoom=0.20, fill=1.45)),
-    # --- the crest, big, right after (its own pane is a watermark; this is the hit)
-    (3.60, 5.10, flash, dict(name="crest", caption="\u516c\u8bda\u52c7\u6bc5")),
+    # --- the crest, big, right after (its own pane is a watermark; this is the hit). **The whole motto**:
+    #     it printed `公诚勇毅` alone, which is the 校训 with the 校风 half missing - the user: "开头校徽下，
+    #     '公诚勇毅，三实一新'的校训未显示完整". The pair is one sentence on every wall of the campus, and
+    #     the line is centred in *cells* now (`_centre`), so the longer caption is centred rather than
+    #     pushed to the right.
+    (3.60, 5.10, flash, dict(name="crest", caption="\u516c\u8bda\u52c7\u6bc5 \u00b7 \u4e09\u5b9e\u4e00\u65b0")),
     # --- "Fill in my data parameters": 何尊, and therefore the earliest 中国. Drawn from the vector the
     # user supplied, at frame size, instead of the character art made from the scan - "何尊的字符画效果
     # 较差，我在参考及想法中准备了一张何尊svg，请使用它". The pane at 13.20 is the same drawing at pane size.
@@ -1981,20 +2047,25 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     (21.00, 23.40, fly, dict(name="arj21", y=0.28, size=0, rows_n=13, body=4)),
     # --- **the aircraft are spread across the song now** (batch 49, the user: "飞机演出太集中了，运20 和
     #     ARJ21 可以保持不变，后面几个都要后移，并且让歼20 斜向飞"). They used to be three in ten seconds
-    #     (49.20 / 55.00 / 58.90) with nothing for the next hundred; now each one owns a different part of
-    #     the song, and the three gaps are 19 s, 20 s and 6 s instead of 5 s and 4 s.
+    #     (49.20 / 55.00 / 58.90) with nothing for the next hundred; now 直-20 owns 52.30 and 歼-20 owns
+    #     91.60, and the manta - which was the third of that cluster - has gone to the flood (batch 51),
+    #     so the last two are 39 s apart instead of 4 s.
     #
     #     直-20 comes *down* the frame - the one direction a helicopter reads in - and it is deliberately
     #     not a horizontal crossing ("飞机不用只是横向飞"). It used to sit on "So dizzy, so dizzy" at
     #     49.11; it now lands on "Oh, we can travel" (50.95), which is the line about going somewhere.
     (52.30, 54.10, dive, dict(name="z20", x=0.70)),
-    #     the manta swims through "In this strange, strange simulation" (71.40) and is out before the
-    #     eggplant line at 73.53. `spray` is the white noise wake of batch 49, and `ambient` is what makes
-    #     the animal *visible at all*: its body is black in the file, black times any lift is still black,
-    #     so the batch-50 fix is a floor on the colour rather than on the brightness (the user: "魔鬼鱼
-    #     没看出你放在哪里了" / "shot 35 附近的飞机是什么，看着不太清晰").
-    (71.50, 73.90, fly, dict(name="manta", y=0.30, size=0, rows_n=0, wave=0.7, dy=0.16, spray=1.0,
-                             ambient=0.11)),
+    #     the manta swims **through the flood** (batch 51: "魔鬼鱼不清晰的话，放到 shot 64 有大量字符背景的
+    #     时候"). `shot_flood` is 144.16-147.62 and it fills a field of blue glyphs cell by cell as it goes -
+    #     exactly the crowd the animal needs behind it: a black manta over the school's near-black ground
+    #     is a silhouette with nothing to be a silhouette *against*. It crosses 145.00-146.60, which is
+    #     `u` 0.24-0.71 of the flood, so the field goes from a tenth to six sevenths full while it swims -
+    #     and it is off the right edge at 146.60, before the `SW` stamp lands at 146.24 in the middle of the
+    #     frame. `spray` is the white noise wake of batch 49 and `ambient` (batch 50) is what makes the
+    #     animal visible at all: its body is black in the file, black times any lift is still black, so the
+    #     fix is a floor on the colour rather than on the brightness.
+    (145.00, 146.60, fly, dict(name="manta", y=0.34, size=0, rows_n=0, wave=0.7, dy=0.16, spray=1.0,
+                               ambient=0.11)),
     #     歼-20 on "From AM to PM" (93.52): the one line in the song that is literally about crossing the
     #     sky, and the aircraft that a NWPU student is meant to read as this school's own. A real diagonal
     #     (dy 0.45, climbing left-to-right) rather than the shallow rail it was.

@@ -1899,10 +1899,18 @@ def draw_sim_start(s: Screen, x0: int, y0: int, x1: int, y1: int, t: float) -> N
         block_word(s, x0 + 2, y0 + 1 + max(0, (inner_h - rows) // 2), str(n), inner_w, rows,
                    mix(ANOM, 0.95))
     else:
-        rows = max(4, min(8, inner_h - 3))
-        block_word(s, x0 + 2, y0 + 1, "RUN", inner_w, rows, mix(ANOM, 1.0), rows)
-        s.put(x0 + 2, y0 + 2 + rows, "simulation: running", ui(0.9))
-        s.put(x0 + 2, y0 + 3 + rows, f"tokens budget: {FP.PRETRAIN_TOKENS}", ui(0.7))
+        # `RUN` gets the box (batch 51: "shot 8 的 run 的字体放大一些，让其更清晰"). It was capped at eight
+        # rows while the countdown digits above it were allowed fourteen, so the film's own 120 px of head
+        # type - the largest thing this shot draws - came out smaller than the `3` before it. It now takes
+        # every row the band has bar one, and the two status lines are folded onto that one row instead of
+        # taking a row each: at 197x52 the band is eleven rows inside its border, so `RUN` grows from eight
+        # to ten and the shot still says what it is doing.
+        rows = max(4, min(inner_h - 1, 14))
+        block_word(s, x0 + 2, y0 + 1 + max(0, (inner_h - rows) // 2), "RUN", inner_w, rows,
+                   mix(ANOM, 1.0), rows)
+        status = f"simulation: running    tokens budget: {FP.PRETRAIN_TOKENS}"
+        if y0 + 2 + rows <= y1 - 1:
+            s.put(x0 + 2, y0 + 2 + rows, status[: max(0, inner_w - 1)], ui(0.9))
 
 
 def draw_corpus(s: Screen, x0: int, y0: int, x1: int, y1: int, t: float) -> None:

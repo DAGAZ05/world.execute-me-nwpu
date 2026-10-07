@@ -455,7 +455,8 @@ LANDMARK_ROWS: list[dict] = [
     # out of the MEMORY run, which had six rows of the same word. What the closing chapter needed instead
     # was the subject the software-engineering chapter is for; see `pane_sw_project` at 187.97.
     dict(at=187.97, name="pane_sw_project", lyric="Though you are free",
-         ops=["SCRUM", "\u654f\u6377\u5ba3\u8a00", "\u770b\u677f"], mascot=False),
+         ops=["\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406", "\u8f6f\u4ef6\u5f00\u53d1\u7efc\u5408\u8bad\u7ec3"],
+         mascot=False),
     # MEMORY: one more layer on every "You have left", then down to one, then none.
     #
     # This is the one place in the film where a pane is drawn *differently* on lines that are otherwise

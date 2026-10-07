@@ -74,6 +74,58 @@ def _mix(c, level: float = 1.0):
     return CTX["mix"](c, level)
 
 
+def blank(s, x: int, y: int) -> bool:
+    """Is this cell free to draw a mote on? Blank **and** not half of a double-width glyph.
+
+    The character test alone is not enough, and the way it fails is not obvious: a CJK glyph is stored as
+    the character in one cell and an **empty string** in the next, with `s.wide[y][x + 1]` set. A decorator
+    that asks only `buf[y][x][0] in ("", " ")` therefore sees that placeholder as free, puts a `\u00b7` on
+    it, and `set_cell`'s unpairing then gives the *first* half back as a plain space - one Chinese character
+    deleted, one row of a caption quietly rewritten. `dust` did exactly this to the galaxy pane's own
+    caption: "三条臂，差一个三分之一圈" came back as "三条臂，差一个 ·分之一圈".
+
+    The check is a function rather than one more `and` at each call site because there are five call sites
+    and the fifth is the one that gets forgotten.
+    """
+    if not (0 <= x < s.cols and 0 <= y < s.rows):
+        return False
+    return s.buf[y][x][0] in ("", " ") and not s.wide[y][x]
+
+
+def dust(s, x0: int, y0: int, x1: int, y1: int, t: float, n: int, seed: int = 0,
+         colour=None, spread: float = 0.55) -> int:
+    """`n` twinkling motes scattered over a rect - the cheapest way to fill a panel that is mostly empty.
+
+    Batch 51, the user: "学校部分某些右侧 panel 的图像周边比较空旷，可以使用装饰填充，也可以重复多个图形".
+    Three rules, all of them things this project has already been bitten by:
+
+      * **only on blank cells** - a mote that lands on the drawing eats the drawing, and a pane's own ink
+        is the one thing the backdrop must never touch;
+      * **deterministic** - a hash of `(i, seed)`, never `random()`: `clock_probe --selftest` draws every
+        row twice and compares, so an unseeded mote is a probe failure rather than a decoration;
+      * **glyph-safe** - `·` and `o`, which every font the renderer has can draw (see `glyph_probe`); the
+        brightness twinkles on the song clock so the fill is a field rather than a spray of dots.
+
+    Returns how many were drawn, so a caller can tell whether it filled anything.
+    """
+    if x1 < x0 or y1 < y0:
+        return 0
+    drawn = 0
+    for i in range(n):
+        hx = (i * 2654435761 + seed * 40503) & 0xFFFF
+        hy = (i * 1103515245 + seed * 12345) & 0xFFFF
+        x = x0 + hx % max(1, x1 - x0 + 1)
+        y = y0 + hy % max(1, y1 - y0 + 1)
+        if not blank(s, x, y):
+            continue
+        tw = abs(math.sin(t * 1.5 + i * 0.7))
+        base = colour if colour is not None else DIM
+        col = _mix(base, spread * (0.25 + 0.75 * tw))
+        s.put(x, y, "o" if (hx >> 6) % 11 == 0 else "\u00b7", col)
+        drawn += 1
+    return drawn
+
+
 def resolve() -> None:
     """Pick up the player's palette and its two colour helpers."""
     g = globals()
