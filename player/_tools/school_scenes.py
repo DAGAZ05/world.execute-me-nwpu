@@ -1146,15 +1146,18 @@ def pane_landmark_dialogue(s, x0, y0, x1, y1, t, lt, dur, u, phase=None, max_pha
     `phase=2` - the same mechanism `pane_memory` uses to be six drawings: the schedule says which one,
     rather than the drawing guessing from the clock.
 
-    **No words on it** (batch 49, the user: "对话雕塑…不要附近文字"). The phase titles and captions used
-    to name the act; the crop already does. The `* * *` mark between the hands stays - it is the star
+    **No caption on it** (batch 49, the user: "对话雕塑…不要附近文字"). The phase titles and captions used
+    to name the act; the crop already does. **The header is back** though (batch 55: "右侧 panel 出现对话
+    雕塑时，加上抬头'对话'"): a one-word title on the pane's own header row is not a caption under the
+    picture - it is what every other pane in the column has, and without it this one pane was the only
+    drawing in the film with an unlabelled box. The `* * *` mark between the hands stays - it is the star
     the pane is about, not a label for it.
     """
     import school_courses as _C
     if phase is None:
         phase = 0 if lt < 1.2 else (1 if lt < 2.4 else 2)
     phase = max(0, min(int(phase), int(max_phase)))
-    k, ox, oy = _landmark("dialogue", s, x0, y0, x1, y1, u, "", "",
+    k, ox, oy = _landmark("dialogue", s, x0, y0, x1, y1, u, "\u5bf9\u8bdd", "",
                           dim=1.0 if phase < 2 else 0.35)
     # the star: the one thing in this pane that moves, and it pulses on the song's beat. Drawn from `*`
     # and `·` rather than `*`/`*`: see `_sparkle`.

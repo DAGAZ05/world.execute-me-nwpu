@@ -636,8 +636,9 @@ def _fly_at(cols: int, rows: int, size: int, v: float, y: float, dy: float, tilt
             reverse: bool) -> tuple[int, int]:
     """Where `fly`'s sprite sits at `v` (0 = off the right edge, 1 = off the left).
 
-    Split out for `spray`: a wake has to be drawn at the positions the sprite *actually occupied*, and
-    the only way to know those is to ask the same function that put it there.
+    Split out so that the *position* is one function: it was written for the manta's wake, which asked
+    where the sprite had been at an earlier `v` (batch 49), and it stayed when the wake went (batch 55) -
+    it is the arithmetic of the crossing, and `fly` is not the only reader of it.
     """
     span = (size + cols) * v - size
     x = int(cols - size - span) if reverse else int(span)
@@ -647,30 +648,10 @@ def _fly_at(cols: int, rows: int, size: int, v: float, y: float, dy: float, tilt
     return x, yy
 
 
-def _wake(s, cols: int, rows: int, cx: int, cy: int, half_w: int, half_h: int, n: int) -> None:
-    """`n` white noise dots scattered around a cell - one sample of the trail a swimmer leaves.
-
-    The user's note for the manta: "魔鬼鱼游动时增加白色噪点轨迹". The dots are a deterministic hash of
-    the index rather than `random()`: the film has to render the same frame twice (`clock_probe`'s
-    self-test draws every row twice and compares), so nothing here may be unseeded. `░` on one dot in
-    three gives the cluster a little texture instead of reading as a dotted line.
-    """
-    for i in range(n):
-        hx = (i * 2654435761 + (i >> 3) * 40503) & 0xFFFF
-        hy = (i * 1103515245 + (i >> 2) * 12345) & 0xFFFF
-        px = cx + hx % (2 * half_w + 1) - half_w
-        py = cy + hy % (2 * half_h + 1) - half_h
-        if not (0 <= px < cols and 0 <= py < rows):
-            continue
-        ch = "\u2591" if (hx >> 4) % 3 == 0 else "\u00b7"
-        level = 0.55 + 0.45 * ((hx >> 2) % 100) / 100.0
-        s.put(px, py, ch, (int(190 * level + 45), int(198 * level + 48), int(210 * level + 45)))
-
-
 def fly(s, cols: int, rows: int, t: float, u: float, name: str, y: float, rows_n: int = 0,
         size: int = 0, body: int = 3, delay: float = 0.0, tilt: bool = False,
         caption: str = "", reverse: bool = False, dy: float = 0.0, wave: float = 0.0,
-        spray: float = 0.0, ambient: float = 0.0, lift: float = AIRCRAFT_LIFT,
+        ambient: float = 0.0, lift: float = AIRCRAFT_LIFT,
         span: float = AIRCRAFT_SPAN) -> None:
     """An aircraft crossing the frame, nose first, at the size the frame can carry.
 
@@ -693,7 +674,10 @@ def fly(s, cols: int, rows: int, t: float, u: float, name: str, y: float, rows_n
         them. The aircraft pass a number because for them the sky above and below is disposable.
 
     `wave` puts a travelling ripple through the sprite (`_undulate`) for the one thing in the set that
-    swims rather than flies, and `spray` is the white wake that swimmer leaves (see `_wake`).
+    swims rather than flies. It used to leave a white noise wake as well (`spray`, batch 49); the user
+    asked for it to go in batch 55 ("魔鬼鱼去掉白色浪花噪点") and it is **deleted rather than switched
+    off** - the manta was its only caller, and a parameter kept for a use nobody wants is how this module
+    ended up with `sweep` and `approach` in it for four batches (see `04_验证记录/批次47_收口.md`).
     """
     v = max(0.0, min(1.0, (u - delay) / max(1e-6, 1.0 - delay)))
     size = size or max(40, int(cols * 0.46))
@@ -709,23 +693,6 @@ def fly(s, cols: int, rows: int, t: float, u: float, name: str, y: float, rows_n
         cells = _undulate(cells, t, amp=max(1.0, wave * cells[2] * 0.11))
     x, yy = _fly_at(cols, rows, size, v, y, dy, tilt, reverse)
     grid, w, h = cells
-    # The wake goes down *before* the sprite, so the dots the body covers are the ones it has reached.
-    # Two things keep it a trail rather than a fog, and the first version was a fog (measured on the
-    # rendered frame): the samples are the sprite's **left edge** at earlier `v` - the tail - not its
-    # centre, so the dots stay behind the swimmer instead of around it; and the band is eight cells
-    # either side of that edge, because the sprite itself is 90 cells wide and a band scaled to the body
-    # spread noise over half the frame and broke up the dialogue underneath. Eight samples at 0.011 `v`
-    # is about 25 cells of trail; the pitch follows the swimming curve because the positions come from
-    # `_fly_at`. ~110 `put`s, which is under half a millisecond (`frame_probe` checks the window).
-    if spray:
-        half_w, half_h = 8, max(2, h // 5)
-        for j in range(1, 6):
-            vj = v - j * 0.009
-            if vj <= 0.0:
-                break
-            px, py = _fly_at(cols, rows, size, vj, y, dy, tilt, reverse)
-            _wake(s, cols, rows, px, py + h // 2, half_w, half_h,
-                  max(1, int(30 * spray * (1.0 - j / 7.0))))
     # thin the rows outside the fuselage, then blit: done here rather than in `paste` so the rule stays
     # with the thing it is about
     mid = h // 2
@@ -743,9 +710,9 @@ def fly(s, cols: int, rows: int, t: float, u: float, name: str, y: float, rows_n
     # **No dotted line behind the aircraft** (batch 51: "ARJ21、歼20 图像（其他飞机、魔鬼鱼看下是不是也有）
     # 的左方跟着虚线，删掉"). There was one - sixteen cells of `·`/`─` in a blue ramp, drawn at the sprite's
     # mid row - and it read as a *leader line* pointing at the picture rather than as a wake: a jet does
-    # not leave a dotted rule behind it, and the manta already has the white spray it is supposed to have
-    # (`spray`, batch 49). Deleting it is the whole fix; the aircraft enter and leave the frame off-screen,
-    # which is the motion cue the shot actually wants.
+    # not leave a dotted rule behind it. Deleting it is the whole fix; the aircraft enter and leave the
+    # frame off-screen, which is the motion cue the shot actually wants. (The manta's own white wake went
+    # the same way two batches later - see `fly`.)
     if caption and 0 <= x <= cols - len(caption) - 2:
         s.put(x, min(rows - FOOTER_KEEP, yy + h + 1), caption, (160, 205, 245))
 
@@ -2148,10 +2115,11 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     #     is a silhouette with nothing to be a silhouette *against*. It crosses 145.00-146.60, which is
     #     `u` 0.24-0.71 of the flood, so the field goes from a tenth to six sevenths full while it swims -
     #     and it is off the right edge at 146.60, before the `SW` stamp lands at 146.24 in the middle of the
-    #     frame. `spray` is the white noise wake of batch 49 and `ambient` (batch 50) is what makes the
-    #     animal visible at all: its body is black in the file, black times any lift is still black, so the
-    #     fix is a floor on the colour rather than on the brightness.
-    (145.00, 146.60, fly, dict(name="manta", y=0.34, size=0, rows_n=0, wave=0.7, dy=0.16, spray=1.0,
+    #     frame. `ambient` (batch 50) is what makes the animal visible at all: its body is black in the
+    #     file, black times any lift is still black, so the fix is a floor on the colour rather than on the
+    #     brightness. **No wake** (batch 55: "魔鬼鱼去掉白色浪花噪点") - the `spray` dots of batch 49 are
+    #     gone, and with them the parameter: see `fly`.
+    (145.00, 146.60, fly, dict(name="manta", y=0.34, size=0, rows_n=0, wave=0.7, dy=0.16,
                                ambient=0.11)),
     #     歼-20 on "From AM to PM" (93.52): the one line in the song that is literally about crossing the
     #     sky, and the aircraft that a NWPU student is meant to read as this school's own. A real diagonal
