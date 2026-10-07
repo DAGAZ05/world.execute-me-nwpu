@@ -124,15 +124,22 @@ LEVEL_FLOOR = 0.18
 SHADE = " \u2591\u2592\u2593\u2588"
 
 # Which way each picture is *looking*, read off the files rather than assumed. Every aircraft in
-# `校园与成果/` is photographed nose-left - 运-20, 歼-20, 直-20, ARJ21 and the manta all face left, and
-# the torpedo faces right - so a plain left-to-right crossing flew all of them tail first. The user
-# spotted it in one frame ("有的飞机方向飞反了，成了尾部在往前飞"), which is the sort of thing a
-# direction table fixes once instead of at every call site.
+# `assets/校园与成果/` is photographed nose-left - 运-20, 歼-20, 直-20 and ARJ21 all face left, and the
+# torpedo faces right - so a plain left-to-right crossing flew them tail first. The user spotted it in
+# one frame ("有的飞机方向飞反了，成了尾部在往前飞"), which is the sort of thing a direction table fixes
+# once instead of at every call site.
 FACES = {
-    # ARJ21 is the one the table got wrong: looked at, its nose is on the **right** of the photograph
-    # (T-tail and engine on the left), so `left` mirrored it and it crossed tail first - the user saw
-    # it in batch 34 ("ARJ21 变成从尾部往前飞了")
-    "y20": "left", "j20": "left", "z20": "left", "arj21": "right", "manta": "left",
+    # ARJ21 is the first one this table got wrong: looked at, its nose is on the **right** of the
+    # photograph (T-tail and engine on the left), so `left` mirrored it and it crossed tail first - the
+    # user saw it in batch 34 ("ARJ21 变成从尾部往前飞了")
+    "y20": "left", "j20": "left", "z20": "left", "arj21": "right",
+    # ...and the manta is the second, found the same way: opened the file and looked at it. Its head -
+    # the two cephalic fins and the mouth, curled at the **bottom right** of the photograph - is on the
+    # right, so `left` mirrored it and the fish crossed the whole character field tail first. The user:
+    # "魔鬼鱼是尾部向右游的，修改" (the tail was leading to the right). The tail itself is the thin whip
+    # going up-left, which is what made the first guess wrong: a banking manta does not read like a
+    # side-on aircraft.
+    "manta": "right",
     "torpedo": "right",
 }
 
@@ -1721,7 +1728,7 @@ def _box(cols: int, rows: int, t: float = 0.0) -> tuple[int, int, int, int]:
     return int(cols * 0.50) + 1, 2, cols - 1, rows - 3
 
 
-def _carry(s, dy: int, dx: int, cell, wide: bool) -> None:
+def _carry(s, dy: int, dx: int, cell, wide: bool, text: list | None = None) -> None:
     """Move one cell into `(dx, dy)`, keeping the invariant the renderer depends on.
 
     `Screen.put` writes a *filler* cell with an empty character after every double-width character, and
@@ -1737,7 +1744,15 @@ def _carry(s, dy: int, dx: int, cell, wide: bool) -> None:
     column it had taken. `_dev/ansi_probe.py` measured it: 341 of 425 frames with at least one cell where
     the terminal and the buffer disagreed. `Screen.set_cell` is the one place that knows how to write a
     cell now, so this is two lines instead of a rule every caller has to remember.
+
+    `text` is the destination row's `CLEAR` spans, and a transition must not write into them: those cells
+    are **text you read**, not picture, and the caption a full-frame event puts under a plate is centred
+    on the *frame* while the transition's box is the pane's column - so a slide used to grind the part of
+    the caption that fell inside the box (batch 53: the closing crest's `公诚勇毅 · 三实一新` came out as
+    `公 三实一新`, with the middle four characters moved out from under it).
     """
+    if text and any(a <= dx <= c for a, c in text):
+        return
     ch, fg, bg = cell
     # ...and a cell that already holds exactly this is not written at all. A page turn moves a whole
     # 100x47 box cell by cell, and most of it is the same character at the same colour (spaces on one
@@ -1761,10 +1776,11 @@ def _shift(s, x0: int, y0: int, x1: int, y1: int, dx: int, dy: int = 0) -> None:
         sy = y - dy
         if not (0 <= sy < s.rows):
             continue
+        spans = s._clear_spans(y)                    # text you read: the move must not touch it
         for x in range(x0, x1 + 1):
             sx = x - dx
             if 0 <= sx < s.cols:
-                _carry(s, y, x, src[sy][sx], srcw[sy][sx])
+                _carry(s, y, x, src[sy][sx], srcw[sy][sx], spans)
             elif dy:
                 s.set_cell(x, y, " ", s.buf[y][x][1], s.buf[y][x][2])
 
@@ -1803,10 +1819,11 @@ def _zoom(s, cols: int, rows: int, q: float, t: float = 0.0) -> None:
         sy = int(cy + (y - cy) / sc)
         if not (0 <= sy < rows):
             continue
+        spans = s._clear_spans(y)
         for x in range(x0, x1 + 1):
             sx = int(cx + (x - cx) / sc)
             if 0 <= sx < cols:
-                _carry(s, y, x, src[sy][sx], srcw[sy][sx])
+                _carry(s, y, x, src[sy][sx], srcw[sy][sx], spans)
             else:
                 s.set_cell(x, y, " ", s.buf[y][x][1], s.buf[y][x][2])
 
@@ -1826,10 +1843,11 @@ def _skew(s, cols: int, rows: int, q: float, t: float = 0.0) -> None:
     srcw = [row[:] for row in s.wide]
     for y in range(y0, y1 + 1):
         d = int(k * (y - y0)) - int(k * (y1 - y0) * 0.5)
+        spans = s._clear_spans(y)
         for x in range(x0, x1 + 1):
             sx = x - d
             if 0 <= sx < cols:
-                _carry(s, y, x, src[y][sx], srcw[y][sx])
+                _carry(s, y, x, src[y][sx], srcw[y][sx], spans)
             else:
                 s.set_cell(x, y, " ", s.buf[y][x][1], s.buf[y][x][2])
     for y in range(y0, y1 + 1):                      # the edge that is moving, lit
@@ -2111,7 +2129,12 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     #     from (see `emerge`). 176.30 is inside `shot_collapse`, which draws full-bleed in this variant
     #     too. This one is kept - the user asked for it in batch 20 - and kept *small*, so it is a mark
     #     rather than the emblem's second plate.
-    (176.30, 178.20, emerge, dict(name="crest", caption="\u516c\u8bda\u52c7\u6bc5")),
+    #     **The whole motto** (batch 53: "学院部分屏幕中央出现的校徽下面，校训仍是公诚勇毅，改成完整的
+    #     '公诚勇毅，三实一新'"). The opening flash has carried the pair since batch 51; this one still said
+    #     the 校训 alone, so the emblem's second appearance was the one place the school's motto was
+    #     half-missing. Same separator as the opening plate and the closing pane.
+    (176.30, 178.20, emerge, dict(name="crest",
+                                  caption="\u516c\u8bda\u52c7\u6bc5 \u00b7 \u4e09\u5b9e\u4e00\u65b0")),
     (203.00, 206.20, flash, dict(name="sword", cols_n=80, rows_n=26)),
 ]
 

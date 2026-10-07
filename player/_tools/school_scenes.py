@@ -476,39 +476,42 @@ def pane_curriculum(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     a claim nobody made. This version prints a term's worth per line, marks the courses the brief named
     with `★`, and says in the footer that the stars are the ones worth naming and not the whole list.
 
-    Batch 50 filled the lists out (the user: "各年不止那几门课程") and fixed the reveal with them: the
-    stagger used to be a fixed `0.10` per course, which caps a column at ten printed courses, so a longer
-    timetable would have been silently clipped by its own animation. It is a share of the whole list now,
-    and `信号与线性系统` carries a star because its own pane is one of the sixteen hits.
+    Batch 50 read "各年不止那几门课程" as "add more courses" and invented fourteen for this table - one of
+    which duplicated 大三's `马原` as 大二's `马克思主义基本原理` - while replacing four of the user's own
+    (`微积分` → `高等数学`, `毛概`/`习概` → `思想道德与法治`/`马克思主义基本原理`). **The list is the user's
+    own and is not to be filled in** (batch 53): "课程表里大三已经有马原了，你大二又加了一个马克思主义
+    基本原理，删掉，顺便复核一下课程表，去掉你自行加的（比如就业指导）". It is the 34 courses of batch 34/49
+    exactly, and the only later change that survives is the one they asked for by name: `信号与线性系统`
+    carries a star, because its own pane is one of the sixteen hits.
+
+    What batch 50 got right and keeps: the reveal is a **share of the longest column**, not a fixed `0.10`
+    per course, which used to cap a column at ten printed courses and clip the tail of a long one.
 
     It sits after the gate (136.90-142.00) rather than in the first act, because it is the answer to the
     college the student just chose.
     """
     rows = [
-        ("\u5927\u4e00", ["\u2605\u5d4c\u5165\u5f0f\u7535\u5b50\u5fae\u7cfb\u7edf",
-                        "\u2605\u7a0b\u5e8f\u8bbe\u8ba1\u57fa\u7840\uff08C\uff09",
-                        "\u2605\u6570\u636e\u7ed3\u6784",
-                        "\u9ad8\u7b49\u6570\u5b66", "\u7ebf\u6027\u4ee3\u6570",
-                        "\u79bb\u6563\u6570\u5b66", "\u5927\u5b66\u7269\u7406",
-                        "\u8ba1\u7b97\u673a\u5bfc\u8bba", "\u667a\u80fd\u65f6\u4ee3\u7684\u8f6f\u5de5",
-                        "\u5927\u5b66\u82f1\u8bed", "\u519b\u4e8b\u7406\u8bba",
-                        "\u601d\u60f3\u9053\u5fb7\u4e0e\u6cd5\u6cbb", "\u4f53\u80b2", "\u5de5\u7a0b\u8bad\u7ec3"]),
-        ("\u5927\u4e8c", ["\u2605\u9762\u5411\u5bf9\u8c61\uff08java\uff09", "\u2605\u8f6f\u4ef6\u5de5\u7a0b",
-                        "\u2605\u8ba1\u7b97\u673a\u7f51\u7edc", "\u2605\u8ba1\u7b97\u673a\u64cd\u4f5c\u7cfb\u7edf",
-                        "\u2605\u8ba1\u7b97\u673a\u7ec4\u6210\u539f\u7406", "\u2605\u6570\u636e\u5e93\u7cfb\u7edf",
-                        "\u6570\u5b57\u903b\u8f91", "\u6c47\u7f16\u8bed\u8a00",
-                        "\u8ba1\u7b97\u65b9\u6cd5", "\u6982\u7387\u8bba", "\u590d\u53d8\u51fd\u6570",
-                        "\u6570\u5b66\u5efa\u6a21", "\u4eba\u5de5\u667a\u80fd\u5bfc\u8bba",
-                        "\u5927\u5b66\u82f1\u8bed", "\u9a6c\u514b\u601d\u4e3b\u4e49\u57fa\u672c\u539f\u7406"]),
-        ("\u5927\u4e09", ["\u2605\u7b97\u6cd5\u8bbe\u8ba1", "\u2605\u8f6f\u4ef6\u6d4b\u8bd5",
-                        "\u2605\u6df1\u5ea6\u5b66\u4e60", "\u2605\u7f16\u8bd1\u539f\u7406",
-                        "\u2605\u5927\u578b\u5de5\u4e1a\u8f6f\u4ef6",
-                        "\u2605\u4fe1\u53f7\u4e0e\u7ebf\u6027\u7cfb\u7edf",
-                        "\u2605\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406",
-                        "\u8f6f\u4ef6\u4f53\u7cfb\u7ed3\u6784", "\u4eba\u673a\u4ea4\u4e92",
-                        "\u5d4c\u5165\u5f0f\u7cfb\u7edf\u8bbe\u8ba1", "\u5de5\u4e1a\u6a21\u578b",
-                        "\u8f6f\u4ef6\u5f00\u53d1\u8bad\u7ec3", "\u9a6c\u539f"]),
-        ("\u5927\u56db", ["\u2605\u6bd5\u8bbe", "\u5b9e\u4e60", "\u5c31\u4e1a\u6307\u5bfc"]),
+        ("\u5927\u4e00", ["\u2605\u5d4c\u5165\u5f0f\u7535\u5b50\u5fae\u7cfb\u7edf", 
+                          "\u2605\u7a0b\u5e8f\u8bbe\u8ba1\u57fa\u7840\uff08C\uff09", 
+                          "\u2605\u6570\u636e\u7ed3\u6784", "\u5fae\u79ef\u5206", 
+                          "\u7ebf\u6027\u4ee3\u6570", "\u667a\u80fd\u65f6\u4ee3\u7684\u8f6f\u5de5", 
+                          "\u519b\u4e8b\u7406\u8bba", "\u79bb\u6563\u6570\u5b66", 
+                          "\u5927\u5b66\u7269\u7406"]),
+        ("\u5927\u4e8c", ["\u2605\u9762\u5411\u5bf9\u8c61\uff08java\uff09", 
+                          "\u2605\u8f6f\u4ef6\u5de5\u7a0b", "\u2605\u8ba1\u7b97\u673a\u7f51\u7edc", 
+                          "\u2605\u8ba1\u7b97\u673a\u64cd\u4f5c\u7cfb\u7edf", 
+                          "\u2605\u8ba1\u7b97\u673a\u7ec4\u6210\u539f\u7406", 
+                          "\u2605\u6570\u636e\u5e93\u7cfb\u7edf", "\u6570\u5b66\u5efa\u6a21", 
+                          "\u4eba\u5de5\u667a\u80fd\u5bfc\u8bba", "\u6982\u7387\u8bba", 
+                          "\u590d\u53d8\u51fd\u6570", "\u8ba1\u7b97\u65b9\u6cd5", "\u6bdb\u6982", 
+                          "\u4e60\u6982"]),
+        ("\u5927\u4e09", ["\u2605\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406", 
+                          "\u2605\u7b97\u6cd5\u8bbe\u8ba1", "\u2605\u8f6f\u4ef6\u6d4b\u8bd5", 
+                          "\u2605\u6df1\u5ea6\u5b66\u4e60", "\u2605\u7f16\u8bd1\u539f\u7406", 
+                          "\u2605\u5927\u578b\u5de5\u4e1a\u8f6f\u4ef6", 
+                          "\u2605\u4fe1\u53f7\u4e0e\u7ebf\u6027\u7cfb\u7edf", "\u9a6c\u539f", 
+                          "\u5de5\u4e1a\u6a21\u578b", "\u8f6f\u4ef6\u5f00\u53d1\u8bad\u7ec3"]),
+        ("\u5927\u56db", ["\u2605\u6bd5\u8bbe", "\u5b9e\u4e60"]),
     ]
     w, h = x1 - x0, y1 - y0
     from school_courses import _clip
@@ -1228,6 +1231,33 @@ def _kit(s, x0: int, y0: int, x1: int, y1: int, run: int = 0, title: str = ""):
     return _Kit(s, x0, y0, x1, y1, title, run, 0, 1.0)
 
 
+def _motes(k, glyphs: str, t: float, n: int = 0, level: float = 0.35, seed: int = 7) -> int:
+    """A deterministic field of `glyphs` over the pane, on **blank cells only**.
+
+    Batch 53, the user: "互换、茄子营养、猫学长图像那里比较空旷，可以加装饰或者复数图案". Same three rules as
+    `school_courses.dust` - blank cells only (`_C.blank`, which also refuses the placeholder half of a wide
+    glyph), a hash of the index rather than `random()` (`clock_probe --selftest` draws every row twice and
+    compares), glyphs the renderer's fonts have - and it differs in *what* it sprinkles: each panel brings
+    its own vocabulary, so the fill reads as that panel's subject scattered rather than as generic stars.
+    Returns how many it drew, so a caller can tell whether it filled anything.
+    """
+    import school_courses as _C
+    n = n or max(10, k.bw * k.bh // 30)
+    drawn = 0
+    for i in range(n):
+        hx = (i * 2654435761 + seed * 40503) & 0xFFFF
+        hy = (i * 1103515245 + seed * 12345) & 0xFFFF
+        x = k.bx0 + hx % max(1, k.bw)
+        y = k.by0 + hy % max(1, k.bh)
+        if not _C.blank(k.s, x, y):
+            continue
+        tw = abs(math.sin(t * 1.2 + i * 0.9))
+        k.put(x, y, glyphs[(hx >> 4) % len(glyphs)],
+              _mix(_C.BLUE, level * (0.30 + 0.70 * tw)))
+        drawn += 1
+    return drawn
+
+
 def pane_landmark_cat(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     """`猫学长` - the campus cat, as the character art the user supplied, not as a photograph.
 
@@ -1261,6 +1291,16 @@ def pane_landmark_cat(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         ax = max(k.bx0, k.bx0 + (k.bw - w) // 2)
         top = k.by0 + 2
         shown = int(len(lines) * min(1.0, u * 1.8)) or 1
+        # **The superposition, drawn.** The pane's own caption is `(|生> + |死>) / √2 — 叠加态不是不知道，
+        # 是两个都在`, and the picture was one cat: the argument and the drawing disagreed. Two ghost
+        # copies of the same art, either side of the real one and dim (batch 53, the user: "猫学长图像那里
+        # 比较空旷，可以加装饰或者复数图案"). Drawn first, so the cat itself is the bright one in the middle.
+        for off, lev in ((-4, 0.15), (4, 0.15)):
+            for i, ln in enumerate(lines[:shown]):
+                y = top + i
+                if y > k.by1 - 2:
+                    break
+                k.put(ax + off, y, ln.replace("$", " "), _mix(_C.AMBER, lev))
         for i, ln in enumerate(lines[:shown]):
             y = top + i
             if y > k.by1 - 2:
@@ -1278,6 +1318,9 @@ def pane_landmark_cat(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     ang = t * 1.5
     k.put(int(k.bx0 + 5 + 4 * math.cos(ang)), int(k.by0 + 3 + 3 * math.sin(ang)),
           "\u00b7", _mix(_C.GREEN, 0.7))
+    # ...and the rest of the box: the cat is eleven lines of character art in a box several times that
+    # wide, so both sides were black. `*` and `o` are the paw-print vocabulary of the art itself.
+    _motes(k, "*o\u00b7", t, level=0.30, seed=11)
 
 
 def pane_everything_point(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
@@ -1360,6 +1403,26 @@ def _ev_food(k, t: float, u: float) -> None:
     # caption said "只剩一半" and the audit read the two against each other (batch 31, A-7)
     k.put(k.bx0, k.by1, "\u6bcf\u4e00\u6bb5\u90fd\u5728\u6389\uff1a"
                         "\u4ece\u5730\u91cc\u5230\u7897\u91cc\u53ea\u5269\u516d\u6210", _ui(0.5))
+    # **...and the right two thirds of the box** (batch 53, the user: "茄子营养那里比较空旷"). The flow is
+    # nine cells of hexagon and a label, so seventy columns of a ninety-five column pane were black. What
+    # goes there is the same numbers as a waterfall - the three losses and what arrives - which is the one
+    # thing this diagram is about that it was only saying in prose.
+    free_x0 = k.bx0 + bw + 14
+    span = k.bx1 - free_x0
+    if span >= 30:
+        xr = free_x0 + max(0, (span - 26) // 2)
+        base = k.by1 - 4
+        high = max(4, (k.by1 - k.by0) // 2)
+        k.put(xr, k.by0 + 1, "\u5404\u6bb5\u635f\u8017\u4e0e\u5230\u8fbe", _ui(0.55))
+        for j, (pc, nm, col) in enumerate(((8, "\u52a0\u5de5", _C.RED), (14, "\u8fd0\u8f93", _C.RED),
+                                           (20, "\u9910\u684c", _C.RED), (63, "\u5269\u4e0b", _C.AMBER))):
+            x = xr + j * 6
+            h = max(1, int(high * pc / 70.0))
+            for yy in range(base - h, base):
+                k.put(x, yy, "\u2588", _mix(col, 0.55 + 0.30 * math.sin(t * 1.4 - j)))
+            k.put(x, base + 1, f"{pc}%", _mix(col, 0.85))
+            k.put(x, base + 2, nm, _ui(0.45))
+    _motes(k, "o\u00b7", t, n=max(20, k.bw * k.bh // 22), level=0.28, seed=5)
 
 
 def _ev_tomato(k, t: float, u: float) -> None:
@@ -1465,6 +1528,12 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
     one = {"bits": _ex_bits, "clock": _ex_clock, "braid": _ex_braid, "hyper": _ex_hyper}.get(panel)
     if one is not None:
         one(k, t, u)
+        # Each of the four is one figure in a 95-cell box, so a `panel=` row was a small drawing in a large
+        # black field (batch 53, the user: "互换...图像那里比较空旷，可以加装饰或者复数图案"). The fill is the
+        # panel's own vocabulary - bit digits for the flip, rings for the clock, strand strokes for the
+        # braid, nested outlines for the superellipse - so it reads as the subject scattered, not as stars.
+        _motes(k, {"bits": "01", "clock": "o\u00b7", "braid": "/\\",
+                   "hyper": "o\u00b7\u00b7"}.get(panel, "\u00b7"), t, level=0.34, seed=13)
         return
     # Four columns when the pane is wide enough for all of them, three when it is not, one when it is
     # narrow: the superellipse is the fourth of `想法.md`'s five motifs for this section and it was left

@@ -366,7 +366,7 @@ LANDMARK_ROWS: list[dict] = [
          ops=["QUANTIZE", "3 bits"], mascot=False),
     dict(at=92.00, name="pane_motif_chladni", lyric="From AM to PM",
          ops=["CHLADNI", "节点"], mascot=False),
-    dict(at=95.28, name="pane_motif_fork_bomb", lyric="Oh, my switch role",
+    dict(at=95.28, name="pane_motif_fork_bomb", lyric="Oh, switch my role",
          ops=["FORK", "角色"], mascot=False),
     dict(at=98.93, name="pane_motif_lattice", lyric="So we can enter",
          ops=["LATTICE", "TRANCE"], mascot=False),
