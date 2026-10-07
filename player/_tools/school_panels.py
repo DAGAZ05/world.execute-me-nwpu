@@ -720,6 +720,17 @@ def ui_gain_at(t: float, name: str, u: float) -> float:
 MACHINE_FROM = EXEC_FROM          # 147.52, the first of the twelve hits
 MACHINE_STEP = 0.30               # one instruction per 300 ms - fast enough to read as a machine
 
+# ...and the machine's *last* act in the major section is a commit, not an instruction: the user asked for
+# the panel to become a `git bash` window just before the sword sculpture lands (203.00), with the commit
+# message as its content ("学院部分最后面 exec 框在铸剑雕塑出现前，将该 panel 抬头改为 git bash，下面内容
+# 为：(hangxiaotian) git commit -m \"...\""). The window is the four seconds between the mascot leaving
+# (199.00) and the sculpture arriving, and it is exact rather than approximate because both ends are
+# events in `school_fx.EVENTS`.
+GIT_FROM, GIT_TO = 199.00, 203.00
+GIT_LINE = ("(hangxiaotian) git commit -m "
+            "\"\u4eca\u5929\u53c8\u8ba4\u8bc6\u4e86\u4e00\u4f4d\u65b0\u540c\u5b66\uff0c"
+            "\u671f\u5f85ta\u6bd5\u4e1a\u7684\u4e00\u5929\"")
+
 # ---------------------------------------------------------------- the two columns change places
 #
 # "进入学院部分后可以将左右panel位置交换（相应的之前设计的图像的位置也需移动）". The gate is answered at
@@ -749,9 +760,14 @@ def ops_machine(t: float, ops) -> dict | None:
     The heading names the course the pane beside it is drawing, because the two boxes are about the
     same thing and one of them already knows its name. Everything here is a pure function of the
     playhead, like the panes: a seek lands on the same instruction, not on a different one.
+
+    `title` is optional and the box uses it for its own heading - the one panel here that is not an
+    `exec`: the `git bash` window just before the sword sculpture (see `GIT_FROM`).
     """
     if t < MACHINE_FROM:
         return None
+    if GIT_FROM <= t < GIT_TO:
+        return {"title": "git bash", "rows": [GIT_LINE], "cur": 0, "head": "", "regs": ""}
     name = ""
     for op in (ops or ()):
         op = str(op)

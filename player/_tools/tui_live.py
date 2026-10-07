@@ -3184,7 +3184,8 @@ def draw_ops(s: Screen, x0: int, y0: int, x1: int, y1: int, t: float, ops: list,
     `school_panels.ops_machine` for where it comes from.
     """
     err = alert == "err"
-    s.box(x0, y0, x1, y1, "exec" if machine else "ops", 0.45, RED if err else ui(1.0))
+    s.box(x0, y0, x1, y1, (machine or {}).get("title") or ("exec" if machine else "ops"),
+          0.45, RED if err else ui(1.0))
     NOGHOST.append((x0, y0, x1, y1))     # a character ticker and a ghost is two words stacked
     CLEAR.append((x0, y0, x1, y1))       # ...and it is text: no vignette, and the cut does not hold it
     inner = y1 - y0 - 1
@@ -3235,9 +3236,11 @@ def _draw_machine(s: Screen, x0: int, y0: int, x1: int, y1: int, inner: int,
     span = body1 - body0 + 1
     if span < 1:
         return
-    top = max(0, min(cur - span // 2, len(rows) - span))
+    top = max(0, min(cur - span // 2, max(0, len(rows) - span)))
     for k in range(span):
         idx = top + k
+        if idx >= len(rows):
+            break          # fewer rows of content than the box has room for: the rest of the box is blank
         yy = body0 + k
         if idx == cur:
             s.put(x0 + 2, yy, hot, BG, RED if err else ui(1.0))

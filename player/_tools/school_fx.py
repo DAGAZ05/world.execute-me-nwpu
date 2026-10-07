@@ -119,6 +119,29 @@ TITLES = {
 }
 
 _OPEN = Image.open
+
+# **The alpha a cell must have before it is ink, per picture.** `sprite` downscales with LANCZOS and then
+# keys on alpha, and downsampling a *cut-out* photograph leaves a halo of half-transparent cells along the
+# subject's own edge: the transparent background mixed with the animal. Against a dark frame those read as
+# dirt - the user: "魔鬼鱼的图像似乎不太干净（有杂项）". Measured on `魔鬼鱼.png`: 74 % of the pixels are
+# alpha 0, 25 % are alpha >= 240, and about 0.6 % sit in between - the halo - so a higher floor for that
+# one picture removes the halo without touching the animal. Per picture rather than global, because 96 is
+# right for the campus photographs: their soft edges *are* the picture.
+ALPHA_FLOOR = {"manta": 168}
+
+# ...and for a picture whose *background* survived its own cut-out, a **proximity** clean. The manta's file
+# is a cut-out (74 % of its pixels transparent) but the water behind it is opaque in places: of its opaque
+# pixels, 11 % are navy (0,0,32) and 6 % are teal (0,32,32), and after the downscale those come out as
+# large blue-grey wedges *around* the animal. `ambient` lifts every ink cell by a flat amount, so they read
+# as slabs of dirt over the glyph field - the user: "魔鬼鱼的图像似乎不太干净（有杂项）".
+#
+# A colour key is not enough, and this was measured before it was written: the animal's own wings are
+# blue-lit by the water ((32,64,96), (48,68,88) - the same hue as the background), so "drop the blue cells"
+# takes the wings with it. What separates them is **distance**: the animal is a mass of bright and neutral
+# cells with blue-lit *surfaces* touching it, while the background is blue with nothing solid for ten cells.
+# So: keep blue cells only inside `k` cells of a solid one. `k` is per picture, because it is a property of
+# that picture's background, like `ALPHA_FLOOR`.
+CLEAN = {"manta": 1}
 CELL_ASPECT = 2.1
 LEVEL_FLOOR = 0.18
 SHADE = " \u2591\u2592\u2593\u2588"
@@ -296,13 +319,14 @@ def sprite(name: str, cols: int, rows: int, contrast: float = 1.0, flip: str = "
     except Exception:
         pass
     L, A, P = small.convert("L").load(), small.getchannel("A").load(), small.convert("RGB").load()
+    a_min = ALPHA_FLOOR.get(name, 96)
     out = []
     n_lev = len(SHADE) - 1
     for r in range(rows):
         row = []
         for c in range(cols):
             def lv(y, r=r, c=c):
-                if A[c, y] <= 96:
+                if A[c, y] <= a_min:
                     return None
                 v = (LEVEL_FLOOR + (1 - LEVEL_FLOOR) * L[c, y] / 255) ** (1.0 / max(0.2, contrast))
                 # **ordered dithering on the ramp**, which is the one thing this project's pictures were
@@ -349,7 +373,43 @@ def sprite(name: str, cols: int, rows: int, contrast: float = 1.0, flip: str = "
         out.append(tuple(row))
     if outline:
         out = _outline(out, cols, rows)
+    if name in CLEAN:
+        out = _clean(out, cols, rows, CLEAN[name])
     return tuple(out), cols, rows
+
+
+def _clean(grid, cols: int, rows: int, k: int):
+    """Drop the ink cells that are nowhere near a solid one - see `CLEAN`.
+
+    A cell is *solid* if it is bright (`mean > 120`) or neutral (`max - min <= 12`); the mask is then
+    dilated by `k` cells (Chebyshev, i.e. a square) and every ink cell outside it becomes transparent.
+    The animal keeps its blue-lit surfaces because they touch the bright leading edge of a wing; the
+    water behind it is more than `k` cells from anything solid and goes.
+    """
+    solid = [[False] * cols for _ in range(rows)]
+    for r in range(rows):
+        for c in range(cols):
+            cell = grid[r][c]
+            if cell is None:
+                continue
+            _ch, _lv, rgb, _bot = cell
+            if sum(rgb) / 3 > 120 or max(rgb) - min(rgb) <= 12:
+                solid[r][c] = True
+    near = [[False] * cols for _ in range(rows)]
+    for r in range(rows):
+        for c in range(cols):
+            if not solid[r][c]:
+                continue
+            for dy in range(-k, k + 1):
+                for dx in range(-k, k + 1):
+                    y, x = r + dy, c + dx
+                    if 0 <= y < rows and 0 <= x < cols:
+                        near[y][x] = True
+    out = []
+    for r in range(rows):
+        out.append(tuple(None if (grid[r][c] is not None and not near[r][c]) else grid[r][c]
+                         for c in range(cols)))
+    return tuple(out)
 
 
 # The ordered-dither threshold: the classic 8x8 Bayer matrix, normalised to -0.5..+0.5 by subtracting a
@@ -966,8 +1026,17 @@ def emerge(s, cols: int, rows: int, t: float, u: float, name: str, caption: str 
     # A mark, not a plate: the user's "校门、校徽的大图出现了多次，仅保留第一次" leaves this one drawing the
     # bridge out of the collapse, and at the 0.34x0.44 it used to reach it was a *third* big crest. At
     # 0.19x0.26 it grows to 37x13 cells at 197x52 - recognisably the emblem, unambiguously not a hit.
-    cw = max(1, int(cols * 0.19 * grow))
-    ch = max(1, int(rows * 0.26 * grow))
+    #
+    # **Fitted, not cropped** (batch 54: "学院部分校徽中央展示时，图像不太完整"). `sprite` centre-crops a
+    # picture to the box it is asked for, and 37x13 cells is a *wide* box for a square emblem - so two
+    # thirds of the ring, the part with the university's own name on it, was being cut away, which is the
+    # same defect `flash` had and fixed with `_fit_box` (its own docstring has the measurement). This is
+    # the second and last caller that asked for a shape in cells rather than for the picture.
+    bw = max(4, int(cols * 0.19))
+    bh = max(2, int(rows * 0.26))
+    fw, fh = _fit_box(name, bw, bh, 1.0)
+    cw = max(1, int(fw * grow))
+    ch = max(1, int(fh * grow))
     cells = sprite(name, cw, ch, contrast=0.9)
     if not cells:
         return
