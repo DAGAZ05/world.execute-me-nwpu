@@ -1,1 +1,0 @@
-5088 frame(s) compared at 197x52; 0 with at least one mismatch
