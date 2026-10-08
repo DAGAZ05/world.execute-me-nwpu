@@ -39,6 +39,7 @@ import film_panels as _FP            # noqa: E402  the film's own numbers, forwa
 import school_chat as _CH            # noqa: E402
 import school_scenes as _SC          # noqa: E402
 import school_courses as _CO         # noqa: E402
+import school_colleges as _COL       # noqa: E402  whose content the reprise draws
 import school_machine as _MA         # noqa: E402
 
 # ---------------------------------------------------------------- the chrome's two strings
@@ -171,8 +172,8 @@ GAUGE_SLOTS = [(158.79, 159.66, "ein, dos"), (159.66, 160.45, "trios, ne"),
 EXEC_FROM, EXEC_TO = 147.52, 162.23      # the first "Execution" hit to the end of the reprise
 
 
-def _exec_rows() -> list[dict]:
-    """Fifteen courses, one shutdown counter and six instruments, disjoint by construction.
+def exec_rows_for(code: str) -> list[dict]:
+    """One college's reprise rows: fifteen courses, one shutdown counter and six instruments.
 
     The song gives twelve "Execution" hits 0.87-1.07 s apart and three countdown numbers, and this
     variant has fifteen courses plus a counter and six instruments. Sixteen plus six does not go into
@@ -194,50 +195,88 @@ def _exec_rows() -> list[dict]:
     The cost, stated plainly: the course on screen does not change on every "Execution" hit. It
     changes on a schedule of its own that is derived from the hits' own span. The alternative - a
     drawing that appears for six frames - would technically match the lyric and be unwatchable.
+
+    **`code` is which college's pack to build** (see `school_colleges`): the algorithm is the school's,
+    the lists are the college's, so a second college is one more entry in `PACKS` and no edit to the
+    first one. An unknown code is not an error - it falls back to the default pack, which is what keeps
+    `--major a` (a college whose pack has not landed yet) playing rather than empty.
     """
+    pack = PACKS.get(code) or PACKS[_COL.DEFAULT]
+    exec_panes = pack["exec_panes"]
+    exec_sub, gauge_sub = pack["exec_sub"], pack["gauge_sub"]
+    gauge_slots, gauges = pack["gauge_slots"], pack["gauges"]
+    course_of = pack["course_of"]
+    exec_from, exec_to = pack["exec_from"], pack["exec_to"]
+
     # 1. the instruments, disjoint by construction
     gauge_rows = []
-    for g, (at, end, lyric) in enumerate(GAUGE_SLOTS):
+    for g, (at, end, lyric) in enumerate(gauge_slots):
         half = (end - at) / 2
         for side in (0, 1):
             j = g * 2 + side
-            pane = GAUGES[j]
+            pane = gauges[j]
             # the ticker reads the *course's* name, like every other row: `ops=[pane]` put the internal
             # identifier `pane_gauge_burndown` on screen for these six rows (found by the batch-31 audit)
-            course = _CO.COURSES.get(pane, (pane,))[0]
+            course = course_of(pane)
             gauge_rows.append(dict(at=at + side * half, end=at + (side + 1) * half, name=pane,
                                    lyric=lyric, course=course,
                                    ops=[course], mascot=False, exec_n=0, gauge=g + 1,
-                                   sub=GAUGE_SUB.get(pane, "")))
+                                   sub=gauge_sub.get(pane, "")))
 
     # 2. the free intervals the instruments left, and the courses spread evenly across them
     free = []
-    cur = EXEC_FROM
-    for at, end, _l in GAUGE_SLOTS:
+    cur = exec_from
+    for at, end, _l in gauge_slots:
         if at > cur:
             free.append((cur, at))
         cur = max(cur, end)
-    if EXEC_TO > cur:
-        free.append((cur, EXEC_TO))
+    if exec_to > cur:
+        free.append((cur, exec_to))
 
     course_rows, i = [], 0
     for a, b in free:
-        if i >= len(EXEC_PANES):
+        if i >= len(exec_panes):
             break
-        left = len(EXEC_PANES) - i
+        left = len(exec_panes) - i
         # how many courses this gap carries: proportional to its length, at least one
         later = sum(bb - aa for aa, bb in free[free.index((a, b)) + 1:])
         share = max(1, int(round(left * (b - a) / max(1e-6, (b - a) + later))))
         take = min(left, share)
         step = (b - a) / take
         for j in range(take):
-            pane, course = EXEC_PANES[i + j]
+            pane, course = exec_panes[i + j]
             course_rows.append(dict(at=a + j * step, end=a + (j + 1) * step, name=pane,
                                     lyric="Execution", course=course, ops=[course],
                                     mascot=False, exec_n=i + j + 1,
-                                    sub=EXEC_SUB.get(pane, "")))
+                                    sub=exec_sub.get(pane, "")))
         i += take
     return course_rows + gauge_rows
+
+
+# **The content packs** (see `school_colleges`): one entry per college, and a college is *added*, never
+# substituted. `s` is 软件学院 - the author's own, the one whose courses this file was written for. A
+# contributor's entry carries its own course list, its own one-line explanations, its own instruments
+# (or borrows `PACKS["s"]`'s, since the twelve hits and three numbers are the school's, not the
+# college's) and names pane functions that they *add* to `school_scenes.py`; then they put their code in
+# `school_colleges.IMPLEMENTED` and the gate's "该方向尚未开设" turns into a real branch.
+PACKS: dict[str, dict] = {
+    "s": dict(
+        college="软件学院",
+        exec_panes=EXEC_PANES,
+        exec_sub=EXEC_SUB,
+        gauge_slots=GAUGE_SLOTS,
+        gauges=GAUGES,
+        gauge_sub=GAUGE_SUB,
+        course_of=lambda pane: _CO.COURSES.get(pane, (pane,))[0],
+        exec_from=EXEC_FROM,
+        exec_to=EXEC_TO,
+    ),
+}
+
+
+def _exec_rows() -> list[dict]:
+    """The rows of the college the viewer answered with (`school_colleges.active()`)."""
+    return exec_rows_for(_COL.active())
 
 # ---------------------------------------------------------------- the school's own shot table
 #
