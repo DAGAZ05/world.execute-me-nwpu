@@ -138,6 +138,12 @@ def main() -> None:
 # `░` and `▒` are both absent, and the renderer draws `▒` correctly and `░` as a box. The reference is an
 # unassigned codepoint, whose mask *is* the `.notdef` the reader sees.
 RENDER_FONTS = {"ascii": "C:/Windows/Fonts/consola.ttf", "wide": "C:/Windows/Fonts/msyh.ttc"}
+#: **...and one more face, which is not a cell renderer but a drawing one** (batch 68). The six-script
+#: countdown draws its numbers as block art through `tui_live.digit_bits`, and that picks Malgun Gothic
+#: for Hangul, because 微软雅黑 has no Hangul at all - without this the probe fails on 네, and it is right
+#: to: printed as a *cell* 네 would be the fallback box. A codepoint that only this face has is therefore
+#: accepted **as art**, which is how the countdown uses it (`player/_tools/school_courses.GAUGE_SCRIPTS`).
+ART_FONTS = ["C:/Windows/Fonts/malgun.ttf"]
 #: glyphs the Painter draws as a *pattern* instead of a character, so a missing glyph does not matter
 PAINTED = set("\u2580\u2584\u2588\u2581\u2582\u2583\u2585\u2586\u2587\u2591\u2592\u2593\u258c\u2590")
 REFERENCE = 0x0378                            # unassigned: whatever it renders is the fallback
@@ -180,7 +186,20 @@ def check_source() -> int:
             continue
         reading = _mask(fonts["wide"], chr(cp))
         if reading is None or not reading[1] or reading == refs["wide"]:
-            bad.append((cp, where))
+            # ...unless a *drawing* face can render it, and draws something that is not the fallback box
+            drawn = False
+            for path in ART_FONTS:
+                try:
+                    af = ImageFont.truetype(path, 32)
+                except Exception:             # noqa: BLE001
+                    continue
+                aref = _mask(af, chr(REFERENCE))
+                am = _mask(af, chr(cp))
+                if am is not None and am[1] and am != aref:
+                    drawn = True
+                    break
+            if not drawn:
+                bad.append((cp, where))
     print()
     print(f"glyphs the project prints, against the renderer's fonts "
           f"({len(used)} codepoints over {len(sources)} modules):")

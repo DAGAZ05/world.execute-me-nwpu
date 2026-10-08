@@ -127,6 +127,15 @@ EXEC_PANES = [
 
 GAUGES = list(_CO.GAUGE_PANES)
 
+
+def gauge_script(pane: str) -> str:
+    """The number `pane` is counting, in the script its own language writes it in, or "".
+
+    Read by the film's own overlay (`tui_live.draw_digit_word`) for the three countdown rows, and empty
+    for every other pane - which is what makes the caller a two-liner.
+    """
+    return _CO.GAUGE_SCRIPTS.get(pane, "")
+
 # One line each for the reprise rows, where the words are the twelve "Execution" hits and the three
 # countdown numbers (batch 58, the user: "标题后加上' · '+简短说明文字…体现图案与当前歌词的照应"). The
 # hits are the song's own count of executions, so each course drawing says what *one* run of it looks
@@ -153,8 +162,8 @@ EXEC_SUB = {
 GAUGE_SUB = {
     "pane_gauge_burndown": "数到 ein、dos：燃尽图还剩几天",
     "pane_gauge_pareto": "数到 ein、dos：两成模块背八成缺陷",
-    "pane_gauge_attention": "数到 trios、ne：权重压在同一个词上",
-    "pane_gauge_fem": "数到 trios、ne：连续体被切成网格",
+    "pane_gauge_attention": "数到 trois、ne：权重压在同一个词上",
+    "pane_gauge_fem": "数到 trois、ne：连续体被切成网格",
     "pane_gauge_assembly": "数到 fem、liu：零件按约束装成整机",
     "pane_gauge_final": "数到 fem、liu：最后一个格子是毕设",
 }
@@ -162,12 +171,12 @@ GAUGE_SUB = {
 # the three countdown numbers: each is a lyric line of its own, and each carries two instruments.
 #
 # These three windows were 148.79 / 149.66 / 150.45 - exactly **10.00 s early** - which put the six
-# instruments over the "Execution" hits and the three numbers (`Ein, dos` 159.20, `Trios, ne` 159.79,
+# instruments over the "Execution" hits and the three numbers (`Ein, dos` 159.20, `Trois, ne` 159.79,
 # `Fem, liu` 160.66 in `input/lyrics.lrc`) on top of three *course* panes. `02b_图像对位与可视化表达.md`
 # §4.2 pins them at 02:38.79-02:41.51, i.e. these numbers. Batch 31's timing audit found it by lining the
 # schedule up with the lyric timeline (`_dev/timeline_table.py`); the old `EXEC_AT` below still holds the
 # twelve hit times, and it is kept as the record of where the hits are.
-GAUGE_SLOTS = [(158.79, 159.66, "ein, dos"), (159.66, 160.45, "trios, ne"),
+GAUGE_SLOTS = [(158.79, 159.66, "ein, dos"), (159.66, 160.45, "trois, ne"),
                (160.45, 161.51, "fem, liu")]
 EXEC_FROM, EXEC_TO = 147.52, 162.23      # the first "Execution" hit to the end of the reprise
 

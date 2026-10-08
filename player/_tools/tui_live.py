@@ -797,6 +797,17 @@ def fx_apply(s: "Screen", t: float, ent: dict | None = None) -> None:
 # --------------------------------------------------------------------------- data
 
 
+#: **The lyric's own spelling, corrected where this version says the source text is wrong** (batch 68).
+#: The timing and the words both come from the vendored film (`film/.../word_timeline.json`, which is not
+#: in this repository), so a correction cannot live in the data - it lives here, next to the translation
+#: map, where every deviation from the source text is visible in one place. The user's correction: the
+#: third number is **French** (`trois`), and the timeline spells it `Trios`. Correction is applied when
+#: the lines are loaded (`Data._load_lines`), which is also what keeps `LYRIC_CN`'s keys - and therefore
+#: the Chinese subtitles - matching the text that is actually drawn.
+LYRIC_FIX: dict[str, str] = {
+    "Trios": "Trois",
+}
+
 LYRIC_CN: dict[str, str] = {
     'Switch on the power line': '打开电源',
     'Remember to put on protection': '记得做好防护',
@@ -859,7 +870,7 @@ LYRIC_CN: dict[str, str] = {
     'Illegal arguments': '非法参数',
     'Execution': '执行',
     'Ein, dos': '一，二',
-    'Trios, ne': '三，四',
+    'Trois, ne': '三，四',
     'Fem, liu': '五，六',
     'Give them all the execution': '给他们全部处决',
     'Be your only execution': '成为你唯一的处决',
@@ -905,9 +916,13 @@ class Data:
         out = []
         for ln in raw["lines"]:
             text = ln.get("text") or ""
+            for wrong, right in LYRIC_FIX.items():
+                text = text.replace(wrong, right)
             words, pos = [], 0
             for w in ln.get("words", []):
                 shown = w.get("text") or ""
+                for wrong, right in LYRIC_FIX.items():
+                    shown = shown.replace(wrong, right)
                 if not shown:
                     continue
                 i = text.find(shown, pos)
@@ -3372,6 +3387,22 @@ def _pil_font(size: int, cjk: bool):
         return ImageFont.load_default()
 
 
+#: The face the counted numbers use when their script is not in the renderer's CJK font. 微软雅黑 has
+#: Latin and Han but **no Hangul** - 네 came out as the empty box - and Malgun Gothic ships with Windows
+#: and covers it. `_dev/glyph_probe.py` allows this face for exactly this reason; a Hangul syllable in a
+#: *cell* string would still be a box, which is why the countdown draws rather than prints.
+_F_HANGUL = "C:/Windows/Fonts/malgun.ttf"
+
+
+@lru_cache(maxsize=16)
+def _hangul_font(size: int):
+    from PIL import ImageFont
+    try:
+        return ImageFont.truetype(_F_HANGUL, size)
+    except Exception:
+        return _pil_font(size, True)          # a missing file is not worth a crash: CJK face and hope
+
+
 def _lerp(a, b, u):
     return tuple(int(x + (y - x) * u) for x, y in zip(a, b))
 
@@ -3401,6 +3432,65 @@ def _big_line(s: Screen, text: str, x0: int, y0: int, x1: int, y1: int, fg) -> N
     if plain < 0:
         plain = y0 + max(0, (h - 1) // 2)
     s.put(x0, plain, text[:w], fg)
+
+
+@lru_cache(maxsize=64)
+def digit_bits(text: str, rows: int, cell_aspect: float = 2.0):
+    """One numeral as a grid of on/off cells, in whatever script `text` is written in.
+
+    `film_panels.banner_bits` is the same recipe - render, crop to the ink, downsample to `rows` cells,
+    threshold - but with the film's *Anton*, which is Latin-only: the scripts this feature is for come out
+    as empty boxes. So this one picks a face per script:
+
+      * **Hangul** (the Korean four, 네) goes to `_F_HANGUL` - Malgun Gothic, which ships with Windows and
+        is the one face here that has it. `glyph_probe` caught this the first time: 微软雅黑 drew 네 as
+        the empty fallback box, so it was a box five rows tall and looked like a bug in the layout;
+      * everything else goes to the renderer's own CJK face (`_pil_font(size, True)`, 微软雅黑), which
+        carries Latin and Han - the two other scripts the countdown needs.
+
+    Returns `(cols, rows, one byte per cell)`, the same shape as the film's own.
+    """
+    from PIL import Image, ImageDraw
+    # the ranges are written as numbers, not as escapes: `_dev/glyph_probe.py` reads every `\uXXXX` in
+    # this directory as a glyph the project *prints*, and a range end is not a glyph (U+D7A3 is the last
+    # assigned Hangul syllable; U+D7AF is not assigned at all and failed the probe).
+    hangul = any(0x1100 <= ord(ch) <= 0x11FF or 0xAC00 <= ord(ch) <= 0xD7A3 for ch in text)
+    f = _pil_font(220, True) if not hangul else _hangul_font(220)
+    tmp = Image.new("L", (int(f.getlength(text)) + 80, 320), 0)
+    ImageDraw.Draw(tmp).text((40, 20), text, font=f, fill=255)
+    box = tmp.getbbox()
+    if box is None:
+        return 0, 0, b""
+    tmp = tmp.crop(box)
+    cols = max(1, int(round(tmp.width / max(1, tmp.height) * rows * cell_aspect)))
+    small = tmp.resize((cols, rows), Image.LANCZOS).point(lambda v: 255 if v > 110 else 0)
+    return cols, rows, small.tobytes()
+
+
+def draw_digit_word(s: Screen, text: str, x0: int, y0: int, x1: int, y1: int) -> None:
+    """The counted number, in its own script, in the stdout box's right-hand blank half.
+
+    The song counts six numbers in six languages (`ein, dos / trois, ne / fem, liu`) and `school_courses`
+    prints the lyric's *transliteration* in the pane. This is the other half of the user's note - "在
+    stdout 框右侧空白处按序加上对应语言原文字的字符画（可以超出框）": the word the language actually
+    writes, as block letters, **allowed to run past the box** (the box is 7 rows tall and the box's left
+    half is the log, so a five-row word starting at 52 % of the width ends outside it at some sizes -
+    that is intended, and `NOGHOST` keeps the film's trail off it).
+    """
+    if not text:
+        return
+    rows_max = max(2, min(5, (y1 - y0) - 1))
+    cols, rows, bits = digit_bits(text, rows_max, 2.0)
+    if not bits:
+        return
+    x = x0 + max(2, int((x1 - x0) * 0.52))
+    y = y0 + 1 + max(0, ((y1 - y0 - 1) - rows) // 2)
+    NOGHOST.append((x, y - 1, x + cols, y + rows))
+    fg = mix(ANOM, 0.92)
+    for r in range(rows):
+        for q in range(cols):
+            if bits[r * cols + q]:
+                s.put(x + q, y + r, "\u2588", fg)
 
 
 def _big_cjk(s: Screen, text: str, x0: int, y0: int, x1: int, y1: int, fg) -> None:
@@ -3986,8 +4076,8 @@ def draw_footer(s: Screen, d: Data, t: float, playing: bool, fps: float, ent: di
     # are shared with the film: quit, the playhead and the post pass) plus the seek keys; the original
     # variant keeps the upstream wording, because `h` and `c` are real switches there.
     if VAR[0] == "school":
-        long_hint = "space pause   x fx   arrows seek   q quit"
-        short_hint = "space  x fx  q quit"
+        long_hint = "space pause   [ ] volume   x fx   arrows seek   q quit"
+        short_hint = "space  [ ] vol  x fx  q quit"
     else:
         long_hint = "h her   c chat   x fx   space toggle   q quit"
         short_hint = "h her  c chat  x fx  q quit"
@@ -4125,6 +4215,22 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
             print(f"warning: the full-frame layer failed ({exc})", file=sys.stderr, flush=True)
     # tuikit.py:468-476's post, and the cut's reveal, both after everything else has been drawn
     fx_apply(s, t, ent)
+    # **...and the counted number goes on last** (batch 68). It belongs to the stdout box, but it is
+    # allowed to run past it - that is the user's own note - so it cannot be drawn *inside* the band's
+    # own pass: the box is redrawn by `_band_restore` when a `behind` photograph goes down, and the
+    # full-frame layer (the aircraft, the campus hits) passes over the whole frame after that. Drawn
+    # here, over the film's post, the six scripts are the last word on the frame while the song counts.
+    if SP is not None and VAR[0] == "school" and BAND_BOX[2] > BAND_BOX[0]:
+        try:
+            # The pane comes from the *school row*, not from `ent["pane"]`: the six instruments are the
+            # film's own panes drawn through the film's pane path, and the entry does not carry a `pane`
+            # for them (`row_at` does - it is the row's name).
+            row = SP.row_at(t)
+            text = SP.gauge_script(row["name"]) if row else ""
+            if text:
+                draw_digit_word(s, text, BAND_BOX[0], BAND_BOX[1], BAND_BOX[2], BAND_BOX[3])
+        except Exception as exc:
+            print(f"warning: the counted number failed ({exc})", file=sys.stderr, flush=True)
     # ...and the frame is made consistent before it is written: a wide character and the placeholder
     # behind it are two cells that have to agree, and this is the one place that checks them all rather
     # than trusting a dozen writers. See `Screen.normalise` - and `_dev/ansi_probe.py`, which is what
@@ -4489,9 +4595,11 @@ def main() -> None:
                 elif ch in ("c", "C"):
                     # the film's dsh window in the left pane, or her in it everywhere
                     CHAT[0] = not CHAT[0]
-                elif ch in ("-", "_"):
+                elif ch in ("-", "_", "["):
+                    # volume down: `[` is the user's own key for it (batch 68), `-` stays as the alias
+                    # the film's own footer never advertised anyway
                     audio.set_volume(audio.volume - 100)
-                elif ch in ("=", "+"):
+                elif ch in ("=", "+", "]"):
                     audio.set_volume(audio.volume + 100)
                 elif ch in (",", "<"):
                     t = seek_to(t - 1)

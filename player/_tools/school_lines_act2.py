@@ -52,7 +52,7 @@ ACT_TWO: list[tuple[float, str, str, str]] = [
     (147.52, "Execution", "meta", "\u7528\u65f6 1.2 \u79d2|02:27"),
     # **These three were 9.00 s early** (batch 52): they sat on 149.79 / 150.66 / 151.45, which are
     # `Execution` lines - the fourth, fifth and sixth of the twelve - while the countdown lyrics `Ein, dos`
-    # / `Trios, ne` / `Fem, liu` are at 158.79 / 159.66 / 160.45. The rows' own timestamps said
+    # / `Trois, ne` / `Fem, liu` are at 158.79 / 159.66 / 160.45. The rows' own timestamps said
     # `02:38` / `02:39` / `02:40`, i.e. the timestamps agreed with the lyrics and the `t` did not, and the
     # six gauges those answers are *about* are at 158.79-161.51 - so the exchange about "一共多少门 /
     # 计网、机操 / 计组、数据库" was landing nine seconds before the numbers it names. `_dev/chat_audit.py`
@@ -60,9 +60,9 @@ ACT_TWO: list[tuple[float, str, str, str]] = [
     (158.79, "Ein, dos", "user", "\u7b49\u4e00\u4e0b\u2014\u2014"),
     (158.79, "Ein, dos", "ai", "\u6765\u4e0d\u53ca\u4e86\uff0c\u5df2\u7ecf\u5f00\u59cb\u4e86\u3002"),
     (158.79, "Ein, dos", "meta", "\u7528\u65f6 1.0 \u79d2|02:38"),
-    (159.66, "Trios, ne", "ai", "\u8ba1\u7f51\u3001\u673a\u64cd\u3002"),
-    (159.66, "Trios, ne", "sub", "\u673a\u64cd\u7684\u5b9e\u9a8c\u8bfe\u5728 OpenEuler \u4e0a\u505a\uff0c\u4f60\u4f1a\u8bb0\u4f4f\u90a3\u5957\u547d\u4ee4\u884c\u3002"),
-    (159.66, "Trios, ne", "meta", "\u7528\u65f6 1.2 \u79d2|02:39"),
+    (159.66, "Trois, ne", "ai", "\u8ba1\u7f51\u3001\u673a\u64cd\u3002"),
+    (159.66, "Trois, ne", "sub", "\u673a\u64cd\u7684\u5b9e\u9a8c\u8bfe\u5728 OpenEuler \u4e0a\u505a\uff0c\u4f60\u4f1a\u8bb0\u4f4f\u90a3\u5957\u547d\u4ee4\u884c\u3002"),
+    (159.66, "Trois, ne", "meta", "\u7528\u65f6 1.2 \u79d2|02:39"),
     (160.45, "Fem, liu", "ai", "\u8ba1\u7ec4\u3001\u6570\u636e\u5e93\u3002"),
     (160.45, "Fem, liu", "sub", "\u8865\u7801\u4e58\u6cd5\u4ee5\u53ca\u76f8\u5173\u8ba1\u7b97"
      "\u662f\u8ba1\u7ec4\u7684\u91cd\u70b9\u3002\u6570\u636e\u5e93"

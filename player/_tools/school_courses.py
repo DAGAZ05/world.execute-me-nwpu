@@ -2449,16 +2449,37 @@ GAUGE_PANES = ["pane_gauge_burndown", "pane_gauge_pareto", "pane_gauge_attention
 # **They were a dead parameter and never once reached the screen.** `draw_gauge` has taken `lang` and
 # `digit` since it was written and prints them at `k.bx1 - 10` - and the only call site
 # (`school_panels.draw_scene_pane`) never passed either, so the six words the song actually counts
-# (`Ein, dos / Trios, ne / Fem, liu` - German, Spanish, Greek, Chinese, Swedish, Chinese) were designed,
+# (`Ein, dos / Trois, ne / Fem, liu` - German, Spanish, French, Korean, Swedish, Chinese) were designed,
 # wired, and invisible. Keyed by pane name and read here rather than passed in, so there is no second
 # copy of the mapping and no call site that can forget it. (Batch 37's maths audit.)
 GAUGE_WORDS: dict[str, tuple[str, str]] = {
     "pane_gauge_burndown": ("ein", "\u5fb7"),      # 软件项目管理
     "pane_gauge_pareto": ("dos", "\u897f"),        # 软件测试
-    "pane_gauge_attention": ("trios", "\u5e0c"),   # 深度学习
-    "pane_gauge_fem": ("ne", "\u4e2d"),            # 工业模型
+    "pane_gauge_attention": ("trois", "\u6cd5"),   # 深度学习
+    "pane_gauge_fem": ("ne", "\u97e9"),            # 工业模型
     "pane_gauge_assembly": ("fem", "\u745e"),      # 大型工业软件
     "pane_gauge_final": ("liu", "\u4e2d"),         # 毕业设计
+}
+
+# **The same six numbers, in the script their language actually writes them in** (batch 68, the user:
+# "歌词出现 ein...liu 几个不同语言的数字序号时，在 stdout 框右侧空白处按序加上对应语言原文字的字符画
+# （可以超出框）"). `GAUGE_WORDS` above is the *lyric's* spelling - what the song sings, chosen to fit the
+# metre - and this is the word itself: 네 rather than "ne", 六 rather than "liu". Three of the six are
+# Latin (ein, dos, fem) and are listed anyway, so the table has one row per number and no caller has to
+# special-case "does this one have a script".
+#
+# **The languages, corrected by the user (batch 68) after this repo had two of them wrong**: ein 德语 ·
+# dos 西班牙语 · **trois 法语** (the lrc said `Trios`; "trios" is not a word in any of the six, and the
+# user's correction is that it is French - so the pane, the subtitle table and the local lyrics.lrc all
+# say `trois` now) · **ne 韩语 네** (this repo said 中 - Chinese - which cannot be right: "ne" is not the
+# pinyin of any Chinese numeral, and 네 is the Korean four) · fem 瑞典/挪威/丹麦语 · liu 汉语 六.
+GAUGE_SCRIPTS: dict[str, str] = {
+    "pane_gauge_burndown": "ein",                       # 德语（曲中唱作 ein，标准写法 eins，这里用曲中的词）
+    "pane_gauge_pareto": "dos",                         # 西班牙语
+    "pane_gauge_attention": "trois",                    # 法语
+    "pane_gauge_fem": "\ub124",                         # 韩语 네（曲中唱作 ne）
+    "pane_gauge_assembly": "fem",                       # 瑞典语／挪威语／丹麦语
+    "pane_gauge_final": "\u516d",                       # 汉语 六（曲中唱作 liu）
 }
 
 GAUGES: dict[str, tuple[str, object]] = {n: (COURSES[n][0], COURSES[n][1]) for n in GAUGE_PANES}
