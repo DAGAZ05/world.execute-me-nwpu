@@ -243,21 +243,33 @@ class _Kit:
             except Exception:
                 p = 0.0
         s.put(x0, y0, "\u258f", _mix(self.colour, 0.9 + 0.1 * p))
-        shown = _clip(title, max(0, self.w - 14))
-        s.put(x0 + 2, y0, shown, _ui(0.92))
-        if PANE_SUB[0]:
-            # ...at the title's *cell* width, not its character count: a Chinese title is two cells per
-            # character, and measuring it in characters put the separator on top of its own last two
-            # (the first version of this printed 西北工业大学 as 西北工).
-            head = sum(2 if unicodedata.east_asian_width(ch) in "WF" else 1 for ch in shown)
-            room = max(0, self.w - 14 - head - 2)
-            # a pane with no title of its own (the food plate, the cat, the sword: batch 49 took their
-            # words away) gets the sentence alone, starting where the title would have
-            text = ("\u00b7 " + PANE_SUB[0]) if shown else PANE_SUB[0]
-            s.put(x0 + (3 + head if shown else 2), y0, _clip(text, room), _ui(0.62))
-        if n:
-            tag = f"EXEC {n:02d}/{total:02d}"
+        # **The counter is the only thing reserved, and the explanation comes before the title.**
+        # A fixed 14-cell reserve was wrong for the 62 rows that have no counter at all: the user's
+        # "有的副标题没有显示全" is `pane_sw_project`'s "自由也得排进计划" printing as "...排进计". So the
+        # room is measured from the tag that is really there, and when title + explanation do not both
+        # fit it is the *title* that gives way - the explanation is the line the user asked for, and a
+        # pane is still named by its picture and its ops ticker.
+        tag = f"EXEC {n:02d}/{total:02d}" if n else ""
+        if tag:
             s.put(x1 - len(tag) - 1, y0, tag, _mix(self.colour, 0.55 + 0.45 * p))
+        avail = max(0, (x1 - len(tag) - 2 if tag else x1 - 1) - (x0 + 2) + 1)
+        sub = PANE_SUB[0]
+        sub_txt = ("\u00b7 " + sub) if sub else ""
+        title_room = avail if not sub else max(6, avail - _cells(sub_txt) - 2)
+        shown = _clip(title, title_room)
+        s.put(x0 + 2, y0, shown, _ui(0.92))
+        if sub:
+            # ...placed at the title's *cell* width, not its character count: a Chinese title is two
+            # cells per character, and measuring it in characters put the separator on top of its own
+            # last two (the first version of this printed 西北工业大学 as 西北工).
+            head = _cells(shown)
+            if shown:
+                s.put(x0 + 3 + head, y0,
+                      _clip(sub_txt, max(0, avail - head - 2)), _ui(0.62))
+            else:
+                # a pane with no title of its own (the food plate, the cat, the sword: batch 49 took
+                # their words away) gets the sentence alone, starting where the title would have
+                s.put(x0 + 2, y0, _clip(sub, avail), _ui(0.62))
         rule = x0 + 1 + int((self.w - 2) * self.u)
         s.put(x0 + 1, y0 + 1, BOX_H * max(0, self.w - 2), _ui(0.20))
         s.put(x0 + 1, y0 + 1, BOX_H * max(0, rule - x0 - 1), _mix(self.colour, 0.65 + 0.35 * p))

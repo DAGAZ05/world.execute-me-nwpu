@@ -117,10 +117,13 @@ def main() -> None:
     bad, hidden, total = [], [], 0.0
     # ...and the one line every pane header shows after its title (batch 58, the user: "标题后加上' · '+
     # 简短说明文字，简短说明文字体现图案与当前歌词的照应"). It lives on the *row* rather than on the pane,
-    # because a pane can be drawn on more than one lyric and the sentence is about the line being sung, so
-    # a row added without one is a pane whose header is silently missing its explanation. This probe walks
-    # every row already, which is why the check is here rather than in one of its own.
-    bare = sorted((r["at"], r["name"]) for r in rows if r.get("name") and not r.get("sub"))
+    # because a pane can be drawn on more than one lyric and the sentence is about the line being sung.
+    # **Rows with no lyric are exempt** - the user's own amendment: "有歌词需要对应的时候再加副标题，
+    # 间奏之类不需要" - so an instrumental gap (`[gap]`) or a section marker (`[after the gate]`) is
+    # expected to have none, and only a sung line is required to have one.
+    bare = sorted((r["at"], r["name"]) for r in rows
+                  if r.get("name") and not r.get("sub")
+                  and not str(r.get("lyric", "")).startswith("["))
     for span, n, at, name, args, vis in out:
         flag = ""
         if vis < MIN_VISIBLE:
