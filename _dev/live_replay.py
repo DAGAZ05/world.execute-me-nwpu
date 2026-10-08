@@ -42,6 +42,10 @@ def main() -> None:
     ap.add_argument("--from", dest="start", type=float, default=0.0, help="where the replay begins")
     ap.add_argument("--size", default="197x52")
     ap.add_argument("--out", default=str(OUT))
+    ap.add_argument("--gate", action="store_true",
+                    help="leave the college question *up* instead of answering it: the panel is only "
+                         "drawn while nobody has answered (school_gate.window_open), so this is the "
+                         "one way to render the option list - `--gate` is what preview/05 comes from")
     ap.add_argument("--text", default="\u516c\u8bda", help="report the rows holding this text")
     args = ap.parse_args()
 
@@ -52,7 +56,13 @@ def main() -> None:
     T.SP = SP
     SP.init_palette(T.ui, T.mix, dict(ME_TEXT=T.ME_TEXT, ANOM=T.ANOM, RED=T.RED, BG=T.BG))
     import school_gate as G
-    G.assume()
+    # The gate is pre-answered by default so that a render is deterministic (a seek past the question
+    # assumes the same answer). `--gate` is the opposite: it leaves the state in `waiting`, which is the
+    # only state the panel is drawn in - so that is how the option list itself gets rendered.
+    if args.gate:
+        G.reset()
+    else:
+        G.assume()
 
     cols, rows = (int(v) for v in args.size.lower().split("x"))
     eng, data = T.Engine(), T.Data()

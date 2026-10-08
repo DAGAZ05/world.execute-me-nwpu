@@ -3949,7 +3949,13 @@ def draw_footer(s: Screen, d: Data, t: float, playing: bool, fps: float, ent: di
         # what the left pane holds; then, in the original variant only, how the figure is drawn and
         # what `auto` resolved to (the front of the string is what survives truncation on a narrow
         # window, so the state that matters most comes first)
-        left += f"  win:{WINDOW[0] or '-'}"
+        #
+        # **The window is named by its own title.** In the school variant the box on screen is titled
+        # `hangxiaotian` (batch 34 renamed it: `dsh web` -> `hangxiaotian`), so the footer says
+        # `hangxiaotian:chat` instead of the upstream's `win:chat` - the user's note is that a field
+        # whose label belongs to the other version reads as leftover chrome.
+        win = "hangxiaotian" if VAR[0] == "school" else "win"
+        left += f"  {win}:{WINDOW[0] or '-'}"
         if VAR[0] != "school":
             how, tint = her_style(ent)
             left += f"  her:{HER_RENDER}" + (f"->{how}/{tint}" if HER_RENDER == "auto" else "")
@@ -3986,10 +3992,10 @@ def draw_footer(s: Screen, d: Data, t: float, playing: bool, fps: float, ent: di
         long_hint = "h her   c chat   x fx   space toggle   q quit"
         short_hint = "h her  c chat  x fx  q quit"
     if cols >= 130:
-        msg = (f"{'等你回答' if waiting else ('PLAYING' if playing else 'paused ')}  {fps:4.1f} fps   "
+        msg = (f"{'SELECT COLLEGE' if waiting else ('PLAYING' if playing else 'paused ')}  {fps:4.1f} fps   "
                f"{long_hint}")
     else:
-        msg = (f"{'WAIT' if waiting else ('PLAY' if playing else 'PAUSE')} {fps:4.1f}fps  "
+        msg = (f"{'SELECT' if waiting else ('PLAY' if playing else 'PAUSE')} {fps:4.1f}fps  "
                f"{short_hint}")
     room = max(0, cols - dw(msg) - 4)
     if dw(left) > room:                      # drop whole fields rather than cut one in half
