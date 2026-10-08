@@ -276,6 +276,46 @@ class _Kit:
 
     # ------------------------------------------------------------------ primitives
 
+    def blit(self, cells, ox: int, oy: int, colour, dim: float = 1.0) -> int:
+        """Write a grid of `(char, level)` cells, one cell each, with the colour mixed once per level.
+
+        The four plate routes of `school_sculpture` (`html_cells`, `digit_cells`, `silhouette_cells`,
+        `stroke_cells`, `glyph_cells`) all end in the same shape: a grid of single characters and a
+        luminance each, drawn over the body rect. They were written with `put` per cell, which for a
+        single character is a bounds check, a `room` calculation and a `_clip` of one character - ~5 200
+        times a frame for 何尊's digit field, and that pane is one of the film's most expensive frames
+        (the 运-20 crosses it). Two things go away here, both of them safe by construction:
+
+          * the clipping `put` does is for *text* - a label that may run past the box. These grids are
+            already clamped to the body rect by their callers, so the check is only "did the grid end";
+          * `_mix(colour, dim * lv / 255)` is the *same colour* for every cell carrying the same level,
+            and a plate's levels are a small set, so it is computed once per level rather than once per
+            cell.
+
+        Returns how many cells it wrote, which nothing waits on.
+        """
+        s = self.s
+        lut: dict = {}
+        n = 0
+        for r, row in enumerate(cells):
+            y = oy + r
+            if not (self.by0 - 1 <= y <= self.y1):
+                continue
+            for c, cell in enumerate(row):
+                if cell is None:
+                    continue
+                x = ox + c
+                if x > self.x1:
+                    break
+                ch, lv = cell
+                col = lut.get(lv)
+                if col is None:
+                    col = lut[lv] = _mix(colour, dim * (lv / 255))
+                s.put(x, y, ch, col)
+                n += 1
+        return n
+
+
     def put(self, x: int, y: int, text: str, colour=None, level: float = 1.0) -> None:
         """Clip to the pane: every diagram below is written for a rectangle of *some* size.
 

@@ -1029,13 +1029,7 @@ def _landmark(name: str, s, x0: int, y0: int, x1: int, y1: int, u: float, title:
         got = SC.html_cells(name, cols, rows)
         if got:
             cells, cw, ch = got
-            for r in range(min(ch, k.by1 - oy + 1)):
-                for c in range(min(cw, k.bw)):
-                    cell = cells[r][c]
-                    if cell is None:
-                        continue
-                    ch_, lv = cell
-                    k.put(ox + c, oy + r, ch_, _mix(BLUE, dim * (lv / 255)), 1.0)
+            k.blit(cells, ox, oy, BLUE, dim)
     elif name in SC.DIGITS:
         # the picture as binary digits, one per cell: `参考及想法/何尊.html`'s rule, on the pane's clock.
         # Drawn in the aspect-fitted `cols`x`rows`, not the whole box: the vessel is a tall drawing and a
@@ -1044,13 +1038,7 @@ def _landmark(name: str, s, x0: int, y0: int, x1: int, y1: int, u: float, title:
         got = SC.digit_cells(name, cols, rows, phase=phase)
         if got:
             cells, cw, ch = got
-            for r in range(min(ch, k.by1 - oy + 1)):
-                for c in range(min(cw, k.bw)):
-                    cell = cells[r][c]
-                    if cell is None:
-                        continue
-                    ch_, lv = cell
-                    k.put(ox + c, oy + r, ch_, _mix(BLUE, dim * (lv / 255)), 1.0)
+            k.blit(cells, ox, oy, BLUE, dim)
     elif name in SC.SILHOUETTE:
         # a solid shape: the picture's alpha, one character, with its own luminance as the tone. For a
         # monument in white on white this is the only one of the three routes that reads - see
@@ -1058,13 +1046,7 @@ def _landmark(name: str, s, x0: int, y0: int, x1: int, y1: int, u: float, title:
         got = SC.silhouette_cells(name, cols, rows)
         if got:
             cells, cw, ch = got
-            for r in range(min(ch, k.by1 - oy + 1)):
-                for c in range(cw):
-                    cell = cells[r][c]
-                    if cell is None:
-                        continue
-                    ch_, lv = cell
-                    k.put(ox + c, oy + r, ch_, _mix(BLUE, dim * (lv / 255)), 1.0)
+            k.blit(cells, ox, oy, BLUE, dim)
     elif name in SC.LINE:
         # a drawing of *lines*: one glyph per cell a stroke passes through and nothing anywhere else,
         # which is the only route that works for the vector 何尊 and for 为国铸剑's white-on-white
@@ -1072,24 +1054,12 @@ def _landmark(name: str, s, x0: int, y0: int, x1: int, y1: int, u: float, title:
         got = SC.stroke_cells(name, cols, rows)
         if got:
             cells, cw, ch = got
-            for r in range(min(ch, k.by1 - oy + 1)):
-                for c in range(cw):
-                    cell = cells[r][c]
-                    if cell is None:
-                        continue
-                    ch_, lv = cell
-                    k.put(ox + c, oy + r, ch_, _mix(BLUE, dim * (lv / 255)), 1.0)
+            k.blit(cells, ox, oy, BLUE, dim)
     elif name in SC.GLYPH:
         got = SC.glyph_cells(name, cols, rows)
         if got:
             cells, cw, ch = got
-            for r in range(min(ch, k.by1 - oy + 1)):
-                for c in range(cw):
-                    cell = cells[r][c]
-                    if cell is None:
-                        continue
-                    ch_, lv = cell
-                    k.put(ox + c, oy + r, ch_, _mix(BLUE, dim * (lv / 255)), 1.0)
+            k.blit(cells, ox, oy, BLUE, dim)
     else:
         got = SC.halfblock(name, cols, rows)
         if got:

@@ -149,6 +149,16 @@ FEATS = TUI / "full" / "audio_features.json"
 WORDS = ROOT / "film" / "world_execute_word_timing_20260927" / "word_timeline.json"
 
 FPS = 24
+# **How often the player may redraw** (batch 59). The loop used to be hard-capped at 30: it draws as fast
+# as it can and then sleeps to 1/30 s, so the picture's rate was `min(30, 1000/frame ms)`. Everything the
+# film draws is a function of the song clock - the aircraft's position, the orbits, the ramps, the typing -
+# so a frame drawn between two of the film's own 24 is a *true* intermediate, not a repeat: the user asked
+# for smoothness and this is the one line that buys it wherever the machine has the time. Measured with
+# `_dev/paint_probe.py` after batch 59's work on both budgets: a typical frame costs ~22-24 ms (~42-45 fps
+# available, where the old 30 fps cap was throwing a third of that away) and the 运-20 crossing ~31 ms
+# (~32 fps, which used to be 37 ms and below 30). So 60 leaves the cheap frames free and the crossing
+# close to it - and `--fps-cap 30` restores the old behaviour if the CPU or the terminal wants it back.
+FPS_CAP = 60.0
 END = 211.9
 SPAN = 2.4                      # seconds of waveform in the header, as dsh_wave.py uses
 
@@ -988,15 +998,33 @@ def mix(c, level, base=BG):
 # ------------------------------------------------------------------------ screen
 
 def _wide_char(ch: str) -> bool:
-    """Whether a cell's character is double-width.
+    """Whether a cell's character is double-width. **Memoised** (batch 59).
 
     Total by construction: an empty character is *not* wide, and neither is anything longer than one
     character. It used to be `unicodedata.east_asian_width(ch) in "WF"` and that raises on `""` - which
     is not a character, it is the filler cell `Screen.put` leaves after a wide one. A transition that
     moved a filler without its `wide` flag therefore crashed the PNG rasteriser three modules away;
     `school_fx._carry` is the fix for the cause, and this is the fix for the class.
+
+    The cache is the same argument one level down, and it is worth more than it looks: `east_asian_width`
+    is a table lookup with a function call around it (measured ~0.35 us), this is called once per cell in
+    `render_diff`, once per repaired cell in `normalise`, and once per *character* of every run - i.e.
+    ~10 000 times on a frame with a full-frame sprite. The film prints 1 258 distinct codepoints
+    (`_dev/glyph_probe.py` counts them), so the table stops growing almost immediately; the bound is
+    there so a pathological caller cannot make it a leak.
     """
-    return len(ch) == 1 and unicodedata.east_asian_width(ch) in "WF"
+    hit = _WIDE_CACHE.get(ch)
+    if hit is None:
+        hit = len(ch) == 1 and unicodedata.east_asian_width(ch) in "WF"
+        if len(_WIDE_CACHE) < 4096:
+            _WIDE_CACHE[ch] = hit
+    return hit
+
+
+_WIDE_CACHE: dict[str, bool] = {}
+
+
+_WIDE_CACHE: dict[str, bool] = {}
 
 
 # Nothing below U+1100 is double-width in East Asian Width *except* a handful of Hangul jamo, which are
@@ -1334,12 +1362,18 @@ class Screen:
             out.write("\x1b[2J")
             self.prev = [[self.blank] * self.cols for _ in range(self.rows)]
         written = 0
+        # **What the terminal's cursor and its colours are already set to** (batch 59). The player is
+        # usually the only writer, but a frame is a fresh negotiation: both start unknown, so the first
+        # write of a frame is a full one.
+        cur: int | None = None             # the column just past the last text written on this row
+        last: tuple | None = None          # the (fg, bg) the terminal is already in
         for y in range(self.rows):
             row, old = self.buf[y], self.prev[y]
             wide = self.wide[y]
             parts: list[str] = []
             x = 0
             col = 1                        # the terminal's column for cell `x`, 1-based
+            cur = None                     # a row begins wherever the previous one left the cursor
             while x < self.cols:
                 # the pair check is gated, not free: it is worth a call only where a two-cell
                 # relationship can be wrong, which is a cell that holds a wide character or a
@@ -1359,31 +1393,52 @@ class Screen:
                 ch, fg, bg = row[x]
                 if ch == "" and wide[x]:
                     pch, pfg, pbg = row[x - 1]
-                    parts.append(f"\x1b[{y + 1};{col - 2}H"
-                                 f"\x1b[38;2;{pfg[0]};{pfg[1]};{pfg[2]}m"
-                                 f"\x1b[48;2;{pbg[0]};{pbg[1]};{pbg[2]}m" + pch)
+                    if cur != col - 2:
+                        parts.append(f"\x1b[{y + 1};{col - 2}H")
+                    if last != (pfg, pbg):
+                        parts.append(f"\x1b[38;2;{pfg[0]};{pfg[1]};{pfg[2]}m"
+                                     f"\x1b[48;2;{pbg[0]};{pbg[1]};{pbg[2]}m")
+                        last = (pfg, pbg)
+                    parts.append(pch)
                     written += 2
                     x += 1
+                    cur = col - 2 + 2      # the wide glyph the placeholder belongs to
                     continue
                 start = col                    # where this run's text goes; `col` is its width by then
-                run = [ch]
                 x += 1
                 col += here
-                while (x < self.cols and row[x] != old[x]
-                       and row[x][1] == fg and row[x][2] == bg
-                       and not (row[x][0] == "" and wide[x])):
-                    c = row[x][0]
-                    run.append(c)
-                    x += 1
-                    col += 0 if (c == "" and wide[x - 1]) else (2 if _wide_char(c) else 1)
-                parts.append(f"\x1b[{y + 1};{start}H"
-                             f"\x1b[38;2;{fg[0]};{fg[1]};{fg[2]}m"
-                             f"\x1b[48;2;{bg[0]};{bg[1]};{bg[2]}m" + "".join(run))
-                written += len(run)
+                # **A run of one cell is the common case on a photograph** - every cell carries its own
+                # colour - and it needs neither the list nor the join. The peek below is the first test
+                # of the loop under it, written once more rather than paid for on every cell.
+                if not (x < self.cols and row[x] != old[x] and row[x][1] == fg and row[x][2] == bg
+                        and not (row[x][0] == "" and wide[x])):
+                    text = ch
+                else:
+                    run = [ch]
+                    while True:
+                        c = row[x][0]
+                        run.append(c)
+                        x += 1
+                        col += 0 if (c == "" and wide[x - 1]) else (2 if _wide_char(c) else 1)
+                        if not (x < self.cols and row[x] != old[x] and row[x][1] == fg
+                                and row[x][2] == bg and not (row[x][0] == "" and wide[x])):
+                            break
+                    text = "".join(run)
+                if cur != start:
+                    parts.append(f"\x1b[{y + 1};{start}H")
+                if last != (fg, bg):
+                    parts.append(f"\x1b[38;2;{fg[0]};{fg[1]};{fg[2]}m"
+                                 f"\x1b[48;2;{bg[0]};{bg[1]};{bg[2]}m")
+                    last = (fg, bg)
+                parts.append(text)
+                written += len(text)
+                # ...and the cursor is now exactly where the scan column is: `col` advanced by this
+                # run's own width, and a re-emitted wide glyph moves two columns for the two it counted.
+                cur = col
                 # a run that ends on a wide character has just painted over the column after it: if the
                 # buffer has a cell of its own there (rather than that character's placeholder, which the
                 # terminal has already drawn as part of the glyph), it has to go out too
-                if (_wide_char(run[-1]) and x < self.cols
+                if (_wide_char(text[-1]) and x < self.cols
                         and not (row[x][0] == "" and wide[x])):
                     old[x] = None
             if parts:
@@ -4094,6 +4149,12 @@ def main() -> None:
     ap.add_argument("--volume", type=int, default=1000, help="0..1000 (default 1000)")
     ap.add_argument("--audio-latency", type=float, default=pv_audio.LATENCY,
                     help="seconds the decoder runs ahead of the speaker (default %.2f)" % pv_audio.LATENCY)
+    ap.add_argument("--fps-cap", type=float, default=FPS_CAP,
+                    help=f"how often the player may redraw, per second (default {FPS_CAP:g}). The film "
+                         f"is authored at 24 fps and every effect is a function of the song clock, so a "
+                         f"higher cap is genuinely smoother motion and not repeated frames - it costs "
+                         f"CPU and terminal traffic, and the real rate is min(cap, 1000/frame ms). "
+                         f"`_dev/paint_probe.py` prints both budgets.")
     ap.add_argument("--crop", default=HER_CROP, choices=["auto", "face", "bust", "upper", "full"],
                     help=f"which part of the sprite her pane draws (default {HER_CROP}: whichever "
                          f"crop's own shape is closest to the pane's)")
@@ -4297,6 +4358,8 @@ def main() -> None:
     # and the moment the music is handed to the sound card - is set-up, and none of it is song time. See
     # the note where `last` is declared.
     last = fps_t0 = time.perf_counter()
+    # the redraw cap, in seconds per iteration (see `FPS_CAP`): `--fps-cap 30` is the old behaviour
+    frame_cap = 1.0 / max(1.0, args.fps_cap)
     # A frame is a small pile of short-lived lists and tuples, so reference counting frees nearly
     # all of it. What it does not free is cyclic garbage, and a gen-2 pass over it landed as a
     # 20-27 ms hole in a 33 ms frame every few seconds - measured, not guessed: with the collector
@@ -4413,7 +4476,7 @@ def main() -> None:
             if now - fps_t0 >= 0.5:
                 fps = shown / (now - fps_t0)
                 shown, fps_t0 = 0, now
-            time.sleep(max(0.0, 1 / 30 - (time.perf_counter() - now)))
+            time.sleep(max(0.0, frame_cap - (time.perf_counter() - now)))
     except KeyboardInterrupt:
         pass
     finally:

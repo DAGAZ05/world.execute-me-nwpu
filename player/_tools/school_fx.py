@@ -494,6 +494,13 @@ def _outline(grid, cols: int, rows: int):
 # on a dark ground and nothing else is holding them up.
 LIFT, SPAN = 0.30, 0.92
 AIRCRAFT_LIFT, AIRCRAFT_SPAN = 0.62, 0.94
+# **How many bits of colour `paste(fast=True)` writes** (batch 59). The value that reaches the buffer is
+# what `render_diff` compares, so rounding it to a coarser grid is what lets two neighbouring cells of a
+# photograph hold the *same* colour - and `render_diff` writes equal neighbours as one run. This is not a
+# picture decision, it is a *bytes* decision: the 运-20 crossing changes ~7 200 cells a frame and writes
+# them with ~9 600 escape sequences, i.e. ~171 KB a frame at 29 fps. Measured with `_dev/paint_probe.py`:
+# 8 bits = 171 KB, 5 bits = ... (see the note at the crossing's measurement in the batch record).
+SPRITE_BITS = 8
 # the frame's own ground, which is what a sprite's cells fall back to behind a half-block glyph. It is
 # `tui_live.BG`; it is repeated rather than imported because `school_fx` is imported *by* `tui_live`.
 FRAME_BG = (4, 7, 15)
@@ -557,6 +564,17 @@ def paste(s, cells, x0: int, y0: int, ink=None, dim: float = 1.0, box=None, flat
         r0, r1 = max(0, by0 - y0), min(h - 1, by1 - y0)
         if c0 > c1 or r0 > r1:
             return
+        # The ramp is one multiply and one add in `lv` times the column's own vignette:
+        # `drow[x] * dim * (lift + span * lv / ramp_n)`. Folding the three constants into `A` and `B`
+        # first turns the per-cell work into `drow[x] * (A + B * lv)` - one division and one multiply
+        # less on every inked cell of the film's biggest sprite, which is ~8 000 of them a frame.
+        a_const = dim * lift
+        b_const = dim * span / ramp_n
+        # `SPRITE_BITS` rounds every colour this path writes (see its note): the whole point is that
+        # neighbouring cells of a photograph then often hold the *same* two colours, which is what lets
+        # `render_diff` write them as one run instead of one escape per cell.
+        step = (1 << (8 - SPRITE_BITS)) if SPRITE_BITS < 8 else 0
+        half = step // 2
         for r in range(r0, r1 + 1):
             y = y0 + r
             row = grid[r]
@@ -568,16 +586,26 @@ def paste(s, cells, x0: int, y0: int, ink=None, dim: float = 1.0, box=None, flat
                 x = x0 + c
                 ch, lv, rgb, bot = cell
                 col = ink or rgb
-                k = drow[x] * dim * (lift + span * lv / ramp_n)
+                k = drow[x] * (a_const + b_const * lv)
                 # the cell's two colour slots: the glyph's own colour, and - when the lower half of the
                 # cell also has ink - that half's colour as the background. See `sprite`.
                 if bot is None:
                     bcol = FRAME_BG
+                elif step:
+                    bcol = (min(255, (int(bot[0] * k) + add + half) // step * step),
+                            min(255, (int(bot[1] * k) + add + half) // step * step),
+                            min(255, (int(bot[2] * k) + add + half) // step * step))
                 else:
                     bcol = (min(255, int(bot[0] * k) + add), min(255, int(bot[1] * k) + add),
                             min(255, int(bot[2] * k) + add))
-                brow[x] = (ch, (min(255, int(col[0] * k) + add), min(255, int(col[1] * k) + add),
-                                min(255, int(col[2] * k) + add)), bcol)
+                if step:
+                    fg = (min(255, (int(col[0] * k) + add + half) // step * step),
+                          min(255, (int(col[1] * k) + add + half) // step * step),
+                          min(255, (int(col[2] * k) + add + half) // step * step))
+                else:
+                    fg = (min(255, int(col[0] * k) + add), min(255, int(col[1] * k) + add),
+                          min(255, int(col[2] * k) + add))
+                brow[x] = (ch, fg, bcol)
                 wrow[x] = False
         return
     for r in range(h):
