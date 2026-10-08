@@ -1,3 +1,26 @@
+# --------------------------------------------------------------------- 版权
+# 歌曲与歌词是 Mili 的作品，**不随仓库分发**——这个仓库是要推到远端的。
+# 要听、要构建时自己放进 player/input/，那里的 README 写了需要什么。
+# 规则写得比现在需要的宽：任何音频、任何 .lrc 都不进仓库，免得下一次误提交。
+*.mp3
+*.m4a
+*.wav
+*.flac
+*.ogg
+*.aac
+*.lrc
+player/input/歌曲与歌词.txt
+# 逐字歌词时间轴（带文本的那一份）。播放器读的是 data/timing/*_notext.json：
+# 同样的时间，没有词。
+player/film/world_execute_word_timing_20260927/word_timeline.json
+# 逐句歌词对照表（整首歌的歌词都在里面），只在本机用 _dev/chat_doc.py 与
+# _dev/timeline_doc.py 生成。它们在本地照旧存在，只是不进仓库。
+01_歌词分析.md
+05_歌词会话对照_v2.md
+06_时序对照表.md
+06_时序对照表.tsv
+
+# --------------------------------------------------------------------- 产物
 # Python bytecode
 __pycache__/
 *.py[cod]
@@ -6,11 +29,12 @@ __pycache__/
 # is a deliverable - the frames worth keeping are copied into `04_验证记录/批次NN_*/` by hand.
 _dev/out/
 
+# 播放器的对话转储（`_dev/dump_chat.py` 的输出）与提交信息临时文件
+player/_chat_dump.txt
+_commit_msg.txt
+
 # Editors / OS
 .vscode/
 .idea/
 Thumbs.db
 desktop.ini
-
-# scratch: the commit message file is written and deleted by the commit step
-_commit_msg.txt

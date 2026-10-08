@@ -1,6 +1,6 @@
-﻿import gzip, json, sys
+import gzip, json, sys
 sys.stdout.reconfigure(encoding="utf-8")
-d = json.loads(gzip.decompress(open("film/pv_dsh_frontend_20260927/dsh_text.json.gz","rb").read()).decode("utf8"))
+d = json.loads(gzip.decompress(open("player/film/pv_dsh_frontend_20260927/dsh_text.json.gz","rb").read()).decode("utf8"))
 ch = d["changes"]
 out=[]; prev=None; lastmsg=None
 for n, av, theme, ent in ch:

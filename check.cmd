@@ -18,6 +18,9 @@ rem   check.cmd --full   and the two whole-song sweeps (a few minutes more)
 setlocal
 set FAIL=0
 pushd "%~dp0"
+rem Whether the lyrics are here decides if the two lyric-reading checks can run at all (see chat_audit).
+set "LYRICS="
+if exist "player\input\lyrics.lrc" set "LYRICS=1"
 
 echo === pane_probe      every pane at six sizes: exceptions, ink outside the rect, colour shape
 python _dev\pane_probe.py || set FAIL=1
@@ -64,11 +67,19 @@ python _dev\glyph_probe.py || set FAIL=1
 
 echo.
 echo === chat_audit      dialogue rows: time vs its own lyric, and its own clock vs its own time
-python _dev\chat_audit.py || set FAIL=1
+rem The lyric file is NOT in the repository - it is Mili's, and NOTICE.md says what a reader has to
+rem supply. These two checks read it, so they report themselves skipped instead of failing: a clone
+rem without the song is the normal case, not a broken build. (timeline_doc needs no lyrics: the row
+rem tables carry their own times, and data/timing keeps the times without the words.)
+if defined LYRICS python _dev\chat_audit.py
+if defined LYRICS if errorlevel 1 set FAIL=1
+if not defined LYRICS echo SKIP - player\input\lyrics.lrc is not here, see NOTICE.md
 
 echo.
 echo === chat_doc        the lyric-to-dialogue table: is 05_ still what the code says
-python _dev\chat_doc.py --check || set FAIL=1
+if defined LYRICS python _dev\chat_doc.py --check
+if defined LYRICS if errorlevel 1 set FAIL=1
+if not defined LYRICS echo SKIP - same reason as chat_audit above
 
 echo.
 echo === layer_probe     layer order: a 'behind' photograph under the words, the words under everything
