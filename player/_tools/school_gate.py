@@ -247,7 +247,7 @@ def overlay(s, cols: int, rows: int, t: float) -> bool:
       * it was a list in a chat log, which is not what an interface asking you to choose looks like.
 
     So the gate takes the screen the way a real prompt does: the dimmed terminal behind it, a panel
-    with the question, the eight colleges, a cursor that walks down to the software option and the
+    with the question, the eight offered colleges (a demo list, not the school), a cursor that walks to the
     student's own `s` typed into the input line. Everything is a function of the gate's age, so an
     exported frame carries the whole decision.
 
@@ -310,7 +310,7 @@ def overlay(s, cols: int, rows: int, t: float) -> bool:
         s.put(x0 + 22, yy, f"{en:<18}"[: max(0, x1 - (x0 + 22) - 3)], _ui(0.5), bg or BG_)
         if done:
             s.put(x1 - 3, yy, "\u221a", _mix(GREEN, 1.0), bg or BG_)
-    # **...and the list is not the whole school.** The university has 24 专业学院 and this question
+    # **...and the list is not the whole school.** The university has 20-odd 专业学院 and this question
     # offers the eight a first-year picks between, so the row after the last option is an ellipsis: the
     # user's note is that a list which simply stops reads as a closed list, and the whole point of
     # `school_colleges` is that a college is *added* to it. The row is display only - it is not a cursor
@@ -319,7 +319,7 @@ def overlay(s, cols: int, rows: int, t: float) -> bool:
     ey = y0 + 2 + len(OPTIONS)
     if ey <= y1 - 4:
         s.put(x0 + 5, ey, "\u2026", _ui(0.5))
-        s.put(x0 + 8, ey, "\u5168\u6821 24 \u4e2a\u4e13\u4e1a\u5b66\u9662\uff0c\u8fd9\u91cc\u53ea\u95ee\u65b0\u751f"
+        s.put(x0 + 8, ey, "\u5168\u6821 20 \u591a\u4e2a\u4e13\u4e1a\u5b66\u9662\uff0c\u8fd9\u91cc\u53ea\u95ee\u65b0\u751f"
                           "\u4f1a\u9009\u7684\u8fd9\u51e0\u4e2a\uff1b\u5176\u4f59\u6b22\u8fce PR", _ui(0.42))
     # the input line: what the student types, and the caret while he has not finished
     iy = y1 - 2

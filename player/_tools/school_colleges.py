@@ -3,8 +3,10 @@
 The film asks a question at 02:11.9 ("对了，你是什么学院的？") and the answer is supposed to decide what
 the **last third of the film is about**. This module is that decision's single home:
 
-* `COLLEGES` is the option list the question offers - the eight a first-year would be asked to pick
-  between, in the order the question shows them;
+* `COLLEGES` is the option list the question offers, in the order the question shows them.
+  **The university has 20-odd 专业学院 and this list is not all of them** - it is the eight a first-year
+  is most often asked to pick between, which is what the panel's ellipsis row says on screen. A college
+  whose initial is missing adds itself here (the eight are a demo list, not the school);
 * `IMPLEMENTED` is which of them have a **content pack** behind them. Today that is 软件学院 alone,
   because that is the author's own college;
 * `active()` is the answer in force, and `school_panels.exec_rows_for()` reads it when it builds the
