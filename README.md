@@ -44,20 +44,28 @@ python -m pip install pillow numpy
 **3. 启动**：推荐用 GPU 终端，重画吞吐是这套东西的另一半预算（见下文）：
 
 ```bat
-player\run_gpu.cmd              :: Windows Terminal / WezTerm / Alacritty，自动挑一个
-player\run_gpu.cmd --dry-run    :: 只打印它准备执行的启动命令
-player\run.cmd                  :: 在当前控制台里直接跑
-player\run.cmd --start 147      :: 从 02:27 开始；任何播放器参数都能透传
+run_gpu.cmd              :: Windows Terminal / WezTerm / Alacritty，自动挑一个
+run_gpu.cmd --dry-run    :: 只打印它准备执行的启动命令
+run.cmd                  :: 在当前控制台里直接跑
+run.cmd --start 147      :: 从 02:27 开始；任何播放器参数都能透传
 ```
 
-`player\启动终端版.cmd` 是给"自带 Python 的完整压缩包"用的启动器（`player\python\python.exe`）。
+两个启动器就在**仓库根目录**（执行接口），它们自己会 `cd` 到 `player\`。
+`player\` 里那个中文名的启动器是给"自带 Python 的完整压缩包"用的（`player\python\python.exe`）。
 
 **4. 按键**（播放时页脚一直写着）：`h` 换人物渲染 · `c` 切左右栏 · `x` 开关特效 · `空格` 暂停/继续 ·
 `q` 退出；`python player\_tools\tui_live.py --help` 有全部参数（`--variant`、`--start`、`--no-audio`、
 `--fps-cap` …）。
 
-**5. 自检**：`check.cmd` 一次跑完十五个探针（约一分钟），`check.cmd --full` 再加两遍全曲扫描。
-探针和它们的用途在 `04_验证记录/` 里有；`_dev/` 里是这些探针本身。
+**5. 两个分支**（`main` 是可发布的部分，`develop` 是加上全部过程材料的版本）：
+
+| 分支 | 内容 |
+|---|---|
+| **`main`** | 播放器、素材、预览、这份 README、`NOTICE.md`/`LICENSE`、两个启动器 |
+| **`develop`** | 上面这些，加上过程材料：`03_批次设计/`、`04_验证记录/`、`01`–`06` 各篇文档、`CHANGELOG.md`、`参考-原始想法.md`、`check.cmd`，以及 `_dev/` 里的探针与生成器 |
+
+`check.cmd` 在 `develop` 上：一次跑完十五个探针（约一分钟），`check.cmd --full` 再加两遍全曲扫描。
+探针和它们的用途在 `04_验证记录/` 里有，`_dev/` 里是探针本身。
 
 > 画面流畅度有两个预算，播放器两边都在意：Python 每帧约 22–24 ms，终端每帧要重画 30–170 KB 的转义流。
 > 想更顺就用 GPU 终端（`run_gpu.cmd`）、关掉窗口的透明/亚克力、别再套一层管道；
@@ -67,14 +75,12 @@ player\run.cmd --start 147      :: 从 02:27 开始；任何播放器参数都�
 
 ```
 ├─ README.md              你正在读的这份
-├─ CHANGELOG.md           开发记录：一批一批改了什么、为什么（每批一条）
 ├─ NOTICE.md              第三方素材、许可与"哪些东西不在仓库里"
 ├─ LICENSE                本仓库的许可（改编部分的文字与图像：CC BY-NC-SA 4.0）
-├─ check.cmd              一键机检（十五个探针；--full 加两遍全曲扫描）
+├─ run.cmd / run_gpu.cmd  执行接口：控制台 / GPU 终端（自足压缩包的启动器在 player\）
 ├─ preview/               README 里那几张帧（播放器真实渲染）
 │
 ├─ player/                播放器本体
-│   ├─ run.cmd / run_gpu.cmd     两个启动器（控制台 / GPU 终端）
 │   ├─ _tools/            播放循环与画面：tui_live.py + school_*.py（学院版）
 │   ├─ film/              上游影片包（画面数据、角色帧、dsh 前端），见 NOTICE.md
 │   ├─ data/              歌曲元数据与**不带文本**的歌词时间轴
@@ -82,15 +88,19 @@ player\run.cmd --start 147      :: 从 02:27 开始；任何播放器参数都�
 │   ├─ input/             歌曲与歌词放这里（不进仓库，见其 README）
 │   └─ LICENSES/          上游第三方许可全文
 │
-├─ 02_叙事设计.md          这部片子讲什么、怎么排
-├─ 02b_图像对位与可视化表达.md  每张图对应哪句词、画的是什么
-├─ 参考-原始想法.md         最初的需求与想法
-├─ 03_批次设计/            每一批改动的设计稿
-├─ 04_验证记录/            每一批的验证记录与帧
-└─ _dev/                  探针与生成器（机检用的那一套）
+├─ assets/                改编用的参考图与素材（见其 README）
+└─ （以下只在 develop 分支）
+    ├─ CHANGELOG.md            开发记录：一批一批改了什么、为什么
+    ├─ 参考-原始想法.md         最初的需求与想法
+    ├─ 02_叙事设计.md           这部片子讲什么、怎么排
+    ├─ 02b_图像对位与可视化表达.md  每张图对应哪句词、画的是什么
+    ├─ 03_批次设计/             每一批改动的设计稿
+    ├─ 04_验证记录/             每一批的验证记录与帧
+    ├─ check.cmd               一键机检（十五个探针；--full 加两遍全曲扫描）
+    └─ _dev/                   探针与生成器（机检用的那一套）
 ```
 
-**不在仓库里的三份文档**：`01_歌词分析.md`、`05_歌词会话对照_v2.md`、`06_时序对照表.md/.tsv`——
+**不在任何分支里的三份文档**：`01_歌词分析.md`、`05_歌词会话对照_v2.md`、`06_时序对照表.md/.tsv`——
 它们逐句印着整首歌的歌词，只在本地用 `_dev/chat_doc.py`、`_dev/timeline_doc.py` 生成（有 `lyrics.lrc`
 就能生成，`check.cmd` 在没有歌词时会跳过这两项检查）。
 

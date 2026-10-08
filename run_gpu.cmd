@@ -48,7 +48,9 @@ REM      session recorder, a capture harness. 5 MB/s down a pipe is
 REM      tens of fps against single digits, whatever the terminal.
 REM ===================================================================
 setlocal EnableExtensions
-set "PLAYER=%~dp0"
+REM The execution interface lives at the repository root now; the player and everything it reads
+REM (film\, data\, input\) are under player\, and that is the working directory the terminal opens.
+set "PLAYER=%~dp0player"
 if "%PLAYER:~-1%"=="\" set "PLAYER=%PLAYER:~0,-1%"
 if not defined WEM_SIZE set "WEM_SIZE=197,52"
 REM ...inherited by the player, not set inside it: see the note above
