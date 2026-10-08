@@ -690,11 +690,20 @@ def fx_reveal(s: "Screen", t: float) -> None:
         _fx_carry(s, c, el)
 
 def fx_trail(s: "Screen") -> None:
-    """tuikit.py:468-470's trail, one character cell at a time."""
+    """tuikit.py:468-470's trail, one character cell at a time.
+
+    **The decay is per unit of song time, not per drawn frame** (batch 59). The film's post keeps the
+    previous frame at 42 % and runs once per film frame (1/24 s), so a ghost has to fade by `TRAIL` per
+    1/24 s of the song; stepping it once per *drawn* frame made it fade faster the smoother the player
+    got - invisible while the loop was capped at 30 fps, ~1.9x too fast at the 46 fps the machine can
+    now reach. `Screen.dt` is what `draw` measured since the last frame, and at the film's own rate
+    `TRAIL ** (dt * 24)` is exactly the old `TRAIL`.
+    """
+    step = TRAIL ** (s.dt * FPS)
     g = s.ghost
     for i in list(g):
         ch, fg, lv = g[i]
-        lv *= TRAIL
+        lv *= step
         if lv < TRAIL_MIN:
             del g[i]
         else:
@@ -1058,6 +1067,13 @@ class Screen:
         # only pass that walks the frame outside the renderer, and this is what keeps it proportional to
         # the CJK on screen rather than to the screen. Cleared by `normalise` itself.
         self.cjk = bytearray(rows)
+        # **The song time between this frame and the last one** (batch 59). One effect in the film is
+        # accumulated per *frame* rather than evaluated from the clock - the trail - and the film's own
+        # post (`tuikit.py:468`) runs it once per film frame, i.e. per 1/24 s. Once the loop was allowed
+        # to redraw more often than that, a per-frame decay faded in *wall-clock* time faster than the
+        # film says (1.25x at the old 30 fps cap, ~1.9x at 46), so the effect is now driven by this.
+        self.dt = 1.0 / FPS                   # seconds since the previous frame drawn on this screen
+        self.last_t: float | None = None
 
     def _dim_field(self) -> list[list[float]]:
         """tuikit.py:454-465's vignette and tuikit.py:445's scanlines, as a per-cell brightness.
@@ -3961,6 +3977,12 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
     cols, rows = s.cols, s.rows
     ent = eng.entry_at(t) if eng is not None else None
     NOW[0] = t
+    # ...and how much song time has passed on this screen since the last frame (see `Screen.dt`): the
+    # trail is the one effect the film accumulates rather than evaluates, so it has to be stepped by the
+    # clock and not by however often the loop happens to redraw. Clamped, because a seek is not a frame.
+    if s.last_t is not None:
+        s.dt = min(0.5, max(0.0, t - s.last_t))
+    s.last_t = t
     CLEAR.clear()
     NOGHOST.clear()
     # the header line and the footer (progress box + the two status lines) are chrome: text you read,
