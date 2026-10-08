@@ -9,16 +9,20 @@ everything after it is "I execute". A user who has handed the machine a bad argu
 out what it does with them, and the one thing it does not yet know is who is asking.
 
 The gate is therefore the song's own hinge rather than a bolt-on, and the 13 seconds of instrumental
-is the slot it sits in. That is why the audio **stops** here instead of playing under a dialogue box:
-the film's clock is the song's clock (skill § 1.1), and the honest way to hold the clock is to hold
-the song. Pressing a key releases it, and the song resumes exactly where it paused.
+is the slot it sits in. That is why the audio **does not stop** here (the user's correction of
+2026-10-03: the question is on screen for five seconds and the song keeps playing under it).
 
-Only `s` is implemented, and the other options are **shown and rejected** rather than hidden. That is
-a deliberate choice: the option list is a promise about the rest of the school, and a list that hides
-what it cannot do is lying about the shape of the thing. `s` selects Software; anything else prints
-why it does not work yet and waits for a valid key, so the gate cannot be escaped by accident.
+What the answer *decides* is `school_colleges`: the college whose content pack the reprise draws. Only
+`s` is implemented, and the other options are **shown and rejected** rather than hidden. That is a
+deliberate choice: the option list is a promise about the rest of the school, and a list that hides what
+it cannot do is lying about the shape of the thing. `s` selects Software; anything else prints why it
+does not work yet and waits for a valid key, so the gate cannot be escaped by accident - and when a
+contributor's pack lands, adding their code to `school_colleges.IMPLEMENTED` is what makes their option
+real (see that module: a college is *added*, never substituted).
 """
 from __future__ import annotations
+
+import school_colleges as _COL      # the option list, and which colleges have content behind them
 
 # the moment the gate opens: just after the lyric line lands, so the question arrives *under* it
 GATE_AT = 131.9                 # 02:11.9, one second after "Illegal arguments" at 02:10.74
@@ -31,18 +35,12 @@ WINDOW = 5.0
 DEFAULT_MAJOR = "s"             # what a seek past the gate assumes; see `major_at`
 
 # The school's own list, from `02_叙事设计.md` §9: 24 专业学院, of which these are the ones a
-# first-year would be asked to pick between. `s` is implemented; the rest are the promise.
-OPTIONS = [
-    ("s", "\u8f6f\u4ef6\u5b66\u9662", "Software"),
-    ("a", "\u822a\u7a7a\u5b66\u9662", "Aeronautics"),
-    ("b", "\u822a\u5929\u5b66\u9662", "Astronautics"),
-    ("m", "\u822a\u6d77\u5b66\u9662", "Marine"),
-    ("e", "\u7535\u5b50\u4fe1\u606f\u5b66\u9662", "Electronics"),
-    ("o", "\u81ea\u52a8\u5316\u5b66\u9662", "Automation"),
-    ("c", "\u8ba1\u7b97\u673a\u5b66\u9662", "Computer Science"),
-    ("l", "\u6750\u6599\u5b66\u9662", "Materials"),
-]
-IMPLEMENTED = {"s"}
+# first-year would be asked to pick between. The list and which of them are implemented live in
+# `school_colleges`, because they are also what decides *whose content the reprise draws*: the option
+# list is a promise about the rest of the school, and a promise that hides half its options is not one.
+# (`school_colleges.IMPLEMENTED` is the single place a contributor adds a college to.)
+OPTIONS = [(code, zh, en) for code, zh, en in _COL.COLLEGES]
+IMPLEMENTED = _COL.IMPLEMENTED
 
 PROMPT = "\u5bf9\u4e86\uff0c\u4f60\u662f\u4ec0\u4e48\u5b66\u9662\u7684\uff1f"      # "对了，你是什么学院的？"
 REJECT = "\u8be5\u65b9\u5411\u5c1a\u672a\u5f00\u8bbe\uff08\u672c\u9636\u6bb5\u53ea\u5b9e\u73b0\u4e86\u8f6f\u4ef6\u5b66\u9662\uff09"
@@ -76,6 +74,9 @@ def reset(major: str | None = None) -> None:
     """Start over. `major` pre-answers the gate, which is what `--major` is for."""
     STATE.update(phase="answered" if major else "waiting", major=major,
                  asked=bool(major), rejected="", hold=0.0, held=False)
+    # ...and the answer is what the reprise draws: `active()` clamps an unimplemented code to the
+    # default pack, so `--major a` still plays (as 软件学院) rather than drawing nothing.
+    _COL.set_active(major or _COL.DEFAULT)
 
 
 def armed() -> bool:
@@ -101,6 +102,8 @@ def key(ch: str) -> bool:
         return False
     if ch.lower() in IMPLEMENTED:
         STATE.update(phase="answered", major=ch.lower(), asked=True, rejected="", held=False)
+        # **the answer reaches the picture here**: from now on the reprise's rows are this college's
+        _COL.set_active(ch.lower())
         return True
     if ch.lower() in {o[0] for o in OPTIONS} or ch.isprintable():
         STATE.update(phase="rejected", rejected=ch)
@@ -124,6 +127,7 @@ def tick(t: float, seeking: bool = False) -> float:
         if t >= GATE_AT + WINDOW:
             # the five seconds are up and nothing was typed: Software, quietly, and the song never stopped
             STATE.update(phase="defaulted", major=DEFAULT_MAJOR, asked=False, held=False)
+            _COL.set_active(DEFAULT_MAJOR)
         elif seeking:
             assume()
     return t
@@ -164,6 +168,7 @@ def reached(t: float, end: float) -> bool:
 def assume(major: str | None = None) -> None:
     """Answer the gate without a keypress, and remember that nobody pressed one."""
     STATE.update(phase="assumed", major=major or DEFAULT_MAJOR, held=False)
+    _COL.set_active(major or DEFAULT_MAJOR)
 
 
 # --------------------------------------------------------------------------- the scripted answer
