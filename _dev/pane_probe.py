@@ -95,6 +95,12 @@ def main() -> None:
             seen.add(key)
             panes.append((r["name"], r.get("args")))
     bad = 0
+    # ...and every pane must *show* the row's one-line explanation (batch 58, the user: "抬头部分，标题后
+    # 加上' · '+简短说明文字"). A pane that draws its own first row has no header for it to sit after -
+    # that is what `school_scenes.HEADERLESS` is for - so a new pane added without either is a header the
+    # viewer never sees. The marker is two characters no drawing prints, which makes "is it on screen" a
+    # buffer test rather than a look at the picture.
+    MARK = "\u25c7\u6807"
     for pane, args in panes:
         tag = f"{pane}({','.join(f'{k}={v}' for k, v in (args or {}).items())})"
         line = []
@@ -102,7 +108,7 @@ def main() -> None:
             s = T.Screen(w + 6, h + 4)
             try:
                 SP.draw_scene_pane(pane, s, 2, 2, 2 + w - 1, 2 + h - 1, 100.0, 1.0, 2.0, 0.85,
-                                   args=args)
+                                   args=args, sub=MARK if k == 0 else "")
             except Exception as exc:
                 line.append(f"{w}x{h}: RAISED {type(exc).__name__}: {exc}")
                 bad += 1
@@ -115,6 +121,9 @@ def main() -> None:
                 note, bad = f"LEAK {leak}", bad + 1
             elif bad_col:
                 note, bad = f"COLOUR {bad_col[2]}", bad + 1
+            elif k == 0 and not any(MARK in "".join(s.buf[y][x][0] for x in range(s.cols))
+                                    for y in range(s.rows)):
+                note, bad = "NO HEADER SUB", bad + 1
             else:
                 note = "ok"
             line.append(f"{w}x{h}:{note}")

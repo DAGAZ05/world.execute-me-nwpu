@@ -3535,17 +3535,19 @@ def draw_lyrics(s: Screen, d: Data, t: float, x0: int, y0: int, x1: int, y1: int
 
 
 def SP_scene_pane(pane: str, s: Screen, x0: int, y0: int, x1: int, y1: int,
-                  t: float, lt: float, dur: float, u: float, args: dict | None = None) -> bool:
+                  t: float, lt: float, dur: float, u: float, args: dict | None = None,
+                  sub: str = "") -> bool:
     """Draw a school pane by name; False if the variant is off or has no such pane.
 
     A thin adapter rather than calling `SP`'s scene module from `draw_body`: `draw_body` should not
     have to know that the school's panels live in a second module, and the `SP is not None` guard
     that makes the whole variant optional belongs in one place. `args` is the schedule's annotation
-    for this pane (`school_entry` puts it on the entry), passed straight through.
+    for this pane (`school_entry` puts it on the entry), passed straight through; `sub` is the row's
+    one-line "what this drawing has to do with the words" for the pane's header.
     """
     if SP is None or VAR[0] != "school":
         return False
-    return SP.draw_scene_pane(pane, s, x0, y0, x1, y1, t, lt, dur, u, args=args)
+    return SP.draw_scene_pane(pane, s, x0, y0, x1, y1, t, lt, dur, u, args=args, sub=sub)
 
 
 def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float,
@@ -3773,7 +3775,8 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
             draw_corpus(s, px0, ops_top, pane_x1, py1, t)
         elif SP is not None and VAR[0] == "school" and SP_scene_pane(pane, s, px0, ops_top, pane_x1, py1,
                                                                      t, lt, dur, ent["u"],
-                                                                     args=ent.get("pane_args")):
+                                                                     args=ent.get("pane_args"),
+                                                                     sub=ent.get("pane_sub", "")):
             pass
         elif pane == "loss":
             draw_loss(s, px0, ops_top, pane_x1, py1, t, ent["u"])

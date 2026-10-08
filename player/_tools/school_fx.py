@@ -2106,13 +2106,30 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     #     footnote: `Screen.render_diff` writes a row at a time and `paste(fast=True)` clips its loops
     #     (both in this batch) took the peak frame to **38.1 ms**.
     #
-    #     So the pass is 10.65-13.17: 2.52 s for the same 482 cells, 142 -> **191 cells/s, 8.1 a frame**,
-    #     i.e. 76 % of the speed the user called too fast, and its widest stretch (u 0.28-0.72, where the
-    #     ink covers most of the frame) lands in 11.36-12.47 - the cut-free second between the 10.90 skew
-    #     and the 12.47 page cut, which is also `Set up our new world`, the lyric this aircraft is filed
-    #     under in the aircraft table. It still crosses `And let's begin the simulation`, whose own
-    #     dialogue is the one that promises it: "会先跑很久什么都不发生。但你会看到东西飞过去。"
-    (10.65, 13.17, lowpass, dict(name="y20", y=0.42)),
+    #     **...and it was still too fast** (batch 58, the user: "运20飞的仍太快了，飞行时间可适当延长，
+    #     使图像清晰"). 2.52 s is 8.1 cells a frame, and where the aircraft is *widest* - the middle - that
+    #     is still a jump of most of a character between frames. Slowing the middle is not a matter of
+    #     lengthening the window where it is: the widest stretch (u 0.28-0.72) has to stay between two
+    #     cuts, and the stretch at 10.65-13.17 is only 1.11 s long (11.36 to 12.47), so 8.1 cells/frame is
+    #     that stretch's own limit. The stretch that follows is three times longer - 13.66 to 17.00, the
+    #     何尊 pane - so the whole crossing moves there:
+    #
+    #       13.00-17.00, 4.0 s for the same 482 cells = **120 cells/s, 5.0 cells a frame** (62 % of the
+    #       2.52 s speed, 47 % of the 1.9 s one). Its widest stretch is 14.4-15.6, in the middle of the
+    #       vessel pane, whose own frames measure 19.5-23.6 ms - the cheapest backdrop in the region.
+    #
+    #     Measured over 10.4-18.4 s every 0.05 s, three passes, minimum kept (`_dev/_b58win.py` was the
+    #     scratch): the widest frame is **34.8 ms** against 32.2 for the 2.52 s one, and the whole window's
+    #     mean is 22.0 against 20.5. The entry (13.00-13.66) and the exit (16.2-17.00) are at low coverage
+    #     on purpose: the `pane_countdown` -> `pane_landmark_hezun` cut at 13.20-13.66 and the crest cut at
+    #     17.00 are the two frames a wide aircraft cannot share.
+    #
+    #     The lyric it flies on changes with it: 13.00 is the last fifth of "And let's begin the
+    #     simulation", whose own dialogue is the line that promises this aircraft - "会先跑很久什么都不
+    #     发生。但你会看到东西飞过去。" - and the crossing then runs over the instrumental gap. The bow
+    #     wave of the old window was `Set up our new world` at 10.90-12.47; the plane is now in the shot
+    #     that says it is coming.
+    (13.00, 17.00, lowpass, dict(name="y20", y=0.42)),
     # --- 魔鬼鱼, once, swimming: a diagonal crossing at its own shape's size, rippling as it goes
     # --- the fourth route: the design's four aircraft are 运-20 (the low pass), 歼-20 (the fly),
     #     直-20 (the descent) and ARJ21 - which had its file, its name and no event at all until batch
@@ -2200,10 +2217,10 @@ EVENTS: list[tuple[float, float, object, dict]] = [
 # The frame's own shocks: `tui_live.fx_shake` asks `shock(t)` and shakes by that much, so the variant
 # does not need a second pass over the finished buffer. One entry, and it is 运-20 going over: the window
 # is the middle of the low pass, where the aircraft is closest and largest. It follows the event's own
-# centre - 11.91 for the 10.65-13.17 pass of batch 56, where it was 12.15 for the original 11.20-13.10
-# and 12.90 for the 3.4 s one that batch first tried (see the note on the event).
+# centre - 15.00 for the 13.00-17.00 pass of batch 58, where it was 11.91 for the 2.52 s one and 12.15
+# for the original 1.9 s one (see the note on the event).
 SHOCKS.extend([
-    (11.61, 12.21, 1.0),
+    (14.70, 15.30, 1.0),
 ])
 
 

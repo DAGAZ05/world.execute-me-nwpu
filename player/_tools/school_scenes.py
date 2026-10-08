@@ -2007,6 +2007,29 @@ for _m in _MOT.MOTIFS:
 LANDMARK_PANES = ["pane_landmark_crest", "pane_landmark_dialogue", "pane_landmark_sword",
                   "pane_landmark_hezun", "pane_memory"]
 
+# The drawings that own their whole rect - no header row, no rule, the picture from `y0` down. They are
+# the first act's board and code panes plus the timetable, and they were written that way on purpose (the
+# traces of `pane_power_on` are the whole box). `draw_pane` gives them a header, with the title below,
+# only when the schedule row has a subtitle to put after it.
+HEADERLESS = {
+    "pane_power_on": "上电",
+    "pane_protection": "防护",
+    "pane_class": "类与对象",
+    "pane_parameters": "参数表",
+    "pane_point_set": "点集",
+    "pane_polyhedra": "多面体",
+    "pane_three_arms": "三旋臂",
+    "pane_countdown": "倒计时",
+    "pane_curriculum": "四年课表",
+    # ...and the closing three, which are also drawings rather than framed panels: the four diagram types
+    # merging into one class, the kanban, and the knowledge graph. `_dev/pane_probe.py` is what found
+    # these three - its "every pane must show the row's sentence" check is the reason the list is not a
+    # guess.
+    "pane_converge": "收敛",
+    "pane_backlog": "看板",
+    "pane_knowledge": "知识图谱",
+}
+
 
 def draw_pane(name: str, s, x0: int, y0: int, x1: int, y1: int, t: float,
               lt: float, dur: float, u: float, args: dict | None = None) -> bool:
@@ -2028,6 +2051,20 @@ def draw_pane(name: str, s, x0: int, y0: int, x1: int, y1: int, t: float,
     fn = PANE_BY_NAME.get(name)
     if fn is None:
         return False
+    # **Nine of the first-act drawings have no header row** (batch 58): the board, the strap, the class
+    # code, the parameter table, the point set, the polyhedra, the three arms, the countdown and the
+    # timetable all draw *their own* first row, so there is no title for the row's subtitle to sit
+    # after - and the user's note is about "抬头部分，标题后加上 · 说明". They get one here, in the same
+    # shape every other pane uses (`_Kit` draws `▏ title · sub` and the rule), and the drawing is given
+    # the body rect under it. Two rows of their own drawings is the cost, and it is the same two rows
+    # every framed pane in the film gives up.
+    if name in HEADERLESS:
+        import school_courses as _C
+        if _C.PANE_SUB[0]:
+            k = _C._Kit(s, x0, y0, x1, y1, HEADERLESS[name], 0, 0, u)
+            if k.bh < 3 or k.bw < 8:
+                return True                 # no room for the drawing: the header is the pane
+            x0, y0, x1, y1 = k.bx0, k.by0, k.bx1, k.by1
     if args:
         try:
             fn(s, x0, y0, x1, y1, t, lt, dur, u, **args)

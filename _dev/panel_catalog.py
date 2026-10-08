@@ -69,9 +69,15 @@ def text_of(pane: str, t: float) -> str:
     Drawn through `school_panels.draw_scene_pane`, which is the same route the frame takes: a course
     drawing, then a gauge, then the batch-1 scenes. Calling `school_scenes` directly would have reported
     the fourteen course panes and the six gauges as "not a pane".
+
+    The *row's* subtitle goes in as well (batch 58), because the header the viewer reads is
+    `标题 · 说明` and this function exists to report what is on screen - without it the two documents it
+    feeds would keep describing a header the player no longer draws.
     """
     s = T.Screen(W, H)
-    if not SP.draw_scene_pane(pane, s, 0, 0, W - 1, H - 1, t, 0.5, 1.0, 1.0):
+    row = SP.row_at(t)
+    if not SP.draw_scene_pane(pane, s, 0, 0, W - 1, H - 1, t, 0.5, 1.0, 1.0,
+                              sub=(row or {}).get("sub", "")):
         return "(这张 pane 画不出来)"
     seen: list[str] = []
     for y in range(H):

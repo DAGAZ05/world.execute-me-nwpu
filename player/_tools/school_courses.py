@@ -34,6 +34,11 @@ except Exception:                       # the module is always importable in-pro
 # resolved from `school_scenes.PANE_CTX` at first use, exactly like the panes in that module
 CTX: dict = {}
 
+# The subtitle every pane header shows after its title - "what this drawing has to do with the words
+# being sung". One slot, set for the duration of one pane draw by `school_panels.draw_scene_pane` from
+# the schedule row's own `sub`, and empty otherwise (see `_Kit._header`).
+PANE_SUB: list[str] = [""]
+
 BG = (4, 7, 15)
 DIM = (108, 122, 146)
 INK = (196, 208, 228)
@@ -207,6 +212,17 @@ class _Kit:
 
     def _header(self, title: str, n: int, total: int) -> None:
         s, x0, y0, x1 = self.s, self.x0, self.y0, self.x1
+        # **The line after the title says what the drawing has to do with the words** (batch 58, the
+        # user: "抬头部分，标题后加上' · '+简短说明文字，简短说明文字体现图案与当前歌词的照应"). The text
+        # is not the pane's own: it belongs to the *row* in `school_panels`, because a pane can be drawn
+        # on more than one lyric (`pane_landmark_dialogue` is on "And we can unite" and on "If I'm the
+        # only God") and the correspondence is with the line being sung, not with the drawing. The row
+        # hands it in through `draw_scene_pane`, which publishes it here for the one header every pane
+        # draws through - `PANE_SUB` is empty for any caller that is not drawing a scheduled pane
+        # (`_dev/panel_catalog.py` renders panes alone and gets the title without a subtitle).
+        #
+        # It is dimmer than the title and clipped to what is left of the row: the counter tag
+        # (`EXEC 03/14`) owns the right-hand end of this same row.
         # **The beat, on the counter that is counting it.** The sixteen course drawings do not line up
         # with the twelve `Execution` hits and cannot: sixteen does not divide into twelve plus three
         # countdown slots, so `_exec_rows` spreads them evenly and the hit times drift in and out of phase
@@ -227,7 +243,18 @@ class _Kit:
             except Exception:
                 p = 0.0
         s.put(x0, y0, "\u258f", _mix(self.colour, 0.9 + 0.1 * p))
-        s.put(x0 + 2, y0, _clip(title, max(0, self.w - 14)), _ui(0.92))
+        shown = _clip(title, max(0, self.w - 14))
+        s.put(x0 + 2, y0, shown, _ui(0.92))
+        if PANE_SUB[0]:
+            # ...at the title's *cell* width, not its character count: a Chinese title is two cells per
+            # character, and measuring it in characters put the separator on top of its own last two
+            # (the first version of this printed 西北工业大学 as 西北工).
+            head = sum(2 if unicodedata.east_asian_width(ch) in "WF" else 1 for ch in shown)
+            room = max(0, self.w - 14 - head - 2)
+            # a pane with no title of its own (the food plate, the cat, the sword: batch 49 took their
+            # words away) gets the sentence alone, starting where the title would have
+            text = ("\u00b7 " + PANE_SUB[0]) if shown else PANE_SUB[0]
+            s.put(x0 + (3 + head if shown else 2), y0, _clip(text, room), _ui(0.62))
         if n:
             tag = f"EXEC {n:02d}/{total:02d}"
             s.put(x1 - len(tag) - 1, y0, tag, _mix(self.colour, 0.55 + 0.45 * p))

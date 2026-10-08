@@ -115,6 +115,12 @@ def main() -> None:
                     visible_seconds(r["at"], r["end"], blocked)))
     out.sort(reverse=True)
     bad, hidden, total = [], [], 0.0
+    # ...and the one line every pane header shows after its title (batch 58, the user: "标题后加上' · '+
+    # 简短说明文字，简短说明文字体现图案与当前歌词的照应"). It lives on the *row* rather than on the pane,
+    # because a pane can be drawn on more than one lyric and the sentence is about the line being sung, so
+    # a row added without one is a pane whose header is silently missing its explanation. This probe walks
+    # every row already, which is why the check is here rather than in one of its own.
+    bare = sorted((r["at"], r["name"]) for r in rows if r.get("name") and not r.get("sub"))
     for span, n, at, name, args, vis in out:
         flag = ""
         if vis < MIN_VISIBLE:
@@ -136,7 +142,10 @@ def main() -> None:
     print(f"{len(hidden)} row(s) with under {MIN_VISIBLE:.2f}s of visible life")
     if hidden:
         print("  FAIL: " + ", ".join(f"{n}@{at:.1f}s({v:.2f}s drawn)" for n, at, _s, v in hidden))
-    raise SystemExit(1 if (bad or hidden) else 0)
+    print(f"{len(bare)} pane row(s) with no header explanation")
+    if bare:
+        print("  FAIL: " + ", ".join(f"{n}@{at:.1f}s" for at, n in bare))
+    raise SystemExit(1 if (bad or hidden or bare) else 0)
 
 
 if __name__ == "__main__":
