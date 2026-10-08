@@ -3928,15 +3928,33 @@ def draw_footer(s: Screen, d: Data, t: float, playing: bool, fps: float, ent: di
     s.hbar(bar_x, py + 1, bar_w, t / END, mix(ME_TEXT, 0.9))
     mark = bar_x + min(bar_w - 1, int(t / END * bar_w))
     s.put(mark, py + 1, "▓", BG, mix(ME_HI, 1.0))
-    left = f"shot {ent['index'] + 1:02d}/{ent['total']}  {ent['name']}" if ent else ""
+    # **The first field is *which row of this film this is*, and the whole line is English.**
+    # The school variant is not the film's shot table: the film has 97 shots and the school version 82
+    # rows, and they do not line up - the user saw `shot 24/97  shot_travel` over a row that draws
+    # something else, and `shot_whale_fall` over 何尊. So the school variant names its own row index and
+    # its own pane (identifiers, which are English), and only the original variant uses the film's shot
+    # table and its figure-render fields (`her`, the upstream's word for the whale-maid figure - the
+    # school variant does not draw her at all, its mascot is 航小天).
+    if VAR[0] == "school" and SP is not None:
+        srows = SP.shot_rows()
+        row = SP.row_at(t)
+        if row:
+            n = sum(1 for r in srows if r["at"] <= t)
+            left = f"scene {n:02d}/{len(srows)}  {row['name']}"
+        else:
+            left = ""
+    else:
+        left = f"shot {ent['index'] + 1:02d}/{ent['total']}  {ent['name']}" if ent else ""
     if ent is not None:
-        # what the left pane holds first, then how she is drawn and what `auto` resolved to: the
-        # front of the string is what survives truncation on a narrow window
+        # what the left pane holds; then, in the original variant only, how the figure is drawn and
+        # what `auto` resolved to (the front of the string is what survives truncation on a narrow
+        # window, so the state that matters most comes first)
         left += f"  win:{WINDOW[0] or '-'}"
-        how, tint = her_style(ent)
-        left += f"  her:{HER_RENDER}" + (f"->{how}/{tint}" if HER_RENDER == "auto" else "")
-    if audio is not None and audio.ok:       # the music's own state, next to the film's shot table
-        left += f"  vol {audio.volume // 10:3d}%" + ("  MUTED" if audio.muted else "")
+        if VAR[0] != "school":
+            how, tint = her_style(ent)
+            left += f"  her:{HER_RENDER}" + (f"->{how}/{tint}" if HER_RENDER == "auto" else "")
+    if audio is not None and audio.ok:       # the music's own state, next to the row's own name
+        left += f"  volume {audio.volume // 10:3d}%" + ("  MUTED" if audio.muted else "")
     # the gate's window, in the chrome: it no longer stops the song, so what the footer has to say is
     # not "paused" but "the question is up and here is the clock" - the user's mechanism is five
     # seconds and a default, and both of them are invisible unless the footer says so.
@@ -3946,8 +3964,8 @@ def draw_footer(s: Screen, d: Data, t: float, playing: bool, fps: float, ent: di
             import school_gate as _G
             waiting = _G.window_open(t)
             if waiting:
-                left += f"  ? \u9009\u5b66\u9662\uff1a\u6309\u9996\u5b57\u6bcd "
-                left += f"{_G.window_left(t):3.1f}s \u540e\u9ed8\u8ba4\u8f6f\u4ef6\u5b66\u9662"
+                left += f"  ? college: press its initial, "
+                left += f"{_G.window_left(t):3.1f}s left then Software"
         except Exception:
             pass
     left += "  fx:" + ("on" if FX["on"] else "off")
@@ -3955,13 +3973,15 @@ def draw_footer(s: Screen, d: Data, t: float, playing: bool, fps: float, ent: di
     # text ended, so `PLAYING 24.0 fps` was printed on top of `her:auto->...`. Measure it first, and
     # keep a short version for narrow windows.
     #
-    # **...and it says what *this* version's keys do** (the user: "播放时底部还是原版的 her/chat/space
-    # taggle，请根据我的内容适配"). `her`/`chat` were the film's words for the whale-maid variant; in the
-    # school variant they are the mascot's render mode and the left pane's contents, so the school
-    # variant names them in its own language and the original variant keeps the upstream wording.
+    # **...and it says what *this* version's keys do, in English.** The user's two notes: the line still
+    # read `her`/`chat`/"space toggle" - the upstream's words for switches the school variant does not
+    # have - and the footer is chrome, so it stays ASCII-simple English while the film's Chinese stays in
+    # the picture. What the school variant *does* honour at any time is `q`, `space` and `x` (all three
+    # are shared with the film: quit, the playhead and the post pass) plus the seek keys; the original
+    # variant keeps the upstream wording, because `h` and `c` are real switches there.
     if VAR[0] == "school":
-        long_hint = "h 人物   c 会话   x 特效   空格 暂停   q 退出"
-        short_hint = "h 人物  c 会话  x 特效  q 退出"
+        long_hint = "space pause   x fx   arrows seek   q quit"
+        short_hint = "space  x fx  q quit"
     else:
         long_hint = "h her   c chat   x fx   space toggle   q quit"
         short_hint = "h her  c chat  x fx  q quit"
