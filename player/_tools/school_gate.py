@@ -274,7 +274,7 @@ def overlay(s, cols: int, rows: int, t: float) -> bool:
     AMBER, GREEN = CO.AMBER, CO.GREEN
     BG_ = SC.BG
     W = min(cols - 2, 78)
-    H = min(rows - 2, 2 + len(OPTIONS) + 5)
+    H = min(rows - 2, 2 + len(OPTIONS) + 6)      # + 1 for the ellipsis row under the list
     x0 = (cols - W) // 2
     y0 = max(1, (rows - H) // 2)
     x1, y1 = x0 + W - 1, y0 + H - 1
@@ -310,6 +310,17 @@ def overlay(s, cols: int, rows: int, t: float) -> bool:
         s.put(x0 + 22, yy, f"{en:<18}"[: max(0, x1 - (x0 + 22) - 3)], _ui(0.5), bg or BG_)
         if done:
             s.put(x1 - 3, yy, "\u221a", _mix(GREEN, 1.0), bg or BG_)
+    # **...and the list is not the whole school.** The university has 24 专业学院 and this question
+    # offers the eight a first-year picks between, so the row after the last option is an ellipsis: the
+    # user's note is that a list which simply stops reads as a closed list, and the whole point of
+    # `school_colleges` is that a college is *added* to it. The row is display only - it is not a cursor
+    # stop and not a key (`key()` still accepts the eight codes), because a promise must not be a menu
+    # item nobody can choose.
+    ey = y0 + 2 + len(OPTIONS)
+    if ey <= y1 - 4:
+        s.put(x0 + 5, ey, "\u2026", _ui(0.5))
+        s.put(x0 + 8, ey, "\u5168\u6821 24 \u4e2a\u4e13\u4e1a\u5b66\u9662\uff0c\u8fd9\u91cc\u53ea\u95ee\u65b0\u751f"
+                          "\u4f1a\u9009\u7684\u8fd9\u51e0\u4e2a\uff1b\u5176\u4f59\u6b22\u8fce PR", _ui(0.42))
     # the input line: what the student types, and the caret while he has not finished
     iy = y1 - 2
     s.put(x0 + 2, iy, ">", _mix(ME_TEXT, 0.9))

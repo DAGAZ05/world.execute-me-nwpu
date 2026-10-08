@@ -3954,12 +3954,23 @@ def draw_footer(s: Screen, d: Data, t: float, playing: bool, fps: float, ent: di
     # The hint line is right-aligned. At 96-120 columns the long version started *before* the left
     # text ended, so `PLAYING 24.0 fps` was printed on top of `her:auto->...`. Measure it first, and
     # keep a short version for narrow windows.
+    #
+    # **...and it says what *this* version's keys do** (the user: "播放时底部还是原版的 her/chat/space
+    # taggle，请根据我的内容适配"). `her`/`chat` were the film's words for the whale-maid variant; in the
+    # school variant they are the mascot's render mode and the left pane's contents, so the school
+    # variant names them in its own language and the original variant keeps the upstream wording.
+    if VAR[0] == "school":
+        long_hint = "h 人物   c 会话   x 特效   空格 暂停   q 退出"
+        short_hint = "h 人物  c 会话  x 特效  q 退出"
+    else:
+        long_hint = "h her   c chat   x fx   space toggle   q quit"
+        short_hint = "h her  c chat  x fx  q quit"
     if cols >= 130:
         msg = (f"{'等你回答' if waiting else ('PLAYING' if playing else 'paused ')}  {fps:4.1f} fps   "
-               f"h her   c chat   x fx   space toggle   q quit")
+               f"{long_hint}")
     else:
         msg = (f"{'WAIT' if waiting else ('PLAY' if playing else 'PAUSE')} {fps:4.1f}fps  "
-               f"h her  c chat  x fx  q quit")
+               f"{short_hint}")
     room = max(0, cols - dw(msg) - 4)
     if dw(left) > room:                      # drop whole fields rather than cut one in half
         fields = left.split("  ")

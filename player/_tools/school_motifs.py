@@ -255,10 +255,16 @@ def quantize(k, t: float) -> None:
         x = k.bx0 + 2 + i
         on = (i % max(1, int(gap))) == 0
         k.put(x, y, "\u2022" if on else "\u00b7", _mix(_C.BLUE if on else _C.DIM, 0.85 if on else 0.3))
-    k.put(k.bx0 + 2, y + 2, "\u95f4\u8ddd 1 \u00b7 2 \u00b7 4 \u00b7 8 \u2026\uff08\u6a2a\u8f74\u5df2\u538b\u7f29\uff09",
-          _ui(0.5))
-    k.put(k.bx0 + int(n * 0.42), y + 2, "\u6bcf\u7ffb\u4e00\u500d\uff0c\u80fd\u7cbe\u786e\u8868\u793a\u7684\u6570"
-                                        "\u5c31\u7a00\u4e00\u500d", _mix(_C.RED, 0.8))
+    axis = "\u95f4\u8ddd 1 \u00b7 2 \u00b7 4 \u00b7 8 \u2026\uff08\u6a2a\u8f74\u5df2\u538b\u7f29\uff09"
+    k.put(k.bx0 + 2, y + 2, axis, _ui(0.5))
+    # **The red note goes *after* the label, measured in cells.** It used to begin at `int(n * 0.42)` of
+    # the pane's own width, and at 150 columns that painted `轴已压缩）` out and at 120 columns took the
+    # whole tail with it: the user's "2⁵³ 那个动画下面的文字有一个后括号没显示出来" was *this label's*
+    # closing bracket, overwritten by the note meant to sit beside it. `_cells` is the same measurement
+    # the pane headers use for the same reason (batch 58 printed 西北工业大学 as 西北工).
+    k.put(k.bx0 + 4 + _C._cells(axis), y + 2,
+          "\u6bcf\u7ffb\u4e00\u500d\uff0c\u80fd\u7cbe\u786e\u8868\u793a\u7684\u6570"
+          "\u5c31\u7a00\u4e00\u500d", _mix(_C.RED, 0.8))
     # ...and a cursor walks the number line. This drawing had **no clock at all** while it was a band
     # under `pane_landmark_sword`, which was fine there - the host pane moved - and is not fine now that
     # `pane_motif_<name>` can be a pane of its own ("禁止重复" needed more drawings, so the motifs became

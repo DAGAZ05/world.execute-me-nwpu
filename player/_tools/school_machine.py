@@ -36,7 +36,7 @@ CHAPTERS: list[tuple[float, str]] = [
     (103.03, "06 / \u4f60\u8d70\u4e86"),
     (125.33, "07 / \u975e\u6cd5\u53c2\u6570"),
     (147.52, "08 / \u6267\u884c"),
-    (162.23, "09 / \u8f6f\u5de5\u4e0e\u7231"),
+    (162.23, "09 / NPUer \u4e0e LOVE"),
 ]
 
 # What the flood stamps in the middle of the screen at 02:26.2 (`tui_live.draw_flood`). The film stamps
