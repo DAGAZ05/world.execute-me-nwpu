@@ -4093,7 +4093,7 @@ def draw_footer(s: Screen, d: Data, t: float, playing: bool, fps: float, ent: di
     # are shared with the film: quit, the playhead and the post pass) plus the seek keys; the original
     # variant keeps the upstream wording, because `h` and `c` are real switches there.
     if VAR[0] == "school":
-        long_hint = "space pause   [ ] volume   x fx   arrows seek   q quit"
+        long_hint = "space pause/resume   [ ] volume   x fx   arrows seek   q quit"
         short_hint = "space  [ ] vol  x fx  q quit"
     else:
         long_hint = "h her   c chat   x fx   space toggle   q quit"
@@ -4594,7 +4594,14 @@ def main() -> None:
                 elif ch == " ":
                     playing = not playing
                     if audio.ok:
-                        (audio.play if playing else audio.pause)(t)
+                        # `play` takes the position to restart from, `pause` takes nothing. The user's
+                        # report - "按空格键尝试暂停时报错 TypeError: Audio.pause() takes 1 positional
+                        # argument but 2 were given" - is exactly what one expression choosing between
+                        # the two gets wrong: the argument went to whichever one was picked.
+                        if playing:
+                            audio.play(t)
+                        else:
+                            audio.pause()
                 elif ch in ("m", "M"):
                     audio.mute()
                 elif ch in ("h", "H"):
