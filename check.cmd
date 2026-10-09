@@ -13,7 +13,7 @@ rem "'Run' is not recognized", "'verdict' is not recognized", and so on, for fou
 rem comments above it. The checks all still ran; the noise was the tell. Everything user-facing that
 rem is not ASCII lives in the Python tools this calls.
 rem
-rem   check.cmd          the fast set: fifteen probes, about a minute
+rem   check.cmd          the fast set: sixteen probes, about a minute
 rem   check.cmd --full   and the two whole-song sweeps (a few minutes more)
 setlocal
 set FAIL=0
@@ -80,6 +80,11 @@ echo === chat_doc        the lyric-to-dialogue table: is 05_ still what the code
 if defined LYRICS python _dev\chat_doc.py --check
 if defined LYRICS if errorlevel 1 set FAIL=1
 if not defined LYRICS echo SKIP - same reason as chat_audit above
+
+echo.
+echo === gate_probe       the college question: does it own a key only while it is on screen, and does
+echo                      the answer reach the reprise by all four roads (a key, the default, a seek)
+python _dev\gate_probe.py || set FAIL=1
 
 echo.
 echo === layer_probe     layer order: a 'behind' photograph under the words, the words under everything
