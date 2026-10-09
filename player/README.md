@@ -19,7 +19,7 @@
 ## 跑起来
 
 1. Windows,Python **3.12 或更高**。
-2. 双击 **`启动终端版.cmd`**(它自己会装 `pillow` `numpy`;也可以手动
+2. 在仓库根目录双击 **`run.cmd`**（本包的启动器）(它自己会装 `pillow` `numpy`;也可以手动
    `python -m pip install pillow numpy`)。
 3. 窗口拉大到 **175 列 × 50 行**以上(懒得数就按 **Alt+Enter** 全屏),全屏最接近片子里的观感。
 
@@ -79,7 +79,7 @@ python _tools\sweep_tui.py                全片自检(几分钟;换台机器想
 | `film/world_execute_word_timing_20260927/` | 逐词时间轴(歌词带按它打字) | MisakaZentai 构建 |
 | `film/mmd_motion_eval_20260927/` | 舞者的时间表 `pv_full.py` + 每段舞的字符取用表 `pv_cache/*.json` | MisakaZentai |
 | `film/third_party_references/` | 鲸鱼娘立绘和八种表情(CC BY-NC-SA 4.0) | 见下 |
-| `原项目-README.md`、`docs/`、`NOTICE.md`、`LICENSES/` | 原仓库的说明、制作原理、字体、第三方许可 | MisakaZentai |
+| `docs/`、`NOTICE.md`、`LICENSES/` | 原仓库的说明、制作原理、字体、第三方许可 | MisakaZentai |
 
 播放器读的是片子的**数据**(逐毫秒响度、7 个频段、逐词时间、每帧 DOM、H3 字符取用表),
 画面只用到片子自己算镜头表时打开的那 31 张(4 MB),所以这个包是几十 MB,而不是 1.7 GB。
