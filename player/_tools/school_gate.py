@@ -91,14 +91,25 @@ def armed() -> bool:
     return STATE["phase"] in ("waiting", "rejected")
 
 
-def key(ch: str) -> bool:
+def key(ch: str, t: float | None = None) -> bool:
     """Take one keypress. True if it was ours (and so should not fall through to the player).
+
+    **A key outside the five-second window is not ours** (batch 69, the user: "我在 cmd 执行时，暂停与
+    音量增减、特效开关完全没用"). `armed()` alone means "this gate has not been answered yet", which is
+    true from the top of the song until the question appears - so the loop's first version
+    (`gate.key(ch)`, no clock) gave a question that was not on screen yet a monopoly on the keyboard: for
+    the first 2:16 of the film every printable key - space, `[`, `]`, `x`, even `q` - was swallowed
+    silently, because a rejected key only sets `phase="rejected"` and the panel that would show it is not
+    drawn until 02:11.9. Pass `t` and the gate claims keys only while its own window is open, which is
+    exactly when a key can mean an answer.
 
     Only `s` is accepted and the others are *shown and rejected* rather than hidden - see the module
     docstring. The rejection is not a dead end: the question stays up and the next key is read, so the
     gate cannot be walked past by pressing `a`.
     """
     if not armed():
+        return False
+    if t is not None and not window_open(t):
         return False
     if ch.lower() in IMPLEMENTED:
         STATE.update(phase="answered", major=ch.lower(), asked=True, rejected="", held=False)

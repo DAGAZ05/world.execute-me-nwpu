@@ -3474,13 +3474,30 @@ def draw_digit_word(s: Screen, text: str, x0: int, y0: int, x1: int, y1: int) ->
     prints the lyric's *transliteration* in the pane. This is the other half of the user's note - "在
     stdout 框右侧空白处按序加上对应语言原文字的字符画（可以超出框）": the word the language actually
     writes, as block letters, **allowed to run past the box** (the box is 7 rows tall and the box's left
-    half is the log, so a five-row word starting at 52 % of the width ends outside it at some sizes -
-    that is intended, and `NOGHOST` keeps the film's trail off it).
+    half is the log, so a word starting at 52 % of the width ends outside it at some sizes - intended, and
+    `NOGHOST` keeps the film's trail off it).
+
+    **How big** (batch 69, the user: "序号1-6 的字符画渲染效果不佳，重新渲染（放大图像）"): the first
+    version capped the height at five rows, which at 197x52 made a three-letter word 17 cells wide - too
+    small to read as a letterform. Now the word takes as many rows as the box's right half can hold, up to
+    ten and down to four, which is `film_panels.banner_fit`'s own rule (take a row away until the width
+    fits) with the right half as the width: 네 and 六 get the full ten rows, `trois` gets what fits, and
+    nothing is ever squashed or clipped.
     """
     if not text:
         return
-    rows_max = max(2, min(5, (y1 - y0) - 1))
-    cols, rows, bits = digit_bits(text, rows_max, 2.0)
+    avail = max(6, int((x1 - x0) * 0.48) - 2)         # the right half, minus a cell of breathing room
+    rows = 0
+    for want in range(10, 3, -1):
+        cols, rws, bits = digit_bits(text, want, 2.0)
+        if bits and cols <= avail:
+            rows = want
+            break
+    if not rows:
+        cols, rws, bits = digit_bits(text, 4, 2.0)
+        rows = 4
+    else:
+        cols, rws, bits = digit_bits(text, rows, 2.0)
     if not bits:
         return
     x = x0 + max(2, int((x1 - x0) * 0.52))
@@ -4565,9 +4582,10 @@ def main() -> None:
                         audio.pause()
             while msvcrt.kbhit():
                 ch = msvcrt.getwch()
-                # the gate reads the keyboard first: while it is armed, a key is an answer and not a
-                # transport command, or `s` would seek instead of choosing a college
-                if gate is not None and gate.key(ch):
+                # the gate reads the keyboard first, but **only while its question is on screen**: a key
+                # outside that window belongs to the player (`school_gate.key` explains the 2:16 of
+                # swallowed space / `[` / `]` / `x` / `q` this fixes - the user's "完全没用")
+                if gate is not None and gate.key(ch, t):
                     # nothing to resume: the song kept playing while the question was up
                     continue
                 if ch in ("q", "Q", "\x1b"):
