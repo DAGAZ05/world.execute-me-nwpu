@@ -372,7 +372,15 @@ def pane_three_arms(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     if w < 10 or h < 5:
         return
     cx, cy = x0 + w / 2.0, y0 + h / 2.0
-    arms = [("\u822a\u7a7a", "ARJ21"), ("\u822a\u5929", "\u5317\u6597"), ("\u822a\u6d77", "\u86df\u9f99")]
+    # **The achievements are the ones this film already states**, not programmes borrowed from their
+    # real owners (batch 73, the user: "航空/天/海下方有一行白色的成果，这是你完全编造的"). It used to read
+    # `ARJ21 / 北斗 / 蛟龙`: ARJ21 is COMAC's, 北斗 is a national constellation and 蛟龙 is 702's - three
+    # real things, none of them this school's, which is exactly the kind of line that reads as a claim.
+    # These three come from the film's own 校史 line (01:26-01:30) and are the school's own firsts:
+    # 总师摇篮 for the aircraft, 翱翔之星 (12U cubesat) for space, the 30 kg underwater vehicle for the sea.
+    arms = [("\u822a\u7a7a", "\u603b\u5e08\u6447\u7bee"),
+            ("\u822a\u5929", "\u7ff1\u7fd4\u4e4b\u661f"),
+            ("\u822a\u6d77", "\u6c34\u4e0b\u65e0\u4eba\u822a\u884c\u5668")]
     grow = min(1.0, u / 0.75)
     phase = lt * 0.55
     rmax = min(w / 2.4, h * 1.15)
@@ -1186,11 +1194,6 @@ def pane_landmark_hezun(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     # instead of taking a bite out of the drawing.
     if k.bw > 46 and k.by0 >= y0 + 2:
         import school_courses as _C
-        s.put(k.bx0 + 2, y0 + 1,
-              _C._clip("origin = \"\u5b85\u5179\u4e2d\u56fd\"  \u00b7  \u4f55\u5c0a\u94ed\u6587\uff0c\u7ea6"
-                       "\u516c\u5143\u524d 11 \u4e16\u7eaa\uff08\u5468\u6210\u738b\u4e94\u5e74\uff09",
-                       max(0, k.bw - 3)),
-              _mix(_C.AMBER, 0.85))
 
 
 def _kit(s, x0: int, y0: int, x1: int, y1: int, run: int = 0, title: str = ""):

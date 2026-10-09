@@ -2256,7 +2256,20 @@ SHOCKS.extend([
 _BROKEN: set = set()
 
 
+#: **Whether an aircraft is on screen** (batch 74, the user: "飞机这一层从残影里排除（只留背景的拖尾）").
+#: The film's post keeps 42 % of the previous frame; a sprite moving five cells a frame leaves a copy of
+#: itself five cells back, every frame, and on a dark ground that reads as a dotted line rather than as
+#: motion blur. `tui_live.fx_trail` reads this and stops *creating* ghosts while it is true - ghosts
+#: already fading keep fading, so the background's own trail is untouched. The manta is not in this list:
+#: it is a sea creature crossing the frame slowly, and its trail reads as water.
+AIRCRAFT = ("y20", "arj21", "z20", "j20")
+AIRCRAFT_ON = [False]
+
+
 def draw(s, cols: int, rows: int, t: float, words=None) -> int:
+    AIRCRAFT_ON[0] = any(getattr(fn, "__name__", "") and name in AIRCRAFT
+                        for a, b, fn, kw in EVENTS if a <= t < b
+                        for name in (kw.get("name", ""),))
     """Draw every event live at `t`. Returns how many drew - the callers report it, nothing waits on it.
 
     The loop is over the whole list, which is short; an event outside its window costs a comparison. The

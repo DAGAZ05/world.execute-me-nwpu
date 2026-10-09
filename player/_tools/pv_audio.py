@@ -67,6 +67,9 @@ class Audio:
         self.muted = False
         self._mode = "stopped"
         self._base = 0.0
+        # when the current transport state began, on the wall clock: `lock` needs it to tell a real
+        # position from the stale one MCI reports for a moment after a seek or a resume (batch 73)
+        self._t0 = time.perf_counter()
         self._alias = f"pv{os.getpid()}"
         if not enabled:
             self.error = "off"
@@ -140,6 +143,7 @@ class Audio:
         self._send(f"play {self._alias}")
         self._mode = "playing"
         self._base = t
+        self._t0 = time.perf_counter()
 
     def resume(self) -> None:
         if self.ok:
@@ -191,6 +195,15 @@ class Audio:
             return None
         target = p - self.latency
         if target < 0:
+            return None
+        # **...unless the device is lying.** Right after `play(t)` MCI can report the previous
+        # position (or 0) for a frame or two; `lock` takes a difference over 0.6 s *instantly*, so
+        # that stale reading used to snap the picture somewhere else - the user's "使用了 space、←
+        # 等按键后，音频和画面就错位了". The wall clock says where the device must be: it was started
+        # at `_base` that many seconds ago. A position that disagrees with that by more than a
+        # second is not evidence, so this frame keeps the caller's own clock.
+        expected = self._base + (time.perf_counter() - self._t0)
+        if abs(target - expected) > 1.0:
             return None
         d = target - t
         if abs(d) <= tolerance:
