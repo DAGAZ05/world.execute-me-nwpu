@@ -4112,7 +4112,9 @@ def draw_footer(s: Screen, d: Data, t: float, playing: bool, fps: float, ent: di
     # are shared with the film: quit, the playhead and the post pass) plus the seek keys; the original
     # variant keeps the upstream wording, because `h` and `c` are real switches there.
     if VAR[0] == "school":
-        long_hint = "space pause/resume   [ ] volume   x fx   arrows seek   q quit"
+        # `home start`, not `arrows seek` (batch 80): fast-forward and rewind are gone - see the key handler,
+        # they were the one action that made the sound's lag a property of the machine's audio stack.
+        long_hint = "space pause/resume   [ ] volume   x fx   home start   q quit"
         short_hint = "space  [ ] vol  x fx  q quit"
     else:
         long_hint = "h her   c chat   x fx   space toggle   q quit"
@@ -4686,20 +4688,20 @@ def main() -> None:
                     t = seek_to(t + 1)
                     if gate is not None and gate.reached(t):
                         gate.assume()
-                elif ch in ("\x00", "\xe0"):        # arrow / home: a second code follows
+                elif ch in ("\x00", "\xe0"):        # a key with a second code: `Home`, and nothing else
                     code = msvcrt.getwch()
-                    if code == "K":                 # left
-                        t = seek_to(t - 5)
-                    elif code == "M":               # right
-                        t = seek_to(t + 5)
-                    elif code == "G":               # home: back to the top
+                    if code == "G":                 # home: back to the top
                         t = seek_to(0.0)
-                    # **`End` is deliberately not handled** (batch 72, the user: "按 end 键直接卡到当前
-                    # 画面了，其实这个键完全没必要，要退出直接按 q 就行了，删除该键的实现"). It jumped to
-                    # `END` and the film then sat on its last frame - which reads as a hang, not as a jump -
-                    # and the film has one way out (`q`), so a key whose only effect is to strand the viewer
-                    # at the end is not worth its three lines. `Home` stays: going back to the top is a
-                    # transport command, and it is the one people reach for by accident.
+                    # **`←`/`→` are gone** (batch 80, the user: "如果和机器有关，那我测自己机子上的偏差就
+                    # 完全没意义了…那直接全局删掉快进快退吧"). They were the one transport action that had to
+                    # restart MCI's decoder, and how long that takes - and therefore how far the sound ends up
+                    # behind the picture afterwards - is a property of the machine's audio stack, not of this
+                    # player. Fixing it would have meant a latency constant calibrated per machine, which is
+                    # exactly what cannot be shipped. `Home` stays: it seeks *backwards* to zero, where the
+                    # decoder is already running and no calibration is involved.
+                    #
+                    # `End` went in batch 72 for a different reason: it jumped to the last frame and read as
+                    # a hang, and `q` is the way out.
                     if gate is not None and gate.reached(t):
                         gate.assume()
             ncols, nrows = term_size()
