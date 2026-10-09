@@ -123,11 +123,20 @@ class Audio:
     # ------------------------------------------------------------------ transport
 
     def play(self, t: float) -> None:
-        """Seek to t and start."""
+        """Seek to t and start - **but a start from the very beginning does not seek** (batch 72).
+
+        The user heard "刚启动播放时，音乐会有一瞬间的尖锐" and, correctly, that other players do not do it.
+        MCI's mp3 device implements `seek` by stopping the decoder and restarting it at a byte offset, and
+        this file carries no sample-accurate index, so a `seek to 0` on a device that is already at the
+        start squeezes out a click - which lands right on top of the record's own first hit (the film's own
+        wave data puts a full-scale attack at 175-224 ms; `_dev/song_attack.py` prints it). Playing from the
+        start needs no seek, so there is none.
+        """
         if not self.ok:
             return
         t = max(0.0, float(t))
-        self._send(f"seek {self._alias} to {int(t * 1000)}")
+        if t > 0.05 or self._mode != "stopped":
+            self._send(f"seek {self._alias} to {int(t * 1000)}")
         self._send(f"play {self._alias}")
         self._mode = "playing"
         self._base = t

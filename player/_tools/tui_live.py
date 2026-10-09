@@ -4634,16 +4634,20 @@ def main() -> None:
                     t = seek_to(t + 1)
                     if gate is not None and gate.reached(t):
                         gate.assume()
-                elif ch in ("\x00", "\xe0"):        # arrow / home / end: a second code follows
+                elif ch in ("\x00", "\xe0"):        # arrow / home: a second code follows
                     code = msvcrt.getwch()
                     if code == "K":                 # left
                         t = seek_to(t - 5)
                     elif code == "M":               # right
                         t = seek_to(t + 5)
-                    elif code == "G":               # home
+                    elif code == "G":               # home: back to the top
                         t = seek_to(0.0)
-                    elif code == "O":               # end
-                        t = seek_to(END)
+                    # **`End` is deliberately not handled** (batch 72, the user: "按 end 键直接卡到当前
+                    # 画面了，其实这个键完全没必要，要退出直接按 q 就行了，删除该键的实现"). It jumped to
+                    # `END` and the film then sat on its last frame - which reads as a hang, not as a jump -
+                    # and the film has one way out (`q`), so a key whose only effect is to strand the viewer
+                    # at the end is not worth its three lines. `Home` stays: going back to the top is a
+                    # transport command, and it is the one people reach for by accident.
                     if gate is not None and gate.reached(t):
                         gate.assume()
             ncols, nrows = term_size()
