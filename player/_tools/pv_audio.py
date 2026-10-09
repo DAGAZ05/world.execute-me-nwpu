@@ -40,6 +40,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SONG = ROOT / "input" / "song.mp3"
+SETTLE = 0.6
 LATENCY = 0.25                   # seconds the decoder runs ahead of the speaker; see the module docstring
 
 
@@ -70,6 +71,11 @@ class Audio:
         # when the current transport state began, on the wall clock: `lock` needs it to tell a real
         # position from the stale one MCI reports for a moment after a seek or a resume (batch 73)
         self._t0 = time.perf_counter()
+        # **When a transport action last moved us** (batch 75). `lock` keeps out of the way for
+        # `SETTLE` seconds after it: a correction computed in the two frames after a seek is
+        # computed from a position that is still settling, and the one thing the viewer asked for is
+        # that the picture keeps the time they seeked to.
+        self._settle = 0.0
         self._alias = f"pv{os.getpid()}"
         if not enabled:
             self.error = "off"
@@ -144,6 +150,7 @@ class Audio:
         self._mode = "playing"
         self._base = t
         self._t0 = time.perf_counter()
+        self._settle = time.perf_counter() + SETTLE
 
     def resume(self) -> None:
         if self.ok:
@@ -154,6 +161,7 @@ class Audio:
         if self.ok:
             self._send(f"pause {self._alias}")
             self._mode = "paused"
+            self._settle = time.perf_counter() + SETTLE
 
     def seek(self, t: float) -> None:
         """Move without changing the play state (a scrub while paused, or a jump while playing)."""
@@ -190,6 +198,8 @@ class Audio:
         """
         if not self.ok or self._mode != "playing":
             return None
+        if time.perf_counter() < self._settle:
+            return None          # just moved: the picture keeps the time it was given
         p = self.position()
         if p is None:
             return None

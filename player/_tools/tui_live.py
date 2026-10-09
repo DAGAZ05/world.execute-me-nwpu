@@ -4344,6 +4344,8 @@ def main() -> None:
                                     "Also what a seek past the gate assumes.")
     ap.add_argument("--audio-file", help="mp3 to play (default input/song.mp3)")
     ap.add_argument("--volume", type=int, default=1000, help="0..1000 (default 1000)")
+    ap.add_argument("--audio-debug", action="store_true",
+                    help="print the picture clock, the device position and what lock decided")
     ap.add_argument("--audio-latency", type=float, default=pv_audio.LATENCY,
                     help="seconds the decoder runs ahead of the speaker (default %.2f)" % pv_audio.LATENCY)
     ap.add_argument("--fps-cap", type=float, default=FPS_CAP,
@@ -4589,6 +4591,16 @@ def main() -> None:
                 t = min(END, t + dt)
                 if audio.ok:
                     tgt = audio.lock(t)
+            if getattr(args, "audio_debug", False):
+                _dbg = getattr(main, "_dbg_next", 0.0)
+                _nowd = time.perf_counter()
+                if _nowd >= _dbg:
+                    main._dbg_next = _nowd + 1.0        # type: ignore[attr-defined]
+                    _p = audio.position()
+                    print(f"transport t={t:8.3f} playing={playing} device="
+                          f"{('%.3f' % (_p - audio.latency)) if _p is not None else 'n/a'} "
+                          f"lock={'moved %.3f' % tgt if tgt is not None else 'kept'} "
+                          f"settle={audio._settle - _nowd:+.2f}", file=sys.stderr, flush=True)
                     if tgt is not None:
                         t = max(0.0, min(END, tgt))
                 if t >= END:
