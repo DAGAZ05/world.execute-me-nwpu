@@ -165,13 +165,20 @@ def holds(t: float) -> bool:
     return False
 
 
-def reached(t: float, end: float) -> bool:
+def reached(t: float) -> bool:
     """Whether a seek to `t` jumped over the gate without stopping on it.
 
     Landing *on* a time before the gate, or inside the hold, is not a jump past it: the gate opens
     normally when the playhead arrives. Only a destination beyond the gate's slot is one, and there the
     answer is assumed rather than the alternative of yanking the playhead backwards to 02:11.9, which
     would be a seek that ignores where the viewer asked to go.
+
+    **One argument** (batch 71). It used to take a second one, `end`, which it never read - and the three
+    call sites in the player's seek keys passed only `t`, so pressing `→` raised `TypeError: reached()
+    missing 1 required positional argument: 'end'` (the user's report; `←`, `→`, `Home` and `End` all went
+    through it). A parameter nobody reads that every caller has to remember is a crash waiting for the one
+    caller who forgets - the same verdict batch 55 passed on `covers_band`'s unused arguments - so it is
+    deleted, and `_dev/gate_probe.py` now drives this exact call shape.
     """
     return t >= GATE_UNTIL
 
