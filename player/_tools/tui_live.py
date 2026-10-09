@@ -4597,10 +4597,20 @@ def main() -> None:
                 if _nowd >= _dbg:
                     main._dbg_next = _nowd + 1.0        # type: ignore[attr-defined]
                     _p = audio.position()
-                    print(f"transport t={t:8.3f} playing={playing} device="
-                          f"{('%.3f' % (_p - audio.latency)) if _p is not None else 'n/a'} "
-                          f"lock={'moved %.3f' % tgt if tgt is not None else 'kept'} "
-                          f"settle={audio._settle - _nowd:+.2f}", file=sys.stderr, flush=True)
+                    _line = (f"transport t={t:8.3f} playing={playing} device="
+                             f"{('%.3f' % (_p - audio.latency)) if _p is not None else 'n/a'} "
+                             f"lock={'moved %.3f' % tgt if tgt is not None else 'kept'} "
+                             f"settle={audio._settle - _nowd:+.2f}")
+                    # **a file, never the terminal** (batch 76, the user: "运行 run.cmd --audio-debug 后，
+                    # 画面是混乱的，完全抓不到你说的那些行"). stderr shares the console with the alt screen, so
+                    # every line landed in the middle of the picture. `audio-debug.log` sits in the working
+                    # directory and can be pasted as it stands.
+                    try:
+                        with open("audio-debug.log", "a", encoding="utf8") as _fh:
+                            _fh.write(_line + "\n")
+                    except Exception as _exc:            # noqa: BLE001
+                        print(f"warning: the audio log could not be written ({_exc})",
+                              file=sys.stderr, flush=True)
                     if tgt is not None:
                         t = max(0.0, min(END, tgt))
                 if t >= END:
@@ -4626,7 +4636,15 @@ def main() -> None:
                         # argument but 2 were given" - is exactly what one expression choosing between
                         # the two gets wrong: the argument went to whichever one was picked.
                         if playing:
-                            audio.play(t)
+                            # **continue the sound where it stopped, and bring the picture to it** (batch
+                            # 76). `play(t)` seeked back to the picture's time, but the viewer had already
+                            # heard up to `t + latency`, so the phrase that had just ended played again -
+                            # the user's "暂停后恢复，音频会重复刚结束的一句". `resume_at` continues the
+                            # device and moves the picture forward by that quarter of a second instead.
+                            if hasattr(audio, "resume_at"):
+                                t = audio.resume_at(t)
+                            else:
+                                audio.play(t)
                         else:
                             audio.pause()
                 elif ch in ("m", "M"):

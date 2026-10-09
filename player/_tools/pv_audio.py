@@ -159,9 +159,33 @@ class Audio:
 
     def pause(self) -> None:
         if self.ok:
+            self._paused_at = self.position()
             self._send(f"pause {self._alias}")
             self._mode = "paused"
             self._settle = time.perf_counter() + SETTLE
+
+    #: Where the device was when it was last paused. The picture stops at `t` and the device stops at
+    #: `t + latency` - it is always ahead, because the viewer hears what was decoded a moment ago - so
+    #: resuming with `play(t)` rewinds the sound by `latency` and plays it again: the user's "暂停后恢复，
+    #: 音频会重复刚结束的一句". `resume_at` continues from here instead.
+    _paused_at: float | None = None
+
+    def resume_at(self, fallback: float) -> float:
+        """Continue the sound where it stopped, and return the time the picture should now show.
+
+        The picture moves *forward* to the sound rather than the sound moving back to the picture: nothing
+        is heard twice, and the step is `latency` (a quarter of a second), well under what reads as a
+        jump. `fallback` is used when the device cannot say where it was.
+        """
+        if not self.ok:
+            return fallback
+        self._send(f"resume {self._alias}")
+        self._mode = "playing"
+        p = self._paused_at if self._paused_at is not None else self.position()
+        self._base = max(0.0, (p - self.latency) if p is not None else fallback)
+        self._t0 = time.perf_counter()
+        self._settle = self._t0 + SETTLE
+        return self._base
 
     def seek(self, t: float) -> None:
         """Move without changing the play state (a scrub while paused, or a jump while playing)."""
