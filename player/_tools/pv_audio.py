@@ -236,23 +236,32 @@ class Audio:
         """
         if not self.ok or self._mode != "playing":
             return None
-        if time.perf_counter() < self._settle:
-            return None          # just moved: the picture keeps the time it was given
         p = self.position()
         if p is None:
             return None
         target = p - self.latency
         if target < 0:
             return None
+        if time.perf_counter() < self._settle:
+            # **Just moved: hold the picture at the sound, do not freeze the correction.** A playing seek
+            # restarts the device, which takes a moment, and the picture jumps instantly - so doing nothing
+            # here (batch 75's version) left the picture running ahead of the sound for as long as the device
+            # took to spin up: the user's "正常画面快进后音频慢于画面". Returning the device's own time makes
+            # the picture *wait* for the sound instead, and the offset is gone by the time the window closes.
+            # The one reading that must still be ignored is a stale one - the position the device was at
+            # *before* the move, which is nowhere near where we asked to be. The distance test compares
+            # against the *seek target* (`_base`) and not against the wall clock, so a device that is merely
+            # slow to start is still believed (that was batch 77's mistake).
+            if abs(target - self._base) > 1.0:
+                return None
+            return target if t > target else None
         # **No plausibility guard here any more** (batch 77). Batch 73 added one - "if the device's position
         # disagrees with the wall clock since the move by more than a second, do not believe it" - on the
         # theory that MCI reports a stale position after a seek. It was never measured, and it is now
         # measured to be harmful: after `←`/`→` the device takes a moment to start playing again, and a
         # correction of that size (device start delay + latency) can exceed a second, so the guard *blocked
-        # the one correction that mattered* and left the picture where it was - the user's "←、→ 快进/退后
-        # 依旧音画不同步", while `space` was fine because resuming does not restart the device and so has no
-        # such delay. What genuinely covers the stale first frames is the `_settle` window above, and the
-        # device itself was measured accurate to ~5 ms (`_dev/_transport_truth.py`).
+        # the one correction that mattered*. The device itself was measured accurate to ~5 ms
+        # (`_dev/_transport_truth.py`), and the stale frames are the `_settle` window's business.
         return self._correct(t, target, tolerance, max_step)
 
     @staticmethod

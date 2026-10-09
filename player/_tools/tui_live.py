@@ -147,6 +147,10 @@ MMD = ROOT / "film" / "mmd_motion_eval_20260927"
 WAVE = DSH / "wave_rms_1ms.npy"
 FEATS = TUI / "full" / "audio_features.json"
 WORDS = ROOT / "film" / "world_execute_word_timing_20260927" / "word_timeline.json"
+#: `--audio-debug` writes here, beside the launchers rather than in whatever directory the
+#: launcher changed to (the user could not find a relative `audio-debug.log`: it was landing in
+#: `player\`). The path is printed once at startup so it need not be guessed.
+AUDIO_DEBUG_LOG = ROOT / "audio-debug.log"
 
 FPS = 24
 # **How often the player may redraw** (batch 59). The loop used to be hard-capped at 30: it draws as fast
@@ -4508,6 +4512,8 @@ def main() -> None:
 
     # the music. The picture follows it: `lock()` returns the song time being heard whenever the
     # wall clock has wandered off it, and None when they agree.
+    if getattr(args, "audio_debug", False):
+        print(f"audio debug log: {AUDIO_DEBUG_LOG}", file=sys.stderr, flush=True)
     audio = pv_audio.Audio(args.audio_file, enabled=not args.no_audio, volume=args.volume,
                            latency=args.audio_latency)
     # The first frame is the most expensive one in the film - every pane, the lyric layout and the chrome
@@ -4606,7 +4612,7 @@ def main() -> None:
                     # every line landed in the middle of the picture. `audio-debug.log` sits in the working
                     # directory and can be pasted as it stands.
                     try:
-                        with open("audio-debug.log", "a", encoding="utf8") as _fh:
+                        with open(AUDIO_DEBUG_LOG, "a", encoding="utf8") as _fh:
                             _fh.write(_line + "\n")
                     except Exception as _exc:            # noqa: BLE001
                         print(f"warning: the audio log could not be written ({_exc})",
