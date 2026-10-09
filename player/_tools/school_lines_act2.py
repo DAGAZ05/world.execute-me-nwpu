@@ -137,13 +137,16 @@ ACT_TWO: list[tuple[float, str, str, str]] = [
     (182.43, "I can answer all lo-o-ove", "meta", "\u7528\u65f6 2.4 \u79d2|03:02"),
     (184.33, "I know the algebraic expression of lo-o-ove", "ai", "\u7231\u7684\u4ee3\u6570\u8868\u8fbe\u5f0f\uff0c\u662f\u8fd9\u51e0\u884c\uff1a"),
     # **The last code block is C++** (batch 70, the user: "学院部分会话中最后有个代码（python 类）的，
-    # 改成 c++ 代码，因为前面已经出现过 python、动画部分是 java 的"). The three languages are then the
-    # three the four years actually go through: Python in the first act's block, Java up in the pane's own
-    # animation (batch 34 changed `class Love` to `public class Love`), C++ here. Same three facts - a
+    # 改成 c++ 代码，因为前面已经出现过 python、动画部分是 java 的"; batch 71 added the access sections,
+    # which is what makes it read as C++ rather than as Java with semicolons). The three languages are then
+    # the three the four years actually go through: Python in the first act's block, Java up in the pane's
+    # own animation (batch 34 changed `class Love` to `public class Love`), C++ here. Same three facts - a
     # class, two roles, one method - which is also what the `sub` line below says.
     (184.33, "I know the algebraic expression of lo-o-ove", "code", "class Love {"),
+    (184.33, "I know the algebraic expression of lo-o-ove", "code", "private:"),
     (184.33, "I know the algebraic expression of lo-o-ove", "code", "    Person giver;"),
     (184.33, "I know the algebraic expression of lo-o-ove", "code", "    Person taker;"),
+    (184.33, "I know the algebraic expression of lo-o-ove", "code", "public:"),
     (184.33, "I know the algebraic expression of lo-o-ove", "code", "    void give();"),
     (184.33, "I know the algebraic expression of lo-o-ove", "code", "};"),
     (184.33, "I know the algebraic expression of lo-o-ove", "sub", "\u4e00\u4e2a\u7c7b\uff0c\u4e24\u4e2a\u89d2\u8272\uff0c\u4e00\u4e2a\u65b9\u6cd5\u3002"),
