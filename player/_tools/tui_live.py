@@ -4349,7 +4349,7 @@ def main() -> None:
     ap.add_argument("--audio-file", help="mp3 to play (default input/song.mp3)")
     ap.add_argument("--volume", type=int, default=1000, help="0..1000 (default 1000)")
     ap.add_argument("--audio-debug", action="store_true",
-                    help="print the picture clock, the device position and what lock decided")
+                    help="append the picture clock, the device position, what lock decided and the latency in use to player/audio-debug.log")
     ap.add_argument("--audio-latency", type=float, default=pv_audio.LATENCY,
                     help="seconds the decoder runs ahead of the speaker (default %.2f)" % pv_audio.LATENCY)
     ap.add_argument("--fps-cap", type=float, default=FPS_CAP,
@@ -4606,7 +4606,8 @@ def main() -> None:
                     _line = (f"transport t={t:8.3f} playing={playing} device="
                              f"{('%.3f' % (_p - audio.latency)) if _p is not None else 'n/a'} "
                              f"lock={'moved %.3f' % tgt if tgt is not None else 'kept'} "
-                             f"settle={audio._settle - _nowd:+.2f}")
+                             f"settle={audio._settle - _nowd:+.2f} "\
+                             f"latency={audio.latency:.2f}")
                     # **a file, never the terminal** (batch 76, the user: "运行 run.cmd --audio-debug 后，
                     # 画面是混乱的，完全抓不到你说的那些行"). stderr shares the console with the alt screen, so
                     # every line landed in the middle of the picture. `audio-debug.log` sits in the working
