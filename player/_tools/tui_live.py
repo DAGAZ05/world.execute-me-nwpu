@@ -709,7 +709,22 @@ def fx_trail(s: "Screen") -> None:
         else:
             g[i] = (ch, fg, lv)
     prev, buf, gp, cols, rows = s.prev, s.buf, s.ghost_prev, s.cols, s.rows
-    if prev is not None and rows:
+    # **No *new* ghosts while an aircraft is on screen** (batch 74, the user: "飞机这一层从残影里
+    # 排除（只留背景的拖尾）"): the film's post keeps 42 % of the previous frame, and a sprite that
+    # moves five cells a frame therefore leaves a copy of itself five cells back every frame - on a
+    # dark ground that reads as a dotted line, not as motion blur. The switch is on the *creation*
+    # condition and not on `rows`: `gh = bytearray(cols * rows)` at the end of this block rebuilds
+    # `ghost_prev`, so shrinking `rows` emptied the buffer and the next frame indexed out of it
+    # (`IndexError: bytearray index out of range`, caught by `ops_probe`). Ghosts already fading keep
+    # fading, so the background's own trail is untouched; `school_fx.draw` set the flag this frame.
+    planes = False
+    if SP is not None and VAR[0] == "school":
+        try:
+            import school_fx as _FXt
+            planes = bool(_FXt.AIRCRAFT_ON[0])
+        except Exception:
+            planes = False
+    if prev is not None and rows and not planes:
         for y in range(rows):
             row, prow = buf[y], prev[y]
             if row == prow:

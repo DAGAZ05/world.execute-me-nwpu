@@ -535,10 +535,12 @@ def matrix(k, t: float) -> None:
     i = row
     terms = " + ".join(f"{a[i][j]}\u00b7{x[j]}" for j in range(n))
     k.put(k.bx0, top + n + 2, f"b{i + 1} = {terms}"[: max(1, k.bw - 1)], _mix(_C.GREEN, 0.85))
+    # **An ellipsis on the example list, and the amber line under it is gone** (batch 73, the user:
+    # "矩阵动画下方白色小字（课程）后面加省略号，黄色小字删掉"). The four names are an example - other
+    # colleges arrive as their own packs (`school_colleges`) - so the list says "and so on" rather than
+    # ending as if it were the whole curriculum; the amber line said what the drawing already shows.
     k.put(k.bx0, k.by1 - 1, "\u7ebf\u6027\u4ee3\u6570 \u00b7 \u8ba1\u7b97\u65b9\u6cd5 \u00b7 "
-                            "\u79bb\u6563\u6570\u5b66 \u00b7 \u6df1\u5ea6\u5b66\u4e60", _ui(0.6))
-    k.put(k.bx0, k.by1, "\u56db\u95e8\u8bfe\u91cc\u90fd\u662f\u540c\u4e00\u5f20\u8868\uff1a"
-                        "\u4e00\u884c\u70b9\u4e00\u5217", _mix(_C.AMBER, 0.7))
+          "\u79bb\u6563\u6570\u5b66 \u00b7 \u6df1\u5ea6\u5b66\u4e60 \u2026", _ui(0.6))
 
 
 def epicycles(k, t: float) -> None:
