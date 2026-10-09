@@ -182,19 +182,33 @@ class Audio:
         self._send(f"resume {self._alias}")
         self._mode = "playing"
         p = self._paused_at if self._paused_at is not None else self.position()
+        self._paused_at = None                 # only meaningful while paused
         self._base = max(0.0, (p - self.latency) if p is not None else fallback)
         self._t0 = time.perf_counter()
         self._settle = self._t0 + SETTLE
         return self._base
 
     def seek(self, t: float) -> None:
-        """Move without changing the play state (a scrub while paused, or a jump while playing)."""
+        """Move without changing the play state (a scrub while paused, or a jump while playing).
+
+        **A seek made while paused also moves where a later resume continues from** (batch 77, the user:
+        "←、→ 快进/退后依旧音画不同步"). `resume_at` continues the device where it stopped *and moves the
+        picture to match*, reading that place from `_paused_at` - which this path used to leave at the old
+        spot. So pause -> `→` -> space sent the sound on from the new place and the picture back to the old
+        one: a jump of exactly the distance just seeked. The same held for `_base`/`_t0`, which `lock`
+        compares against.
+        """
         if not self.ok:
             return
         if self._mode == "playing":
             self.play(t)
         else:
-            self._send(f"seek {self._alias} to {int(max(0.0, t) * 1000)}")
+            t = max(0.0, float(t))
+            self._send(f"seek {self._alias} to {int(t * 1000)}")
+            self._paused_at = t
+            self._base = t
+            self._t0 = time.perf_counter()
+            self._settle = self._t0 + SETTLE
 
     def set_volume(self, v: int) -> None:
         if not self.ok:
@@ -230,15 +244,19 @@ class Audio:
         target = p - self.latency
         if target < 0:
             return None
-        # **...unless the device is lying.** Right after `play(t)` MCI can report the previous
-        # position (or 0) for a frame or two; `lock` takes a difference over 0.6 s *instantly*, so
-        # that stale reading used to snap the picture somewhere else - the user's "使用了 space、←
-        # 等按键后，音频和画面就错位了". The wall clock says where the device must be: it was started
-        # at `_base` that many seconds ago. A position that disagrees with that by more than a
-        # second is not evidence, so this frame keeps the caller's own clock.
-        expected = self._base + (time.perf_counter() - self._t0)
-        if abs(target - expected) > 1.0:
-            return None
+        # **No plausibility guard here any more** (batch 77). Batch 73 added one - "if the device's position
+        # disagrees with the wall clock since the move by more than a second, do not believe it" - on the
+        # theory that MCI reports a stale position after a seek. It was never measured, and it is now
+        # measured to be harmful: after `←`/`→` the device takes a moment to start playing again, and a
+        # correction of that size (device start delay + latency) can exceed a second, so the guard *blocked
+        # the one correction that mattered* and left the picture where it was - the user's "←、→ 快进/退后
+        # 依旧音画不同步", while `space` was fine because resuming does not restart the device and so has no
+        # such delay. What genuinely covers the stale first frames is the `_settle` window above, and the
+        # device itself was measured accurate to ~5 ms (`_dev/_transport_truth.py`).
+        return self._correct(t, target, tolerance, max_step)
+
+    @staticmethod
+    def _correct(t: float, target: float, tolerance: float, max_step: float) -> float | None:
         d = target - t
         if abs(d) <= tolerance:
             return None
