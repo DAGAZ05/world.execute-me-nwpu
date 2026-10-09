@@ -1175,9 +1175,12 @@ def pane_landmark_hezun(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     inscription (the earliest surviving 中国), and the 定义 line wants the taotie pattern as a frame.
     The pane draws the vessel and captions it with the one fact that makes it belong here.
     """
-    k, ox, oy = _landmark("he_zun", s, x0, y0, x1, y1, u, "\u4f55\u5c0a",
-                          "\u201c\u5b85\u5179\u4e2d\u56fd\u201d \u00b7 \u94ed\u6587\u91cc\u6700\u65e9\u7684"
-                          "\u4e2d\u56fd\u4e8c\u5b57", dim=0.9, phase=lt)
+    # **The white caption under the vessel is gone** (batch 76, the user: "何尊我让你删的是下方白色字
+    # '宅兹中国 · 铭文里最早的中国二字'，你之前删错了"). It was this call's `caption` argument - the label
+    # `_landmark` draws at the foot of the plate, which is the row the foot itself needed. `dim=0.9` and
+    # `phase=lt` go with it: they only ever dimmed and phased that caption, and the comment below has said
+    # since batch 1 that the HTML-art route never honoured the phase.
+    k, ox, oy = _landmark("he_zun", s, x0, y0, x1, y1, u, "\u4f55\u5c0a")
     # The vessel is a picture of a drawing, so its clock has to be the *light*: a highlight row walks
     # down it on the song clock. `phase=lt` has been passed in since batch 1 and never honoured - the
     # HTML-art route has no phase - so the pane used to freeze at u=1 (batch 31's audit).
@@ -1194,6 +1197,15 @@ def pane_landmark_hezun(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     # instead of taking a bite out of the drawing.
     if k.bw > 46 and k.by0 >= y0 + 2:
         import school_courses as _C
+        # **the amber caption is back** (batch 76): batch 73 deleted this statement by mistake, in the
+        # belief that it was the white line under the vessel. It is the one that belongs here - it sits on
+        # the pane's single free row (`y0+1`, between the title rule and the top of the plate) and it says
+        # the fact the pane exists for, which is what the white caption under the foot was repeating.
+        s.put(k.bx0 + 2, y0 + 1,
+              _C._clip("origin = \"\u5b85\u5179\u4e2d\u56fd\"  \u00b7  \u4f55\u5c0a\u94ed\u6587\uff0c\u7ea6"
+                       "\u516c\u5143\u524d 11 \u4e16\u7eaa\uff08\u5468\u6210\u738b\u4e94\u5e74\uff09",
+                       max(0, k.bw - 3)),
+              _mix(_C.AMBER, 0.85))
 
 
 def _kit(s, x0: int, y0: int, x1: int, y1: int, run: int = 0, title: str = ""):

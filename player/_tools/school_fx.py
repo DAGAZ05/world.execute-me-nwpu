@@ -1213,10 +1213,12 @@ def lowpass(s, cols: int, rows: int, t: float, u: float, name: str, y: float = 0
                 if 0 <= rx < cols and 0 <= ry < rows:
                     s.put(rx, ry, "\u00b7" if a % 2 else "\u2500",
                           _mix((150, 205, 245), 0.45 + 0.55 * q))
-        # the shock itself: the line the aircraft drags across the frame, at its own altitude
-        if q > 0.25:
-            for xx in range(0, cols, 2):
-                s.put(xx, cy, "\u2500", _mix((120, 175, 225), 0.35 + 0.5 * q))
+        # **no shock line** (batch 76, the user: "运20 飞过时依旧有虚线（第二章图中间的蓝色虚线）").
+        # What was here drew a `\u2500` every other column at the aircraft's altitude - a blue dashed rule
+        # right across the pane, which reads as damage rather than as a shock, and it is what the user
+        # photographed twice. The shock is the ring above, the dust below and the frame shake; the rule was
+        # decoration neither the film nor the note asked for. (Two earlier attempts at this "line" went
+        # after the post's trail instead - the wrong layer entirely, which is why they changed nothing.)
         if d < 0.5:                                               # dust off the floor, only near the centre
             for i in range(10):
                 dx_ = cx + int((i - 5) * (cols / 14.0))
