@@ -1,0 +1,58 @@
+transport t=   0.000 playing=True device=-0.203 lock=kept settle=+0.60
+transport t=   1.015 playing=True device=0.729 lock=moved 0.895 settle=-0.42
+transport t=   1.910 playing=True device=1.744 lock=moved 1.790 settle=-1.43
+transport t=   2.805 playing=True device=2.760 lock=kept settle=-2.45
+transport t=   3.806 playing=True device=3.759 lock=kept settle=-3.45
+transport t=   4.822 playing=True device=4.775 lock=kept settle=-4.46
+transport t=   5.823 playing=True device=5.777 lock=kept settle=-5.46
+transport t=   6.824 playing=True device=6.777 lock=kept settle=-6.46
+transport t=   7.838 playing=True device=7.793 lock=kept settle=-7.48
+transport t=   8.839 playing=True device=8.793 lock=kept settle=-8.48
+transport t=   9.854 playing=True device=9.807 lock=kept settle=-9.49
+transport t=  10.870 playing=True device=10.824 lock=kept settle=-10.51
+transport t=  11.886 playing=True device=11.839 lock=kept settle=-11.53
+transport t=  12.886 playing=True device=12.840 lock=kept settle=-12.53
+transport t=  13.900 playing=True device=13.855 lock=kept settle=-13.54
+transport t=  14.911 playing=True device=14.863 lock=kept settle=-14.55
+transport t=  15.915 playing=True device=15.869 lock=kept settle=-15.56
+transport t=  16.932 playing=True device=16.886 lock=kept settle=-16.57
+transport t=  17.947 playing=True device=17.901 lock=kept settle=-17.59
+transport t=  18.960 playing=True device=18.913 lock=kept settle=-18.60
+transport t=  19.975 playing=True device=19.929 lock=kept settle=-19.61
+transport t=  20.991 playing=True device=20.946 lock=kept settle=-20.63
+transport t=  22.004 playing=True device=21.958 lock=kept settle=-21.64
+transport t=  23.018 playing=True device=22.972 lock=kept settle=-22.66
+transport t=  24.035 playing=True device=23.988 lock=kept settle=-23.68
+transport t=  25.050 playing=True device=25.004 lock=kept settle=-24.69
+transport t=  26.064 playing=True device=26.018 lock=kept settle=-25.70
+transport t=  27.081 playing=True device=27.034 lock=kept settle=-26.72
+transport t=  28.096 playing=True device=28.049 lock=kept settle=-27.74
+transport t=  29.098 playing=True device=29.052 lock=kept settle=-28.74
+transport t=  30.099 playing=True device=30.053 lock=kept settle=-29.74
+transport t=  31.115 playing=True device=31.070 lock=kept settle=-30.76
+transport t=  32.130 playing=True device=32.085 lock=kept settle=-31.77
+transport t=  38.140 playing=True device=37.743 lock=kept settle=+0.03
+transport t=  39.155 playing=True device=38.758 lock=moved 39.035 settle=-0.98
+transport t=  40.049 playing=True device=39.772 lock=moved 39.929 settle=-2.00
+transport t=  40.945 playing=True device=40.788 lock=moved 40.825 settle=-3.01
+transport t=  41.840 playing=True device=41.803 lock=kept settle=-4.03
+transport t=  42.856 playing=True device=42.819 lock=kept settle=-5.05
+transport t=  43.856 playing=True device=43.820 lock=kept settle=-6.05
+transport t=  49.865 playing=True device=49.468 lock=moved 49.745 settle=-0.00
+transport t=  50.759 playing=True device=50.482 lock=moved 50.639 settle=-1.02
+transport t=  51.653 playing=True device=51.496 lock=moved 51.533 settle=-2.03
+transport t=  52.546 playing=True device=52.509 lock=kept settle=-3.05
+transport t=  53.546 playing=True device=53.508 lock=kept settle=-4.05
+transport t=  54.562 playing=True device=54.526 lock=kept settle=-5.06
+transport t=  55.576 playing=True device=55.539 lock=kept settle=-6.07
+transport t=  51.587 playing=True device=51.194 lock=kept settle=+0.08
+transport t=  52.602 playing=True device=52.209 lock=moved 52.482 settle=-0.94
+transport t=  53.495 playing=True device=53.223 lock=moved 53.375 settle=-1.95
+transport t=  54.391 playing=True device=54.238 lock=moved 54.271 settle=-2.96
+transport t=  50.286 playing=True device=49.899 lock=kept settle=+0.52
+transport t=  51.286 playing=True device=50.901 lock=moved 51.166 settle=-0.48
+transport t=  52.166 playing=True device=51.901 lock=moved 52.046 settle=-1.48
+transport t=  53.062 playing=True device=52.917 lock=kept settle=-2.50
+transport t=  54.079 playing=True device=53.933 lock=kept settle=-3.51
+transport t=  55.079 playing=True device=54.934 lock=kept settle=-4.51
+transport t=  56.079 playing=True device=55.934 lock=kept settle=-5.51
