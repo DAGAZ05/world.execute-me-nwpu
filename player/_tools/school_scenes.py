@@ -1506,22 +1506,30 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
     comes back around, and a braid can be undone.
     """
     import school_courses as _C
-    k = _kit(s, x0, y0, x1, y1, 0, "互换")
+    # **抬头要和里面画的东西一致**（批 98e，用户："你修改动画后，动画和动画框抬头又不对应了"）：
+    # 这个 pane 的四个小面板说的是四件不同的事，抬头写死 "互换" 时，画着钟面的框上写的是"互换"。
+    # 所以每个 `panel` 带自己的名字，`panel=""`（四格并排那一种）才用 "互换"。
+    TITLE = {"bits": "F \u2192 M \u00b7 3 \u4f4d", "clock": "12 \u5c0f\u65f6 \u00b7 \u53cc\u91cd\u8986\u76d6",
+             "braid": "\u03c31 \u00b7 \u7f16\u7ec7", "hyper": "\u8d85\u692d\u5706",
+             "letters": "S \u2192 M \u00b7 \u5b57\u5f62\u7ffb\u4f4d"}
+    k = _kit(s, x0, y0, x1, y1, 0, TITLE.get(panel, "\u4e92\u6362"))
     if k is None:
         return
     # `panel` draws one of the four at full width. The row was 12.8 s and seven lyric lines with all four
     # small at once - the "占时过长" the user objected to on the tomato pane - so the schedule gives each
     # of them the line it belongs to: the bit flip on "Switch my current", the clock on "To AC, to DC",
     # the braid on "blind my vision", the superellipse on "we can travel".
-    one = {"bits": _ex_bits, "clock": _ex_clock, "braid": _ex_braid, "hyper": _ex_hyper}.get(panel)
+    one = {"bits": _ex_bits, "clock": _ex_clock, "braid": _ex_braid, "hyper": _ex_hyper,
+           "letters": _ex_letters}.get(panel)
     if one is not None:
-        one(k, t, u)
-        # Each of the four is one figure in a 95-cell box, so a `panel=` row was a small drawing in a large
-        # black field (batch 53, the user: "互换...图像那里比较空旷，可以加装饰或者复数图案"). The fill is the
-        # panel's own vocabulary - bit digits for the flip, rings for the clock, strand strokes for the
-        # braid, nested outlines for the superellipse - so it reads as the subject scattered, not as stars.
+        # **先撒装饰、后画主体**（批 98f）。原来的顺序是反的（主体先、装饰后），而 `_motes` 的
+        # 判据是 `_C.blank`——"这一格还是空的"。主体画完之后它照样认为别处是空的，于是那些
+        # 字母/motes 会**落在主体上面**：实测 SM 点阵被 `S`/`M` 碎字盖住（出图 `pane_0097.32.png`）。
+        # 装饰是烘托，不该压主体。
         _motes(k, {"bits": "01", "clock": "o\u00b7", "braid": "/\\",
-                   "hyper": "o\u00b7\u00b7"}.get(panel, "\u00b7"), t, level=0.34, seed=13)
+                   "hyper": "o\u00b7\u00b7", "letters": "S M \u00b7"}.get(panel, "\u00b7"),
+               t, level=0.34, seed=13)
+        one(k, t, u)
         return
     # Four columns when the pane is wide enough for all of them, three when it is not, one when it is
     # narrow: the superellipse is the fourth of `想法.md`'s five motifs for this section and it was left
@@ -1598,6 +1606,47 @@ def _ex_bits(k, t: float, u: float) -> None:
         k.put(k.bx0 + 5 + cur * 2, y + 6, "\u25b2", _mix(_C.AMBER, 0.9))
     k.put(k.bx0, k.by1 - 1, "\u6539\u53d8\u4e00\u4e2a\u5b57\u6bcd\uff0c\u53ea\u52a8\u4e09\u4f4d", _ui(0.5))
     k.put(k.bx0, k.by1, "0x46 \u2295 0x4D = 0x0B", _mix(_C.GREEN, 0.7))
+
+
+def _ex_letters(k, t: float, u: float) -> None:
+    """`To S, to M`: 同一个字的两个身份，**一明一暗交替**。
+
+    用户的要求（批 98e）："SM动画放在动画框中间，并且应该一明一暗交替闪烁"。
+
+    所以这一版是：`S` 与 `M` 两个点阵**并排在框的正中**，每 0.5 s 换一次谁亮——
+    亮的那一个用暖白写实心块，暗的那一个只剩深色的骨架。读起来就是"这两个字母是同一个东西的
+    两种写法，而这个系统每半秒换一次它叫哪个名字"。与 `_ex_bits` 的 F→M 是同一台机器。
+    """
+    import school_courses as _C
+    GLYPH = {
+        "S": ("01110", "10000", "10000", "01110", "00001", "00001", "01110"),
+        "M": ("10001", "11011", "10101", "10001", "10001", "10001", "10001"),
+    }
+    gw = len(GLYPH["S"][0])
+    gh = len(GLYPH["S"])
+    # 两个点阵 + 中间 3 格空隙，整组居中
+    total = gw * 2 + 3
+    x0 = k.bx0 + max(0, (k.bw - total) // 2)
+    y0 = k.by0 + max(0, (k.bh - gh) // 2)
+    # 交替：0 亮 S、1 亮 M；0.5 s 一次（用户要的"闪烁"）
+    lit = int(t * 2.0) % 2
+    for idx, (name, rows) in enumerate(GLYPH.items()):
+        on = idx == lit
+        ox = x0 + idx * (gw + 3)
+        for r, row in enumerate(rows):
+            for j, ch in enumerate(row):
+                if ch != "1":
+                    continue
+                # 亮的那个：暖白实心；暗的那个：暗蓝的同形块（"一明一暗"里暗的那一半还在）
+                col = (255, 246, 190) if on else _mix(_C.BLUE, 0.28)
+                glyph = "\u2588" if on else "\u2591"
+                k.put(ox + j, y0 + r, glyph, col)
+        # 名字写在点阵下面，跟着一起明暗
+        k.put(ox + gw // 2, min(k.by1, y0 + gh + 1), name,
+              (255, 246, 190) if on else _ui(0.35))
+    if k.by1 - 1 > y0 + gh + 1:
+        k.put(k.bx0, k.by1 - 1, "\u4e00\u4e2a\u5b57\u7684\u4e24\u4e2a\u8eab\u4efd", _ui(0.5))
+        k.put(k.bx0, k.by1, "\u626e\u6f14 \u00b7 \u6027\u522b \u00b7 \u89d2\u8272", _mix(_C.GREEN, 0.7))
 
 
 def _ex_clock(k, t: float, u: float) -> None:

@@ -35,6 +35,7 @@ cost.
 from __future__ import annotations
 
 import math
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -2268,6 +2269,33 @@ AIRCRAFT = ("y20", "arj21", "z20", "j20")
 AIRCRAFT_ON = [False]
 
 
+def _snap(a: float, b: float) -> tuple[float, float]:
+    """把一次整屏事件的窗口**整体挪到最近的拍**上（批 97，Q2 = 最高力度）。
+
+    为什么挪窗口而不是挪"画什么"：事件本身的时长是设计好的（飞机掠过 4 s、篮球一整圈 2.29 s…），
+    要改的只是**它什么时候开始**。整窗平移保持时长与内部动画的相位不变，确定性也不变
+    （网格是拟合出来的常量）。`PV_FX_BEAT=0` 可以关掉，用来做前后对照。
+    """
+    if not _BEAT[0] or os.environ.get("PV_FX_BEAT", "").strip() in ("0", "false", "no"):
+        return a, b
+    try:
+        import tui_live as _T
+        if not getattr(_T, "BEAT_SYNC", False):
+            return a, b
+        _k, bt = _T.beat(a)
+        if _k < 0:
+            return a, b
+        off = bt - a
+        if abs(off) > _T.BEAT_SNAP:
+            return a, b
+        return a + off, b + off
+    except Exception:
+        return a, b
+
+
+_BEAT: list = [True]
+
+
 def draw(s, cols: int, rows: int, t: float, words=None) -> int:
     AIRCRAFT_ON[0] = any(getattr(fn, "__name__", "") and name in AIRCRAFT
                         for a, b, fn, kw in EVENTS if a <= t < b
@@ -2297,15 +2325,17 @@ def draw(s, cols: int, rows: int, t: float, words=None) -> int:
     n = 0
     behind = False
     for start, end, fn, kw in EVENTS:
-        if kw.get("behind") and start <= t < end:
-            _run(s, cols, rows, t, start, end, fn, kw)
+        a, b = _snap(start, end) if _BEAT[0] else (start, end)
+        if kw.get("behind") and a <= t < b:
+            _run(s, cols, rows, t, a, b, fn, kw)
             n += 1
             behind = True
     if behind and words is not None:
         words()
     for start, end, fn, kw in EVENTS:
-        if not kw.get("behind") and start <= t < end:
-            _run(s, cols, rows, t, start, end, fn, kw)
+        a, b = _snap(start, end) if _BEAT[0] else (start, end)
+        if not kw.get("behind") and a <= t < b:
+            _run(s, cols, rows, t, a, b, fn, kw)
             n += 1
     # the character art is not on the event list: it is printed when its own pane is up
     return n

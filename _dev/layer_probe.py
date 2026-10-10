@@ -33,10 +33,15 @@ os.environ.setdefault("PV_VARIANT", "school")
 
 
 def windows() -> list[tuple[float, float]]:
-    """Every span in which a `behind` event and an ordinary one are both live."""
+    """Every span in which a `behind` event and an ordinary one are both live.
+
+    **批 97 起用 `FX._snap` 之后的窗口**：整屏事件会被挪到最近的拍上（挪动 ±0.23 s），
+    用名义窗口算出来的重叠区间会让取样点落到"其实已经不在窗口里"的时刻——
+    这正是 193.60 那一刻从"活着"变成"死着"的原因（library 被挪到 193.69 起）。
+    """
     import school_fx as FX
-    behind = [(a, b) for a, b, _fn, kw in FX.EVENTS if kw.get("behind")]
-    other = [(a, b) for a, b, _fn, kw in FX.EVENTS if not kw.get("behind")]
+    behind = [FX._snap(a, b) for a, b, _fn, kw in FX.EVENTS if kw.get("behind")]
+    other = [FX._snap(a, b) for a, b, _fn, kw in FX.EVENTS if not kw.get("behind")]
     out = []
     for a, b in behind:
         for c, d in other:

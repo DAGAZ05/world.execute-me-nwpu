@@ -601,6 +601,154 @@ CARRY_CELLS = 13           # the longest run a carry will lift off
 RETAIN_HOLD = 0.50         # how long a retained block stays exactly where it was
 RETAIN_WIDE = 56           # the widest retained block, cells
 CUT_REVEAL = 3
+
+#: **音频驱动的编舞**（批 97，Q2 = 最高力度）。`False` 回到批 96 的固定值行为。
+BEAT_SYNC = True
+#: 一个切点最多可以挪多少秒去够最近的那一拍。
+#:
+#: 批 97 的实测（`_dev/beat_align_probe.py`）：用**拟合出的节拍网格**（周期 0.458 s ≈ 131 BPM）做参考，
+#: 97 个切点里中位距离 0.109 s、p90 0.218 s（就是半个拍周期）——**网格最远也只有 T/2**。
+#: 所以窗口取 `T/2 = 0.23`，每一刀都能落到它本来就在的那一拍上，而挪动量最大只有一帧多是 5 帧，
+#: 观众看不到"提前/延后"。
+BEAT_SNAP = 0.23
+#: 这一相对幅度以下不吸拍：`kick` 是逐拍触发，弱拍上吸过去只会让动作显得虚。
+BEAT_MIN_KICK = 0.45
+#: `CUT_DUR` 的区间与映射（Q2 的"最高力度"）。实测 `loud` 落在 0.00–0.914，
+#: 所以 `loud / 0.914` 就是它自己的满量程归一化。
+CUT_DUR_LO, CUT_DUR_HI = 0.25, 1.10
+CUT_LOUD_MAX = 0.914
+#: `CUT_CELL`（单格切换时长）：重拍上更快（更有力），安静处更慢。
+CUT_CELL_LO, CUT_CELL_HI = 0.04, 0.13
+#: 拍网格的缓存：节拍时刻表 `[t, t, ...]`（由 `_fit_beat_grid` 拟合出来的）。
+_BEATS: list = [None]
+#: **学校自己的切点开关**（批 97，E6）。`True` 时右栏每次换 pane 边界（落在拍上的那些）
+#: 都会触发一次转场；`False` 回到"只有上游 shot 表决定切"的旧行为，用来做对照。
+SCHOOL_CUTS: list = [True]
+#: **上一帧真正画过的时刻**（批 97b）。`Screen.last_t` 不能当这个用：它在 `draw()` 开头就被赋成
+#: 当前帧的 `t`（残影的 `dt` 需要它），于是"学校切点"的区间判断 `(prev, t]` 永远是空的——
+#: 第一版就是拿着一个恒假的条件，而外层 `try/except` 把它吞成一行 warning（`_dev/school_cut_probe.py`
+#: 报"开/关 0 差异"就是这个原因）。独立一个变量，语义清楚。
+_PREV_T: list = [None]
+#: 音频特征的采样率（`data/…/audio_features.json` 是 48 Hz；`Data.rate` 也是这个值）。
+FPS_FEATURE = 48.0
+
+
+def _fit_beat_grid():
+    """从 `kick` 峰拟合出**全曲的节拍网格**（批 97）。
+
+    为什么不是直接用检测到的峰：`_dev/beat_align_probe.py` 实测——只吸"离得最近的峰"，
+    达标率（离最近峰 ≤ 两帧）只从 24.7% 升到 33.0%，因为**安静段落里根本没有峰**
+    （最差的切点离最近的峰 1.06 s），而音乐在这些段落仍然有拍。
+
+    做法是先估周期再估相位：峰间隔的中位数给周期（实测 402 个峰、中位间隔 0.458 s ≈ 131 BPM），
+    然后在 `[0, T)` 里扫相位、取"落在网格上的 kick 总能量"最大的那个。
+    这样得到的网格每 `T` 秒一个点，最远距离只有 `T/2 ≈ 0.23 s`，而且**有乐句就有拍**。
+    """
+    kicks = [t / FPS_FEATURE for t in _kick_peaks()]
+    if len(kicks) < 8:
+        return []
+    iv = sorted(b - a for a, b in zip(kicks, kicks[1:]))
+    period = iv[len(iv) // 2]
+    if not (0.15 <= period <= 1.2):
+        return []
+    d = DATA[0]
+    best, best_phase = -1.0, 0.0
+    for k in range(48):
+        ph = period * k / 48.0
+        e = sum(d.feat(t, "kick") for t in _grid_times(ph, period, kicks[-1]))
+        if e > best:
+            best, best_phase = e, ph
+    return _grid_times(best_phase, period, kicks[-1])
+
+
+def _grid_times(phase: float, period: float, end: float) -> list[float]:
+    out, t = [], phase
+    while t <= end + period:
+        out.append(t)
+        t += period
+    if out and out[0] > 0.0:
+        out.insert(0, out[0] - period)
+    return [t for t in out if t >= 0.0]
+
+
+def _kick_peaks() -> list[int]:
+    """`kick` 的局部极大值下标（阈值 `BEAT_MIN_KICK`）。"""
+    d = DATA[0]
+    out: list[int] = []
+    if d is None or not getattr(d, "kick", None):
+        return out
+    arr = d.kick
+    for i in range(1, len(arr) - 1):
+        if arr[i] > BEAT_MIN_KICK and arr[i] >= arr[i - 1] and arr[i] > arr[i + 1]:
+            out.append(i)
+    return out
+
+
+def _beat_grid():
+    """全曲的节拍网格，算一次存下来。批 97。"""
+    if _BEATS[0] is None:
+        _BEATS[0] = _fit_beat_grid()
+    return _BEATS[0]
+
+
+def beat(t: float) -> tuple[int, float]:
+    """离 `t` 最近的那一拍：`(序号, 时刻)`；没有就别用（返回 `(-1, t)`）。"""
+    grid = _beat_grid()
+    if not grid:
+        return -1, t
+    lo, hi = 0, len(grid) - 1
+    while lo < hi:                                 # 二分，逐帧调用也要便宜
+        mid = (lo + hi) // 2
+        if grid[mid] < t:
+            lo = mid + 1
+        else:
+            hi = mid
+    i = min(range(max(0, lo - 1), min(len(grid), lo + 2)), key=lambda j: abs(grid[j] - t))
+    return i, grid[i]
+
+
+def beat_index(t: float) -> int:
+    """这一时刻落在第几拍上（用于"重拍只做一件事"的调度）。"""
+    return beat(t)[0]
+
+
+#: 每个 shot 自己的开始时刻（批 97）。`_cut_tables` 的缓存键里要有"这一刀的起始时间"，
+#: 因为转场的前沿是**从起始时刻起跳到最近的拍**的——同一把刀永远跳向同一拍，所以可复现。
+_SHOT_AT: list = [None]
+
+
+def _shot_starts() -> dict:
+    if _SHOT_AT[0] is None:
+        try:
+            _SHOT_AT[0] = {e["index"]: float(e["start"]) for e in Engine().table}
+        except Exception:
+            _SHOT_AT[0] = {}
+    return _SHOT_AT[0]
+
+
+def _beat_snap(idx: int) -> float:
+    """这一刀的前沿要比它的名义时刻**晚多少秒**才落在拍上（批 97）。
+
+    实测（`_dev/cut_audio_probe.py`）：97 个切点里绝大多数都在某个 kick 峰值附近，
+    但偏差集中在 **-0.10…-0.04 s（切得偏早）**，中位 |偏差| 0.078 s。
+    所以"吸拍"这件事的收益是明确的：把整屏的切换点推到它本来就是的那一拍上。
+
+    两条纪律：
+      * 只吸 `BEAT_SNAP`（半个拍周期）以内；
+      * **不**再看那一拍检测到的 `kick` 强度——参考系已经是**拟合出的节拍网格**，
+        它自带"这里有没有拍"，而不是靠逐帧检测（检测在安静段落会漏，实测最差的切点
+        离最近的检测峰 1.06 s，而它离网格只有半个周期）。
+    """
+    at = _shot_starts().get(idx)
+    if at is None:
+        return 0.0
+    k, bt = beat(at)
+    if k < 0:
+        return 0.0
+    off = bt - at
+    # **双向**：离前一拍更近的那批刀要往前吸（负偏移）。只允许往后吸时，实测有 33 个切点
+    # 卡在整半个周期（0.225 s）上——它们不是"不在拍上"，而是"离两拍一样近"。
+    return off if abs(off) <= BEAT_SNAP else 0.0
 # ...and never onto a shot whose *own* first frame is already expensive, or the two costs add up and
 # the frame drops. Measured, not guessed (`_tools/_heavy_shots.py`, 197x52, all FX off):
 # shot_power 20.7 ms, shot_flood 13.4, shot_love_loop 6.7, shot_travel 5.3, shot_isolation 4.9,
@@ -632,6 +780,7 @@ _LAST_SHOT: list = [None]  # the shot the last frame was drawn on, to notice a c
 def fx_clear(s: "Screen | None" = None) -> None:
     _CUT[0] = None
     _LAST_SHOT[0] = None
+    _PREV_T[0] = None            # 批 97b：清了转场状态，也要清"上一帧时刻"，否则下一次会误触发
     if s is not None:
         s.ghost.clear()
         s.ghost_prev = bytearray(s.cols * s.rows)
@@ -798,20 +947,42 @@ def fx_cut(s: "Screen", t: float, ent: dict | None) -> None:
     i = ent["index"] if ent else 0
     mech = CUT_MECH.get(i, ()) if FX["mech"] else ()
     heavy = ent is not None and ent["name"] in CUT_HEAVY
+    # ---- 音频驱动（批 97，Q2 = 最高力度）。三个量各自说话：
+    #      * `kick`  这一刀落在重拍上吗 → 决定揭不揭、以及前沿要不要吸到拍上
+    #      * `loud`  这一句有多响 → 决定整屏铺开用多久（重击快、长音慢）
+    #      * `flux`  这一瞬间变了多少 → 重拍上更快、安静处更慢地"解码"
+    d = DATA[0]
+    loud = d.feat(t, "loud") if d is not None else 0.0
+    flux = d.feat(t, "flux") if d is not None else 0.0
+    kick = d.feat(t, "kick") if d is not None else 0.0
+    rev_here = True
+    if BEAT_SYNC and d is not None:
+        # `loud` 的实测满量程是 0.914（`_dev/cut_audio_probe.py`），按它归一化
+        ln = min(1.0, max(0.0, loud / CUT_LOUD_MAX))
+        cut_dur = CUT_DUR_LO + (CUT_DUR_HI - CUT_DUR_LO) * ln
+        cut_cell = CUT_CELL_HI - (CUT_CELL_HI - CUT_CELL_LO) * max(
+            min(1.0, max(0.0, max(kick, flux))), 0.0)
+        # **"揭不揭"也交给音频**：原来固定"每三刀揭一刀"。现在是"这一刀的瞬时强度过线就揭"——
+        # 重击与强变化处揭幕，安静处硬切（硬切本身也是一种演出）。
+        rev_here = max(kick, flux) >= 0.35
+        snap = _beat_snap(i)
+    else:
+        cut_dur, cut_cell, snap = CUT_DUR, CUT_CELL, 0.0
     if mech:
         kind = next((m.lower() for m in mech if m in ("SCAN", "UNFOLD", "MORPH")), "hard")
         # no CUT_HEAVY guard here: the cost that guard exists for is a whole-screen delay field
         # landing on a shot whose own first frame is already 4-20 ms. A row-by-row unfold or scan
         # touches one or two rows a frame, and a carry is a dozen cells.
     else:
-        if i % CUT_REVEAL or heavy:
+        if heavy or not (rev_here if BEAT_SYNC else (i % CUT_REVEAL == 0)):
             _CUT[0] = None
             return
         kind = _cut_kind(ent)
     cols, rows = s.cols, s.rows
     rnd = random.Random(i * 7919 + 13)
     sx, sy = _cut_seed(kind, cols, rows, rnd)
-    order, sd = _cut_tables(kind, cols, rows, round(sx, 3), round(sy, 3), i)
+    order, sd = _cut_tables(kind, cols, rows, round(sx, 3), round(sy, 3), i,
+                            dur=cut_dur, snap=snap)
     # `cur` is the picture that is on screen while the cut plays: it starts as the old frame and is
     # fed the new one cell by cell as each cell's time comes. Holding the old picture by rewriting
     # the drawn frame would touch every cell on every frame of the transition; this touches only the
@@ -819,7 +990,8 @@ def fx_cut(s: "Screen", t: float, ent: dict | None) -> None:
     # tail, a radial's is a head and a tail, an inward's is a hole in the middle.
     c = dict(t0=t, kind=kind, seed=i, cols=cols, rows=rows, sy=sy, order=order, sd=sd, holds=[],
              cur=[r[:] for r in s.prev], cur_wide=[r[:] for r in s.wide],
-             old=None, old_wide=None, done=-1e9, el=-1e9, carry=None)
+             old=None, old_wide=None, done=-1e9, el=-1e9, carry=None,
+             dur=cut_dur, cell=cut_cell, snap=snap, loud=loud, flux=flux, kick=kick)
     if "RETAIN" in mech:
         c["holds"] = _retain_rects(s.prev, cols, rows)
     if "CARRY" in mech:
@@ -836,7 +1008,8 @@ def fx_cut(s: "Screen", t: float, ent: dict | None) -> None:
 
 
 @lru_cache(maxsize=256)
-def _cut_tables(kind: str, cols: int, rows: int, sx: float, sy: float, seed: int):
+def _cut_tables(kind: str, cols: int, rows: int, sx: float, sy: float, seed: int,
+                dur: float = CUT_DUR, snap: float = 0.0):
     """`(order, sorted delays)` for one field, cached.
 
     Building these is an O(cells) numpy pass plus an argsort and two `.tolist()`s - about 2 ms at
@@ -844,6 +1017,10 @@ def _cut_tables(kind: str, cols: int, rows: int, sx: float, sy: float, seed: int
     builds its own panes. The fields only depend on the shape, the size and the seed, and there are
     25 radial seeds / 4 sweeps / 1 inward per size, so caching them makes every cut after the first
     of its shape free.
+
+    **批 97 加了两个参数**（音频驱动）：`dur`（整屏铺开多久，由这一句的 `loud` 决定）与
+    `snap`（前沿从名义时刻往后挪多少秒才落在拍上）。两者都进了缓存键——同一把刀永远得到
+    同样的表，确定性不变。
 
     Four vocabularies of delay field, all of them the film's: `radial` / `sweep` / `inward` from
     kit.py:398-414, then `scan` (row by row behind the lit line, kit.py:183 `scan_mix`), `unfold`
@@ -855,13 +1032,13 @@ def _cut_tables(kind: str, cols: int, rows: int, sx: float, sy: float, seed: int
         return None, None
     ones = np.ones((1, cols), "f4")
     if kind == "scan":
-        d = ((np.arange(rows, dtype="f4").reshape(rows, 1) + 0.5) / rows * CUT_DUR) * ones
+        d = ((np.arange(rows, dtype="f4").reshape(rows, 1) + 0.5) / rows * dur) * ones
     elif kind == "unfold":
         y0 = min(rows - 1, max(0, int(round(sy / 2.0))))
         far = np.abs(np.arange(rows, dtype="f4").reshape(rows, 1) - y0)
-        d = (far / max(1.0, float(far.max()))) * CUT_DUR * ones
+        d = (far / max(1.0, float(far.max()))) * dur * ones
     elif kind == "morph":
-        d = np.random.default_rng(seed * 7919 + 5).random((rows, cols), dtype="f4") * CUT_DUR
+        d = np.random.default_rng(seed * 7919 + 5).random((rows, cols), dtype="f4") * dur
     else:
         ys = np.arange(rows, dtype="f4").reshape(rows, 1) * 2.0
         xs = np.arange(cols, dtype="f4").reshape(1, cols)
@@ -870,7 +1047,9 @@ def _cut_tables(kind: str, cols: int, rows: int, sx: float, sy: float, seed: int
         u = (d - lo) / max(1e-6, hi - lo)
         if kind == "inward":
             u = 1.0 - u                    # inward: the far cells go first, the seed itself last
-        d = u * CUT_DUR
+        d = u * dur
+    if snap:
+        d = d + float(snap)                # 整屏的切换整体晚 `snap` 秒：前沿落在那一拍上
     order = d.argsort(axis=1).tolist()          # each row's cells, in the order they switch
     d.sort(axis=1)
     return order, d.tolist()
@@ -890,6 +1069,42 @@ def _cut_seed(kind: str, cols: int, rows: int, rnd: random.Random) -> tuple:
             cy + rnd.choice((-0.5, -0.2, 0.0, 0.2, 0.5)) * rows)
 
 
+def fx_school_wipe(s: "Screen", t: float) -> None:
+    """学校自己的切点标记：右栏的一次横向拉开（批 97c）。
+
+    **为什么必须在播放器这一层做**（两次失败教训都记在这里）：
+      1. 第一版把切点做成"重新揭示一次 `u`" —— 生产路径下**完全看不出来**
+         （`_dev/school_cut_probe.py --at 30` = 0 格差异）；
+      2. 第二版把标记写进 `school_panels.draw_scene_pane` —— **一样不生效**，因为上游镜头
+         覆盖时那个函数根本不会被调用（`school_entry` 返回 `base`，右栏由上游自己画）。
+    所以它落在"整帧画完之后"，不管右栏是谁画的都生效。代价：一次 0.30 s 的逐列拷贝，
+    只在这 0.30 s 里发生，其余时间一帧都不多扫。
+    """
+    if SP is None or VAR[0] != "school" or s.prev is None:
+        return
+    try:
+        at = SP.SCHOOL_WIPE_AT[0]
+    except Exception:
+        return
+    if at is None:
+        return
+    el = t - at
+    if not (0.0 <= el < SP.SCHOOL_WIPE_S):
+        return
+    x0, y0, x1, y1 = PANE_BOX
+    if x1 - x0 < 8:
+        return
+    p = min(1.0, el / SP.SCHOOL_WIPE_S)
+    front = x0 + int(round((x1 - x0) * p))
+    prev = s.prev
+    for y in range(y0, y1 + 1):
+        if not (0 <= y < s.rows):
+            continue
+        prow, crow = prev[y], s.buf[y]
+        for x in range(front + 1, min(x1, s.cols - 1) + 1):
+            crow[x] = prow[x]
+
+
 def _in_clear(x: int, y: int) -> bool:
     for a, b, c, d in CLEAR:
         if a <= x <= c and b <= y <= d:
@@ -901,7 +1116,7 @@ def _fx_front(s: "Screen", c: dict, el: float) -> None:
     """The lit line: `scan` writes the picture behind one bright row (kit.py:193), `unfold` opens
     out of a row, so it has two fronts moving apart (s_boot.py:114's CRT lifting and opening)."""
     rows, cols = c["rows"], c["cols"]
-    u = min(1.0, max(0.0, el / CUT_DUR))
+    u = min(1.0, max(0.0, (el - c.get("snap", 0.0)) / max(1e-6, c.get("dur", CUT_DUR))))
     if c["kind"] == "scan":
         ys = {min(rows - 1, int(u * rows))}
     else:
@@ -966,7 +1181,12 @@ def fx_reveal(s: "Screen", t: float) -> None:
         return
     el = t - c["t0"]
     c["el"] = el
-    if el > CUT_DUR + CUT_CELL + 0.05 and (c["carry"] is None or el > CARRY_DUR + 0.05):
+    # 批 97：这次转场自己的时长与单格时长（由这一句的 `loud`/`kick`/`flux` 决定），
+    # 不再是模块常量。`snap` 是"前沿从名义时刻往后挪到拍上"的那一段。
+    _dur = c.get("dur", CUT_DUR)
+    _cell = c.get("cell", CUT_CELL)
+    _snap = c.get("snap", 0.0)
+    if el > _snap + _dur + _cell + 0.05 and (c["carry"] is None or el > CARRY_DUR + 0.05):
         _CUT[0] = None
         return
     new = s.buf
@@ -986,10 +1206,10 @@ def fx_reveal(s: "Screen", t: float) -> None:
         cur, order, sd = c["cur"], c["order"], c["sd"]
         cur_wide = c["cur_wide"]
         seed, cols, done = c["seed"], c["cols"], c["done"]
-        front = el - CUT_CELL                 # a cell that switched later than this is still decoding
+        front = el - _cell                 # a cell that switched later than this is still decoding
         c["done"], c["el"] = front, el
         # 溶解的进度：一次转场的总时长（揭幕 + 前沿）走完就是 1.0
-        prog = min(1.0, max(0.0, el / max(1e-6, CUT_DUR + CUT_CELL)))
+        prog = min(1.0, max(0.0, el / max(1e-6, _dur + _cell)))
         # **fbm 溶解**（批 86，默认关闭，`--dissolve`）。见模块顶部 NOISE_DISSOLVE 的说明：
         # 出场顺序表在这一次转场开始时取一次并存进 `c`，之后每帧复用——因为场每帧都变，
         # 每帧重算会让格子反复横跳，读成噪点而不是"画面在一片片地换"。
@@ -3134,6 +3354,18 @@ BAND_BOX: list = [0, 0, 0, 0]
 # the chat window and moved that instead of the drawing it was meant to move. Published like the other
 # two rather than recomputed, so there is one copy of the layout.
 PANE_BOX: list = [0, 0, 0, 0]
+#: 音游面板（批 98）：**新功能**，用户要的是"区分度"——一个只有这一版才有的东西。
+#: 它在左列的最下面，底栏（boot log / 歌词）相应缩短 `RHYTHM_H` 行。
+#: 开关在 `RHYTHM_ON`；`RHYTHM_BOX` 由 `draw_body` 发布（与 `PANE_BOX` 同一套约定）。
+RHYTHM_H = 6
+RHYTHM_ON: list = [True]
+RHYTHM_BOX: list = [0, 0, 0, 0]
+#: 音游对象本身（`school_rhythm.Game`），由 `main()` 建、`draw` 用。
+RHYTHM: list = [None]
+#: 这一帧的 `Data`（批 97）。`fx_cut` 需要音频特征来"切在拍上"，而它的签名里没有 `Data`；
+#: 项目在这个文件里已经用同一个形状跑了七八个单例（`NOW` / `CLEAR` / `LEFT_BOX` …），
+#: 这里沿用那个约定——`draw()` 每帧写一次，`fx_cut` 只读。
+DATA: list = [None]
 AVATAR_MAX_W = 14             # cells; a cell is twice as tall as it is wide, so 14x7 is square
 ERR_RED = (255, 74, 61)       # the page's own --dsw-alias-state-error-primary in the red group
 CURSOR_BLINK = 0.53           # dsh_her.py:167 - `int((t - GONE) / 0.53) % 2`
@@ -4255,8 +4487,26 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
     # requirement on the entry. A pane that cannot get its minimum hands the rows back to the ticker.
     if SP is not None and VAR[0] == "school" and ent is not None and ent.get("pane"):
         band_want = max(4, band_want - 2)
+    # **音游面板在舞台上时，航小天的框要让出它那 6 行**（批 98b，用户："这时可以把航小天对话框
+    # 缩一点高度"）。`bottom` 是左列的下缘，而 `band_top = top + fig_h`，所以给底栏留
+    # `BAND_MIN_H + RHYTHM_H` 就是"宁可让出她的高度，也不把面板挤掉"。
+    _rh_live = False
+    _rh_h = RHYTHM_H
+    try:
+        if RHYTHM_ON[0] and VAR[0] == "school" and ent is not None:
+            import school_rhythm as _RHYw
+            _rh_live = _RHYw.live(t)
+            _rh_h = _RHYw.panel_h(t)          # 2 键 6 行、3 键 8 行（用户要求 3 键要更高）
+    except Exception:
+        _rh_live = False
+    # 图的高度：**先按"底栏按内容要、并且给面板留够行"来算**，算不出来再退回小底栏。
+    # （原来那句 `for need in (band_want, BAND_MIN_H)` 是"从宽到窄试两次"，而音游要让出的是
+    # 固定的行数——顺序反了会把"让位"这一档跳过去。）
+    # **面板不在舞台上时，这一块完整归底栏**（批 98d，用户："在没有music panel的部分，
+    # 原来在该位置的panel应该是完整的（init panel）"）——所以那一档的 need 就是 `BAND_MIN_H`。
     fig_h = 0
-    for need in (band_want, BAND_MIN_H):
+    for need in ((band_want + _rh_h, band_want, BAND_MIN_H) if _rh_live
+                 else (band_want, BAND_MIN_H)):
         fig_h = min(FIG_MAX_H, main_h - need)
         if fig_h >= FIG_MIN_H:
             break
@@ -4318,14 +4568,45 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
     band_top = top + (fig_h if (figure or chat or cursor) else 0)
 
     # --------------------------------------------------------------- stdout band
-    BAND_BOX[:] = [chat_x0, band_top, chat_x1, bottom]
-    if t < SIM_START:
-        draw_boot_log(s, chat_x0, band_top, chat_x1, bottom, t)
-    elif t < SIM_END:
-        draw_sim_start(s, chat_x0, band_top, chat_x1, bottom, t)
+    # **音游面板占左列最下面 `RHYTHM_H` 行**（批 98）：底栏相应缩短，两行各让出一点，
+    # 而不是把面板叠在日志上。`school_rhythm` 只在 `RHYTHM_ON` 且歌名对得上时介入。
+    _rth = RHYTHM[0] if (RHYTHM_ON[0] and VAR[0] == "school") else None
+    if _rth is not None:
+        try:
+            _rth.tick(t)          # 把过期没人按的音符结算成 MISS（判定只读歌内时间）
+        except Exception:
+            pass
+    rth_top = None
+    band_bottom = bottom
+    if _rth is not None and _rh_live:
+        rth_top = bottom - _rh_h + 1
+        band_bottom = rth_top - 1
+        RHYTHM_BOX[:] = [chat_x0, rth_top, chat_x1, bottom]
     else:
-        CLEAR.append((chat_x0, band_top, chat_x1, bottom))   # before the draw, so `put` leaves its colour
-        draw_lyrics(s, d, t, chat_x0, band_top, chat_x1, bottom)
+        RHYTHM_BOX[:] = [0, 0, 0, 0]
+    BAND_BOX[:] = [chat_x0, band_top, chat_x1, band_bottom]
+    if t < SIM_START:
+        draw_boot_log(s, chat_x0, band_top, chat_x1, band_bottom, t)
+    elif t < SIM_END:
+        draw_sim_start(s, chat_x0, band_top, chat_x1, band_bottom, t)
+    else:
+        CLEAR.append((chat_x0, band_top, chat_x1, band_bottom))   # before the draw, so `put` leaves its colour
+        draw_lyrics(s, d, t, chat_x0, band_top, chat_x1, band_bottom)
+
+    # ------------------------------------------------ 音游面板（批 98，左列最下）
+    if rth_top is not None and RHYTHM_BOX[2] > RHYTHM_BOX[0]:
+        try:
+            import school_rhythm as _RHY
+            rx0, ry0, rx1, ry1 = RHYTHM_BOX
+            if t >= _RHY.RESULT_AT:
+                # 结算：**只在"在铸剑吗？"那一屏**（批 98d）。框不画了——那一屏整屏是黑的，
+                # 只留 `draw_black` 自己的光标与问题；总分由 `draw()` 末尾的最高层写上去。
+                pass
+            else:
+                _RHY.draw(s, rx0, ry0, rx1, ry1, t, _rth,
+                          ui, mix, ME_TEXT, BG, ANOM)
+        except Exception as exc:
+            print(f"warning: the music panel failed ({exc})", file=sys.stderr, flush=True)
 
     # --------------------------------------------------------- spectrum panel
     s.box(pane_x0, top, pane_x1, sp_bottom, "feature bands", 0.55, ME_TEXT)
@@ -4565,6 +4846,13 @@ def draw_footer(s: Screen, d: Data, t: float, playing: bool, fps: float, ent: di
     _b = FX_BUNDLE[0]
     _n = (1 if FX["on"] else 0) + (0 if _lv <= 0.0 or _b is None else _b["on"])
     left += f"  fx:{_fx_level_name(_lv)}" + (f"({_n})" if _n else "")
+    # 音游的实时分数进 footer（批 98）：面板给的是舞台，footer 给的是"这一遍的成绩单"。
+    _rth_f = RHYTHM[0] if (RHYTHM_ON[0] and VAR[0] == "school") else None
+    if _rth_f is not None:
+        try:
+            left += f"  music {_rth_f.score()}/{_rth_f.max_score()} ({_rth_f.pct():.0f}%)"
+        except Exception:
+            pass
     # The hint line is right-aligned. At 96-120 columns the long version started *before* the left
     # text ended, so `PLAYING 24.0 fps` was printed on top of `her:auto->...`. Measure it first, and
     # keep a short version for narrow windows.
@@ -4578,8 +4866,21 @@ def draw_footer(s: Screen, d: Data, t: float, playing: bool, fps: float, ent: di
     if VAR[0] == "school":
         # `home start`, not `arrows seek` (batch 80): fast-forward and rewind are gone - see the key handler,
         # they were the one action that made the sound's lag a property of the machine's audio stack.
-        long_hint = "space pause/resume   [ ] volume   x fx   home start   q quit"
-        short_hint = "space  [ ] vol  x fx  q quit"
+        #
+        # **音游的按键必须写在这一行上**（批 98）：`D`/`J`/`S` 是观众要按的键，
+        # 而 footer 是这个窗口里唯一"说明现在能按什么"的地方——不写上去，没人会知道要按。
+        _rh = RHYTHM[0] if (RHYTHM_ON[0] and RHYTHM[0] is not None) else None
+        if _rh is not None:
+            try:
+                import school_rhythm as _RR
+                keys = "D J" if t < _RR.EXEC_AT else "S D J"
+            except Exception:
+                keys = "D J"
+            long_hint = f"music: {keys}   space pause/resume   [ ] volume   x fx   home start   q quit"
+            short_hint = f"music {keys}  space  x fx  q quit"
+        else:
+            long_hint = "space pause/resume   [ ] volume   x fx   home start   q quit"
+            short_hint = "space  [ ] vol  x fx  q quit"
     else:
         long_hint = "h her   c chat   x fx   space toggle   q quit"
         short_hint = "h her  c chat  x fx  q quit"
@@ -4606,6 +4907,7 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
     cols, rows = s.cols, s.rows
     ent = eng.entry_at(t) if eng is not None else None
     NOW[0] = t
+    DATA[0] = d                   # 批 97：`fx_cut` 读它做"切在拍上"（见 `DATA` 的说明）
     # ...and how much song time has passed on this screen since the last frame (see `Screen.dt`): the
     # trail is the one effect the film accumulates rather than evaluates, so it has to be stepped by the
     # clock and not by however often the loop happens to redraw. Clamped, because a seek is not a frame.
@@ -4622,8 +4924,35 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
     # hard-cuts the rest. The next frame draws the new shot, and `fx_apply` below holds the old
     # picture in the cells whose own time has not come yet.
     idx = ent["index"] if ent else None
+    cut = False
     if idx != _LAST_SHOT[0]:
-        if _LAST_SHOT[0] is not None:
+        cut = True
+    elif idx is not None and SCHOOL_CUTS[0] and _PREV_T[0] is not None:
+        # **学校自己的刀**（批 97，E6）。上游的 shot 表没在这里切，但这是这一版自己的一个
+        # pane 边界、而且它落在拍上——那就让它成为一次**画面事件**（转场 + 重新揭示），
+        # 而不是"右栏的内容悄悄换了一张图"。
+        #
+        # 为什么这件事重要：整片的切点本来全是上游导演的，所以"总体演出"从第一版起就被锁死；
+        # 这一条是这一版第一次拥有**自己的剪辑点**。判据在 `_dev/school_cut_probe.py`：
+        # 每个切点都落在拍上（离网格 0.000 s），间隔 ≥ 0.45 s。
+        #
+        # **区间要用 `_PREV_T`，不是 `s.last_t`**（批 97b）：后者在上面已经被赋成当前帧的 `t` 了，
+        # 用它算 `(prev, t]` 恒为空——第一版就是这么"触发但没效果"的。
+        try:
+            import school_panels as _SPc
+            at = _SPc.cut_here(t, _PREV_T[0])
+            if at is not None:
+                cut = True
+                _SPc.SCHOOL_WIPE_AT[0] = at      # 让右栏有一次看得见的横向拉开（批 97c）
+                ent = dict(ent)
+                # 揭示从切点重新开始：这样"换了图"是看得见的
+                ent["start"] = at
+                ent["u"] = 0.0 if t <= at else min(1.0, (t - at) / 0.6)
+        except Exception as exc:
+            print(f"warning: school cut failed ({exc})", file=sys.stderr)
+    _PREV_T[0] = t
+    if cut:
+        if _LAST_SHOT[0] is not None or SCHOOL_CUTS[0]:
             fx_cut(s, t, ent)
         else:
             _CUT[0] = None
@@ -4677,8 +5006,21 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
                 _floor = float(_envfloor)
             except ValueError:
                 pass
-        NOISE[0].field(s, box=(0, 1, cols - 1, rows - 5), period=NOISE_PERIOD,
-                       stride=stride, gain=NOISE_GAIN_RUNTIME[0], floor=_floor)
+        # **底噪只铺右栏**（批 96b）。这一条是看着截图改的：原来的盒子是**整屏**
+        # `(0, 1, cols-1, rows-5)`，于是它把**左边那个对话窗**也铺了一层极暗的字符——
+        # 而左窗是"读"的地方（用户的原话：`main` 分支同一处没有这个问题）。
+        # 两个矩形由 `draw_body` 发布（`PANE_BOX`）；读上一帧的结果是安全的，因为
+        # 几何只在 `SWAP_AT` 那一次变一次。
+        # `PV_NOISE_FULLSCREEN=1` 回到旧的整屏行为，用来做对照。
+        if os.environ.get("PV_NOISE_FULLSCREEN", "").strip() in ("1", "true", "yes"):
+            box = (0, 1, cols - 1, rows - 5)
+        else:
+            _px0, _py0, _px1, _py1 = PANE_BOX
+            # 第一帧 `PANE_BOX` 还是零：那时不铺，第二帧起就正常
+            box = (_px0, _py0, _px1, _py1) if _px1 - _px0 >= 8 else None
+        if box is not None:
+            NOISE[0].field(s, box=box, period=NOISE_PERIOD,
+                           stride=stride, gain=NOISE_GAIN_RUNTIME[0], floor=_floor)
 
     # ------------------------------------------------------------------ header
     s.put(1, 0, "WORLD.EXECUTE(ME);", ui(1.0))
@@ -4767,6 +5109,9 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
             _FX.transition(s, cols, rows, t)
         except Exception as exc:
             print(f"warning: the full-frame layer failed ({exc})", file=sys.stderr, flush=True)
+    # **学校自己的切点标记**：整帧画完之后、后期之前（批 97c）。放在这里是它的全部要害——
+    # 右栏此刻已经画完（不管是学校画的还是上游画的），拉开只做"保住右侧旧格"这一件事。
+    fx_school_wipe(s, t)
     # tuikit.py:468-476's post, and the cut's reveal, both after everything else has been drawn
     fx_apply(s, t, ent)
     # **The stuck-99% bar goes on after the full-frame layer, and that placement is load-bearing.**
@@ -4809,6 +5154,18 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
     # behind it are two cells that have to agree, and this is the one place that checks them all rather
     # than trusting a dozen writers. See `Screen.normalise` - and `_dev/ansi_probe.py`, which is what
     # measures whether it works (it decodes the escape stream back into a screen and diffs it).
+    # **音游的结算界面画在最后**（批 98）：用户要的是"结束界面**中央**显示总得分"，
+    # 而结尾那两分钟是整屏事件（`crest` 构图、`sword` 闪光、`particles`）——
+    # 画在 `draw_body` 里会被它们盖掉（实测 t=208 只剩一块黑与进度条）。
+    # 放在 `normalise` 之前、所有层之后，它才是这一帧的最后一句。
+    if (RHYTHM_ON[0] and VAR[0] == "school" and RHYTHM[0] is not None):
+        try:
+            import school_rhythm as _RHY2
+            if _RHY2.result_live(t):
+                _RHY2.draw_final(s, 0, 0, cols - 1, rows - 1, t, RHYTHM[0],
+                                 ui, mix, ME_TEXT, BG, ANOM)
+        except Exception as exc:
+            print(f"warning: the music result failed ({exc})", file=sys.stderr, flush=True)
     s.normalise()
 
 
@@ -5254,6 +5611,22 @@ def main() -> None:
                     gate = _G
                 except Exception:
                     gate = None
+            # 音游：**每首歌建一次**（批 98）。谱面是确定性的（来自节拍网格），所以
+            # `RHYTHM[0]` 重复建也得到同一份；这里只在没有/已结束（跳回开头）时重建。
+            if VAR[0] == "school" and RHYTHM_ON[0]:
+                try:
+                    import school_rhythm as _RHY
+                    if RHYTHM[0] is None:
+                        RHYTHM[0] = _RHY.Game()          # 每首歌建一次；谱面确定，重建也一致
+                        print(f"music panel: {RHYTHM[0].total} notes "
+                              f"(D/J before {_RHY.EXEC_AT:g}s, then S D J)",
+                              file=sys.stderr, flush=True)
+                    elif t < 1.0 < RHYTHM[0].last_t:
+                        RHYTHM[0] = _RHY.Game()          # Home 回到开头：重新开一局
+                except Exception as exc:
+                    print(f"warning: music panel disabled ({exc})", file=sys.stderr, flush=True)
+                    RHYTHM[0] = None
+                    RHYTHM_ON[0] = False
             if playing:
                 t = min(END, t + dt)
                 if audio.ok:
@@ -5292,6 +5665,10 @@ def main() -> None:
                 # swallowed space / `[` / `]` / `x` / `q` this fixes - the user's "完全没用")
                 if gate is not None and gate.key(ch, t):
                     # nothing to resume: the song kept playing while the question was up
+                    continue
+                # 音游面板在它自己的舞台上吃 `d`/`j`/`s`（批 98）。所有权规则与 gate 相同：
+                # **只在面板真的在舞台上时才吃键**，其余时间 `D`/`J`/`S` 与播放器无关（没人用）。
+                if RHYTHM[0] is not None and RHYTHM[0].key(ch, t):
                     continue
                 if ch in ("q", "Q", "\x1b"):
                     quitting = True

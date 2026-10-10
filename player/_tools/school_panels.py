@@ -655,6 +655,147 @@ def shot_rows() -> list[dict]:
     return rows
 
 
+# ---------------------------------------------------------------- 学校自己的切点（批 97，E6）
+#
+# **这是"总体演出"这件事的关键**：整片的时间结构本来是上游的 97 shot 表
+# （`tui_live._LAST_SHOT` 判定"换镜了"，学校排期只是在它上面稀疏地换右栏的 pane）。
+# 也就是说，观众看到的"节奏"是原片导演的节奏。这一节让学校**自己也有刀**：
+#
+#   自一个 pane 出现起，只要遇到一个"学校自己的切点"，就触发一次转场——
+#   于是右栏的每一次换图都变成一次**画面事件**，而不是"内容悄悄换了"。
+#
+# 候选怎么来的（Q3 = 效果至上，不预设数量）：取 **pane 行的边界**（每张图该换的时刻），
+# 去掉上游 shot 表已经在那里切过的（那些本来就切了）、去掉间隔太近的（< 0.35 s 的两次切会
+# 互相盖掉），剩下的吸到最近的拍上（`BEAT_SNAP` 之内）。候选**先量后用**：
+# `_dev/school_cut_probe.py` 会报"切点落拍率、数量、最小间隔"，数量由那条曲线决定。
+SCHOOL_CUT_MIN_GAP = 0.45
+SCHOOL_CUT_SNAP = 0.23
+#: 和上游的刀（或另一把学校刀）近到多少秒以内就**不算自己的一刀**——那是同一刀。
+#: 实测教训（`_dev/school_cut_probe.py` 第一版）：吸拍会让一个"名义上离上游 0.1 s 远"的边界
+#: **正好落到上游那一刀上**，合并后最小间隔 0.004 s，等于同一时刻排了两次转场。
+SCHOOL_CUT_CLASH = 0.15
+
+
+def school_cuts() -> list[float]:
+    """学校自己的切点（秒），升序；每次调用都从表算，表小，代价可忽略。"""
+    import tui_live as T
+    rows = shot_rows()
+    cuts: list[float] = []
+    upstream: list[float] = []
+    try:
+        upstream = sorted(float(e["start"]) for e in T.Engine().table)
+    except Exception:
+        pass
+
+    def _clash(t: float) -> bool:
+        return any(abs(t - u) < SCHOOL_CUT_CLASH for u in upstream) or \
+            any(abs(t - c) < SCHOOL_CUT_CLASH for c in cuts)
+
+    for r in rows:
+        at = float(r["at"])
+        if at <= 1.0:
+            continue
+        k, bt = T.beat(at)
+        if k < 0:
+            continue
+        if abs(bt - at) > SCHOOL_CUT_SNAP:
+            continue
+        t = bt
+        if _clash(t):
+            continue                      # 上游已经（或几乎）在这里切了：那本来就是一次画面事件
+        if cuts and t - cuts[-1] < SCHOOL_CUT_MIN_GAP:
+            continue
+        cuts.append(round(t, 4))
+    return cuts
+
+
+_PLAN: list = [None]
+
+
+def cut_plan() -> list[float]:
+    """缓存版（`fx_cut` 每帧问一次也不贵，但没理由每帧重算）。"""
+    if _PLAN[0] is None:
+        try:
+            _PLAN[0] = school_cuts()
+        except Exception:
+            _PLAN[0] = []
+    return _PLAN[0]
+
+
+#: 最近一次学校切点的时刻（`tui_live.draw` 每次触发时写），与拉开时长。
+#: 见 `draw_scene_pane` 的说明：切点必须有**学校自己的可视标记**，否则它在生产路径下是隐形的。
+SCHOOL_WIPE_AT: list = [None]
+SCHOOL_WIPE_S = 0.30
+
+
+def cut_here(t: float, prev_t: float) -> float | None:
+    """`(prev_t, t]` 之间有没有学校自己的切点？有就返回它的时刻（用于把这次转场的起点钉在拍上）。"""
+    if t < prev_t:                        # 回退/跳转：这一帧不触发
+        return None
+    last = None
+    for c in cut_plan():
+        if prev_t < c <= t:
+            last = c
+    return last
+
+
+#: **主题钉死**（批 98c）。用户点名的错配：*"时钟旋转动画没有对应到歌词 from am to pm，
+#: FM切换动画也没有对应到 to f to m"*。原因是这些动画**已经在代码里**（`pane_exchange` 的
+#: `panel=clock` 是 12 小时钟面、`panel=bits` 是 F→M 翻三位），但排期把它们放在了别的歌词行上：
+#: 钟面在 "To AC, to DC"(45.52)，F→M 在 "Switch my current"(44.04)，
+#: 而 "From AM to PM"(93.52) 给的是 chladni、"To F, to M"(89.91) 给的是 quantize。
+#:
+#: 这张表是**作者级**的裁决：`(歌词行时刻, 该行必须画的 pane/panel)`。`row_at` 之后由
+#: `school_entry` 应用——所以它优先于通用排期，但只覆盖被点名的这几行，其余照旧。
+#: 它同时是**可复现**的（常量表），并且 `_dev/lyric_pane_probe.py` 会把它列出来核对。
+THEME_PINS: list[tuple[float, str, str, str]] = [
+    # 12 小时钟面 = 一天的双覆盖 —— 只在字面讲时间的这一行
+    (93.52, "pane_exchange", "clock", "12 小时钟面：一天被这半圈覆盖两次"),
+    # F→M：三位取反的两个名字 —— 字面念出 F 与 M 的这一行
+    (89.91, "pane_exchange", "bits", "F 与 M 只差三位：翻过去还能翻回来"),
+    # AC/DC：电流的两个名字 —— 保留在它原本的行上（用户只是说"没对应"，改成钟面反而是错的）
+    (45.52, "pane_exchange", "hyper", "AC 与 DC：同一股电流的两个名字"),
+    # 角色 S/M：字形互换 —— 与 F→M 是同一台机器上的另一次翻位
+    (97.32, "pane_exchange", "letters", "S 与 M：一个字的两个身份，来回翻"),
+]
+
+
+_PINS: dict = {}
+
+
+def pinned_row(at: float) -> tuple[float, dict] | None:
+    """`at` 落在某一行里、而那一行被主题钉死了吗？返回 `(那一行的开始时刻, 替换后的行)`。
+
+    **按"哪一行覆盖这个歌词"匹配，而不是"哪一行的 at 恰好等于歌词时刻"**：像 "To F, to M"(89.91)
+    落在 88.34 那一行里（那一行是 `Switch my gender` 起的），它的 `at` 永远不等于 89.91。
+    第一版按等值匹配，于是四个钉子里只有一个生效（`_dev/pin_debug.py` 量的）。
+
+    解析一次存进 `_PINS`：**逐帧调用要便宜**（一个字典查表），而且表是常量。
+    """
+    if not _PINS:
+        rows = shot_rows()
+        for ts, pane, panel, sub in THEME_PINS:
+            for r in rows:
+                if r["at"] <= ts < r["end"]:
+                    out = dict(r)
+                    out["name"] = pane
+                    out["args"] = dict(out.get("args") or {}, panel=panel)
+                    out["sub"] = sub                      # 副标题也要换成这张图自己的说法
+                    out["_pinned_for"] = ts
+                    _PINS[round(float(r["at"]), 4)] = out
+                    break
+    # **取"不超过 `at` 的最大 key"**。第一版写了 `next(... for k in sorted(...) if k <= at)`，
+    # 那取到的是**最小**的 key——于是 88/89/93 那三行全部拿到 45.52 那一行，
+    # 表现就是"四个钉子里只有一个生效"（`_dev/pin_debug.py` 量出来的）。
+    best = None
+    for k in sorted(_PINS):
+        if k <= at + 1e-6:
+            best = k
+        else:
+            break
+    return None if best is None else (best, _PINS[best])
+
+
 def school_shots() -> dict:
     """`{index: {name, pane, ops, figure, u}}` for the row covering each point in the song.
 
@@ -709,6 +850,17 @@ def school_entry(t: float, base: dict | None) -> dict | None:
     # negative duration - harmless in the drawing, because `_Kit` clamps `u`, but wrong in the footer
     # and wrong in anything that reasons about the pane's length.
     e["end"] = row["end"]
+    # **主题钉死优先**（批 98c）：用户点名的"时钟没对应到 from am to pm"那几行，在这里被换成
+    # 字面对应的那张图（见 `THEME_PINS`）。它只覆盖被点名的行，其余排期不动。
+    pin = pinned_row(row["at"])
+    if pin is not None and abs(pin[0] - float(row["at"])) < 0.02:
+        # 只有"当前这一行正是被钉死的那一行"才替换。`pinned_row` 返回的是"≤ 这个时刻的最近一条"，
+        # 所以这里必须再比对开始时刻，否则那一行的图会一直延续到它后面的所有行上
+        # （第一版就是这样：四个钉子里只有第一个行 45.52 生效，其余全落回通用排期）。
+        pin_row = pin[1]
+        need, _least = PANE_MIN.get(pin_row["name"], (10, 4))
+        e.update(pane=pin_row["name"], pane_need=need, ops=pin_row["ops"],
+                 pane_args=pin_row.get("args"), pane_sub=pin_row.get("sub", row.get("sub", "")))
     dur = max(1e-6, e["end"] - e["start"])
     e["u"] = min(1.0, max(0.0, (t - e["start"]) / dur))
     return e
@@ -766,6 +918,14 @@ def draw_scene_pane(pane: str, s, x0: int, y0: int, x1: int, y1: int,
     sung" (batch 58); it is published for the header every pane draws through
     (`school_courses.PANE_SUB`, read by `_Kit._header`) and cleared again afterwards, so a caller that
     draws a pane without a schedule row gets a title and nothing else.
+
+    **学校自己的切点要看得见**（批 97c）。第一版把切点做成"重新揭示一次 `u`"，实测在生产路径下
+    **完全看不出**（`_dev/school_cut_probe.py --at 30` = 0 格差异）：上游新镜头覆盖时
+    `school_entry` 返回的是 `base`，右栏改由**上游自己**画，新旧内容一模一样。
+
+    第二版把拉开标记写在这里，**也是错的**：那是同一条原因的另一种形式——只要当前不在学校的
+    overlay 行上，这个函数根本不会被调用。所以拉开标记最后落在 `tui_live.fx_school_wipe`，
+    它由播放器在"整帧画完之后"调用，**不管右栏是谁画的都生效**。
     """
     _CO.PANE_SUB[0] = sub
     try:
