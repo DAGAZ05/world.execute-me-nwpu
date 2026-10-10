@@ -62,26 +62,38 @@ def main() -> None:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
-    path = ROOT / "player" / "data" / "fx.json"
-    if not path.exists():
-        raise SystemExit(f"missing: {path}（这个探针要改它，所以它必须已经存在）")
-    original = path.read_text(encoding="utf-8")
-
     import importlib
     import tui_live as T
     importlib.reload(T)          # 确保读到的是当前文件
 
-    print(f"文件：{path.relative_to(ROOT)}")
+    # **绝不写用户真正在用的那个文件**（批 94 的教训）。这个探针要验"文件写坏了会怎样"，
+    # 所以它必须写点什么；而写 `player/data/fx.json` 出过两次真事：
+    #   1. `finally` 在进程被 Terminate 时不执行（我自己的冒烟测试就 Kill 过播放器），
+    #      于是测试用的取值被留在用户文件里；
+    #   2. 那个文件没有备份，第一版直接把用户的 `_readme` 与取值覆盖成了测试内容。
+    # 现在探针把 `FX_FILE` 指到 `_dev/out/` 下的临时文件，用户的文件完全不参与。
+    tmp = ROOT / "_dev" / "out" / "fx_probe_tmp.json"
+    tmp.parent.mkdir(parents=True, exist_ok=True)
+    real = T.FX_FILE[0]
+    T.FX_FILE[0] = tmp
+    print(f"测试用的文件：{tmp.relative_to(ROOT)}（用户文件 {real.relative_to(ROOT)} 不参与）")
     print()
-    print(f"{'坏法':>12} {'结果':>18} {'期望':>18}  判定")
+
+    def read_triple():
+        return T._fx_load_file()
+
+    def read_gain():
+        return T._fx_read_gain()
+
     ok = True
     try:
+        print(f"{'坏法':>12} {'结果':>18} {'期望':>18}  判定")
         for name, body, want in CASES:
             if body is None:
-                path.unlink(missing_ok=True)
+                tmp.unlink(missing_ok=True)
             else:
-                path.write_text(body, encoding="utf-8")
-            got = T._fx_load_file()
+                tmp.write_text(body, encoding="utf-8")
+            got = read_triple()
             # 元组比较要用容差（浮点）
             if want is None:
                 good = got is None
@@ -92,27 +104,34 @@ def main() -> None:
             ok &= good
             print(f"{name:>12} {str(got):>18} {str(want):>18}  {'PASS' if good else 'FAIL'}")
     finally:
-        path.write_text(original, encoding="utf-8")
-        print()
-        print("（已还原 data/fx.json）")
+        tmp.unlink(missing_ok=True)
+        T.FX_FILE[0] = real
 
     print()
     print("=== 底噪亮度键 `noise_gain`（批 94）===")
     print()
     print(f"{'坏法':>22} {'三层':>18} {'gain':>8} {'期望 gain':>10}  判定")
-    for name, body, want3, wantg in GAIN_CASES:
-        path.write_text(body, encoding="utf-8")
-        g3 = T._fx_load_file()
-        g = T._fx_read_gain()
-        ok3 = (g3 is None and want3 is None) or (
-            g3 is not None and want3 is not None
-            and len(g3) == 3 and all(abs(a - b) < 1e-9 for a, b in zip(g3, want3)))
-        okg = (g is None and wantg is None) or (
-            g is not None and wantg is not None and abs(g - wantg) < 1e-9)
-        good = ok3 and okg
-        ok &= good
-        print(f"{name:>22} {str(g3):>18} {str(g):>8} {str(wantg):>10}  "
-              f"{'PASS' if good else 'FAIL'}")
+    T.FX_FILE[0] = tmp
+    try:
+        for name, body, want3, wantg in GAIN_CASES:
+            tmp.write_text(body, encoding="utf-8")
+            g3 = read_triple()
+            g = read_gain()
+            ok3 = (g3 is None and want3 is None) or (
+                g3 is not None and want3 is not None
+                and len(g3) == 3 and all(abs(a - b) < 1e-9 for a, b in zip(g3, want3)))
+            okg = (g is None and wantg is None) or (
+                g is not None and wantg is not None and abs(g - wantg) < 1e-9)
+            good = ok3 and okg
+            ok &= good
+            print(f"{name:>22} {str(g3):>18} {str(g):>8} {str(wantg):>10}  "
+                  f"{'PASS' if good else 'FAIL'}")
+    finally:
+        tmp.unlink(missing_ok=True)
+        T.FX_FILE[0] = real
+        print()
+        print(f"（已还原指向：{T.FX_FILE[0].relative_to(ROOT)}；临时文件已删除）")
+
     print()
     print("总体：", "PASS" if ok else "FAIL")
     print()

@@ -243,6 +243,14 @@ NOISE: list = [None]
 FX_STRENGTH: list = [None]          # None = the individual flags decide; else (p, n, d) floats
 
 
+#: `fx.json` 的**位置**（批 94）。做成一个可覆盖的变量，而不是散在两处的字面量：
+#: 探针要验"这个文件被写坏了会怎样"，只能真的去写一个文件；而写**用户真正在用的那个**
+#: 有两个真实后果——探针中途被杀时 `finally` 不会执行（进程被 Terminate 就不走解释了），
+#: 于是用户的取值被留在那里；而且它**没有备份**。
+#: 现在探针把这里指到 `_dev/out/` 下的临时文件，用户的文件完全不参与测试。
+FX_FILE: list = [ROOT / "data" / "fx.json"]
+
+
 def _fx_load_file() -> tuple | None:
     """Read `data/fx.json` — **the file the user edits by hand** — and return the triple, or None.
 
@@ -263,7 +271,7 @@ def _fx_load_file() -> tuple | None:
     `--fx` on the command line still wins over this file, so a one-off experiment does not have to
     edit the file back and forth.
     """
-    path = ROOT / "data" / "fx.json"
+    path = FX_FILE[0]
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
@@ -299,7 +307,7 @@ def _fx_read_gain() -> float | None:
     缺失/非数字 -> None（用默认），超范围 -> 夹到 `0.1..2.0`（`0` 会让噪点完全看不见，
     那更像笔误而不是本意，所以下限给 0.1）。
     """
-    path = ROOT / "data" / "fx.json"
+    path = FX_FILE[0]
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
