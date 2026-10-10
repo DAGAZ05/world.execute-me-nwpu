@@ -59,7 +59,18 @@ def main() -> None:
     eng, data = T.Engine(), T.Data()
 
     print(f"背景 BG={T.BG} luma={luma(T.BG):.1f} · 正文 UI={T.UI} luma={luma(T.UI):.1f}")
-    print(f"噪点基色 = (120, 150, 190) luma={luma((120, 150, 190)):.1f}")
+    import school_noise as NZ
+    base = NZ.BASE_COLOUR
+    print(f"噪点基色 = {base} luma={luma(base):.1f}")
+    print(f"当前噪声增益 = {T.NOISE_GAIN_RUNTIME[0]:g}"
+          f"（来源：{'data/fx.json' if T._fx_read_gain() is not None else '默认'}）")
+    print()
+
+    # 认底噪的格：**不能靠固定色比**。第一版写死了 120:150:190 那个比，
+    # 基色一改（批 94）就认不出来了，于是"噪点格"从 534 掉到 153——那是探针的形状，
+    # 不是画面的变化。改成"从 `BASE_COLOUR` 按当前 gain 推出的色相比例"，两个旋钮都跟着走。
+    ratio = (base[0] / base[2], base[1] / base[2])
+    print(f"识别底噪用的色比 (r/b, g/b) = ({ratio[0]:.4f}, {ratio[1]:.4f})")
     print()
 
     for spec in ([a.window] if a.window else a.windows):
@@ -81,9 +92,10 @@ def main() -> None:
                     if c[0] == " ":
                         continue
                     r, g, b = c[1]
-                    # 基色比例 120:150:190，用它认底噪（其他层不走这个比）
-                    if b > r and g > r and abs((g / max(1, r)) - 150 / 120) < 0.02 \
-                            and abs((b / max(1, g)) - 190 / 150) < 0.02:
+                    if b < 8:
+                        continue
+                    # 基色的色相比例，容差 3%——整数取整会让暗色偏离得多一点
+                    if abs((r / b) - ratio[0]) < 0.03 and abs((g / b) - ratio[1]) < 0.03:
                         cells.append((r, g, b))
             if not cells:
                 print(f"=== {spec} @{t:.1f}s level={level}  {row['name'] if row else '?'} ===")
@@ -104,6 +116,50 @@ def main() -> None:
                 print(f"      gain {g:4.2f}  ->  最亮 RGB={str(c):>18}  luma {luma(c):5.1f}  "
                       f"（正文 {luma(T.UI):.0f} 的 {100 * luma(c) / luma(T.UI):4.1f}%）")
             print()
+
+
+    print()
+    print("=== `noise_gain` 扫描：它真的在起作用吗？（真跑一遍 draw，不是算比例）===")
+    import school_noise as NZ2
+    t = 61.5
+    row = SP.row_at(t)
+    print(f"  @{t:.1f}s  {row['name'] if row else '?'}")
+    print(f"  {'gain':>6} {'噪点格':>8} {'min':>7} {'p50':>7} {'max':>7} {'最亮 = 正文的':>13}")
+    prev = None
+    monotone = True
+    for g in (0.4, 0.6, 0.8, 1.0, 1.4, 2.0):
+        T.NOISE_GAIN_RUNTIME[0] = g
+        T.FX_STRENGTH[0] = (0.6, 0.4, 1.0) if T.FX_STRENGTH[0] else None
+        T.FX_BUNDLE[0] = T._fx_bundle(T.FX_STRENGTH[0]) if T.FX_STRENGTH[0] else None
+        T.FX_LEVEL[0] = 1.0
+        T._fx_level_apply()
+        if T.NOISE[0] is None:
+            continue
+        s = T.Screen(cols, rows)
+        sink = io.StringIO()
+        T.draw(s, data, eng, t, True, T.FPS)
+        s.render_diff(sink)
+        got = []
+        for y in range(rows):
+            for x in range(cols):
+                c = s.buf[y][x]
+                if c[0] == " " or c[1][2] < 8:
+                    continue
+                r, gg, b = c[1]
+                if abs((r / b) - ratio[0]) < 0.03 and abs((gg / b) - ratio[1]) < 0.03:
+                    got.append(luma(c[1]))
+        if not got:
+            print(f"  {g:6.2f}  （没有底噪格）")
+            continue
+        got.sort()
+        mx = got[-1]
+        if prev is not None and mx < prev - 0.5:
+            monotone = False
+        prev = mx
+        print(f"  {g:6.2f} {len(got):8d} {got[0]:7.1f} {got[len(got) // 2]:7.1f} {mx:7.1f} "
+              f"{100 * mx / luma(T.UI):12.1f}%")
+    print()
+    print(f"  最亮随 gain 单调不减：{'PASS' if monotone else 'FAIL'}")
 
 
 if __name__ == "__main__":

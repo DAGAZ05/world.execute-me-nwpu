@@ -38,7 +38,10 @@ SAMPLE = [round(v, 3) for v in
           [61.0 + k * 0.25 for k in range(12)] +      # 副歌，歌词逐字
           [147.0 + k * 0.5 for k in range(10)] +      # EXECUTION
           [184.4 + k * 0.4 for k in range(10)] +      # 心形（pane_love_class, 184.33-187.97）
-          [193.0 + k * 0.5 for k in range(10)]]       # 结尾鲸落
+          [190.0 + k * 0.4 for k in range(6)] +       # 结尾（几个 shot 的边界）
+          [195.5 + k * 0.5 for k in range(8)] +       # 鲸落（底噪在这里最显眼）
+          [206.0 + k * 0.35 for k in range(6)] +      # last_execution / black
+          [210.0 + k * 0.4 for k in range(5)]]        # 末帧
 
 
 class Recorder(io.StringIO):
