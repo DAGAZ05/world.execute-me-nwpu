@@ -232,6 +232,19 @@ FX = dict(on=True, reveal=True, mech=True, trail=True, vig=True, shake=True)
 #: `[None]` 表示不开；开时持有 `school_noise.Noise` 实例。
 NOISE: list = [None]
 
+#: **fbm 溶解转场**（批 86），默认关闭，`--dissolve` 打开。
+#:
+#: 现有的转场是"按每格自己的时刻把新画面逐格换进来"（`fx_reveal` 的 order 循环），
+#: 切面是一条推进的边界——读起来是"擦除"。打开这一项之后，每格还要再过一个条件：
+#: **它的 fbm 出场号轮到了没有**。于是切面变成一块块有机的斑，
+#: 这就是参考仓库提示词文档里"把所有字符都打乱，铺满屏幕，再重组"的同一族语言
+#: （`world.execute-me-ascii-main/docs/prompts/creation-prompts.md` 第 05 条；
+#: 文档全篇反复要求"动画要复杂、密集，有全屏大范围运动；利用 CRT 视觉语言"）。
+#:
+#: 成本：出场顺序表（一次 argsort + 等频化，约 0.7 ms）**每次转场只算一次**，存在转场状态里；
+#: 每帧的额外成本只有一个 numpy 取值比较。不参与任何默认路径。
+DISSOLVE: list = [False]
+
 #: 噪声图案的重建周期，秒。图案重建时才做整屏求值，中间的帧只重刷颜色（准静态图案）。
 #: 0.25 s 在 60 fps 下是每 15 帧重建一次，肉眼看不出"跳"。
 NOISE_PERIOD = 0.25
@@ -658,14 +671,36 @@ def fx_reveal(s: "Screen", t: float) -> None:
         seed, cols, done = c["seed"], c["cols"], c["done"]
         front = el - CUT_CELL                 # a cell that switched later than this is still decoding
         c["done"], c["el"] = front, el
+        # 溶解的进度：一次转场的总时长（揭幕 + 前沿）走完就是 1.0
+        prog = min(1.0, max(0.0, el / max(1e-6, CUT_DUR + CUT_CELL)))
+        # **fbm 溶解**（批 86，默认关闭，`--dissolve`）。见模块顶部 NOISE_DISSOLVE 的说明：
+        # 出场顺序表在这一次转场开始时取一次并存进 `c`，之后每帧复用——因为场每帧都变，
+        # 每帧重算会让格子反复横跳，读成噪点而不是"画面在一片片地换"。
+        mask = None
+        if DISSOLVE[0] and c.get("carry") is None:
+            if "diss" not in c:
+                try:
+                    import school_noise as _NZd
+                    nz = _NZd.Noise(s.cols, s.rows, seed=101, octaves=_NZd.OCTAVES)
+                    nz.tick(0.0)
+                    c["diss"] = nz.order_key()
+                except Exception:
+                    c["diss"] = None
+            mask = c["diss"]
         for y in range(c["rows"]):
             srow, orow = sd[y], order[y]
             p1 = bisect_right(srow, el)
             p0 = bisect_right(srow, done)     # finalise behind the decoding front, one cell-duration back
             if p1 > p0:
                 row, nrow, wrow, nwrow = cur[y], new[y], cur_wide[y], new_wide[y]
+                mrow = mask[y] if mask is not None else None
                 for k in range(p0, p1):
                     x = orow[k]
+                    # 溶解：这一格只有在"它的出场号已经轮到"时才真的切过去，否则保持旧画面。
+                    # 于是切面从一条推进的边界变成一块块有机的斑——参考仓库提示词里
+                    # "把所有字符都打乱"的同一族语言（`docs/prompts/creation-prompts.md` 第 05 条）。
+                    if mrow is not None and mrow[x] > prog:
+                        continue
                     row[x] = nrow[x]
                     wrow[x] = nwrow[x]
                     # ...and a placeholder never arrives without its character. The reveal copies cells
@@ -4419,6 +4454,12 @@ def main() -> None:
                          "一帧（_dev/probe_noise_cost.py），是继余晖之后第二个要花帧预算的可选层。"
                          "可选值就是场的块大小：6 细碎、14（不带值时）适中、22 大块。"
                          "噪声场是两个参考仓库共同的空白（见 增强方向.md §二）。")
+    ap.add_argument("--dissolve", action="store_true",
+                    help="把转场的切面从\u201c推进的边界\u201d换成 fbm 溶解：每格多过一个"
+                         "\u201c它的出场号轮到了没有\u201d的条件，于是画面是一片片有机地换掉的，"
+                         "而不是被一条线擦掉的。默认关闭。参考仓库提示词文档里\u201c把所有字符"
+                         "都打乱、铺满屏幕、再重组\u201d是同一族语言（creation-prompts.md 第 05 条）。"
+                         "成本：每次转场一次约 0.7 ms，每帧近乎零。")
     ap.add_argument("--crop", default=HER_CROP, choices=["auto", "face", "bust", "upper", "full"],                    help=f"which part of the sprite her pane draws (default {HER_CROP}: whichever "
                          f"crop's own shape is closest to the pane's)")
     ap.add_argument("--render", default=HER_RENDER, choices=list(RENDER_MODES),
@@ -4461,6 +4502,8 @@ def main() -> None:
         except Exception as exc:
             print(f"warning: the college gate could not be loaded ({exc}); the song will run "
                   f"through 02:11.9 unanswered", file=sys.stderr, flush=True)
+    if args.dissolve:
+        DISSOLVE[0] = True
     if args.no_fx:
         FX.update(on=False, reveal=False, mech=False, trail=False, vig=False)
     if args.no_mech:

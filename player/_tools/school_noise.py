@@ -301,6 +301,20 @@ class Noise:
         v = self.quantile_field() if self.stretch else f
         return v < np.float32(p)
 
+    def order_key(self) -> np.ndarray:
+        """一个整屏的"出场顺序"：每格的分位（0 = 最先出现，1 = 最后）。
+
+        **溶解用它，而不是每帧调 `threshold`。** 转场需要的是"每一格有它自己的出场时刻"，
+        有了这张表，`p` 从 0 走到 1 就是一次完整溶解，而且同一个 `p` 永远是同一批格子
+        ——这正是逐帧 diff 回归需要的可复现性（`_dev/ansi_probe.py` 靠它）。
+
+        与 `threshold` 共用同一张分位表，所以额外成本是零。
+
+        **为什么不用 `threshold(t)`（把时间塞进场）**：场每帧重算，格子的出场顺序就会每帧变，
+        转场会读成噪点在闪而不是"画面在一片片地换"。出场顺序必须**在一个转场里固定**。
+        """
+        return self.quantile_field()
+
     def quantile_field(self) -> np.ndarray:
         """把当前场换成它在自己内部的分位（等频化），使任意 `p` 的覆盖率都等于 `p`。
 
