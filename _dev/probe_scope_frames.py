@@ -81,9 +81,20 @@ def main() -> None:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--before", default="HEAD",
                     help="用来对比的 git ref（默认 HEAD）；改动所在的文件先在哪个 ref 上")
+    ap.add_argument("--allow", metavar="LO,HI", default=None,
+                    help="允许出现差异的时间窗口，秒。缺省用片尾进度条的窗口 "
+                         "(193.583,207.042)；心形改动用 --allow 184.33,187.97。"
+                         "**它是判据的一部分**：窗口写错就会把一个正确的改动判成 FAIL。")
     ap.add_argument("--keep-before", action="store_true",
                     help="不 stash（当工作区已经是'改之前'时用）")
     a = ap.parse_args()
+    allowed = ALLOWED
+    if a.allow:
+        try:
+            lo_s, hi_s = a.allow.split(",")
+            allowed = (float(lo_s), float(hi_s))
+        except ValueError:
+            raise SystemExit(f"--allow 需要 LO,HI（秒），收到 {a.allow!r}")
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
@@ -142,14 +153,14 @@ def main() -> None:
         print(f"  ...（还有 {len(runs) - 20} 段）")
     print()
     outside = [(s0, s1) for s0, s1 in runs
-               if not (ALLOWED[0] - TOL <= s0 / FPS and s1 / FPS <= ALLOWED[1] + TOL)]
+               if not (allowed[0] - TOL <= s0 / FPS and s1 / FPS <= allowed[1] + TOL)]
     if outside:
         print(f"FAIL —— 有 {len(outside)} 段差异落在目标窗口 "
-              f"{ALLOWED[0]:.2f}-{ALLOWED[1]:.2f} s 之外：")
+              f"{allowed[0]:.2f}-{allowed[1]:.2f} s 之外：")
         for s0, s1 in outside[:10]:
             print(f"  {s0 / FPS:.2f} - {s1 / FPS:.2f} s")
         raise SystemExit(1)
-    print(f"PASS —— 全部差异都落在目标窗口 {ALLOWED[0]:.2f}-{ALLOWED[1]:.2f} s 内"
+    print(f"PASS —— 全部差异都落在目标窗口 {allowed[0]:.2f}-{allowed[1]:.2f} s 内"
           f"（容差 {TOL} s，一帧 1/24≈0.042 s）")
 
 

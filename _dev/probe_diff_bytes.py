@@ -37,6 +37,7 @@ SAMPLE = [round(v, 3) for v in
           [12.4 + k * 0.5 for k in range(8)] +        # 运-20 低空掠过（最贵的帧）
           [61.0 + k * 0.25 for k in range(12)] +      # 副歌，歌词逐字
           [147.0 + k * 0.5 for k in range(10)] +      # EXECUTION
+          [184.4 + k * 0.4 for k in range(10)] +      # 心形（pane_love_class, 184.33-187.97）
           [193.0 + k * 0.5 for k in range(10)]]       # 结尾鲸落
 
 
