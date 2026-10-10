@@ -37,6 +37,25 @@ CASES = [
     ("科学计数", '{"phosphor": 5e-1, "noise": 1e-1, "dissolve": 0}', (0.5, 0.1, 0.0)),
 ]
 
+#: 底噪亮度那个键（批 94）。它与三层强度是**互相独立**的，所以要单独验：
+#: (名字, 文件内容, 期望的三层结果, 期望的 gain)
+GAIN_CASES = [
+    ("缺这个键 -> 默认", '{"phosphor":0.2,"noise":0.1,"dissolve":0.05}', (0.2, 0.1, 0.05), None),
+    ("正常 0.8", '{"phosphor":0.2,"noise":0.1,"dissolve":0.05,"noise_gain":0.8}',
+     (0.2, 0.1, 0.05), 0.8),
+    ("超范围 5 -> 夹到 2.0", '{"phosphor":0.2,"noise":0.1,"dissolve":0.05,"noise_gain":5}',
+     (0.2, 0.1, 0.05), 2.0),
+    ("负值 -1 -> 夹到 0.1", '{"phosphor":0.2,"noise":0.1,"dissolve":0.05,"noise_gain":-1}',
+     (0.2, 0.1, 0.05), 0.1),
+    ("非数字 -> 默认", '{"phosphor":0.2,"noise":0.1,"dissolve":0.05,"noise_gain":"dark"}',
+     (0.2, 0.1, 0.05), None),
+    # **这条是重点**：三层写坏了，gain 必须**仍然生效**——两个不相干的失败不该绑在一起
+    ("三层写坏 + gain 正常", '{"phosphor":"x","noise":0.1,"dissolve":0.05,"noise_gain":0.5}',
+     None, 0.5),
+    ("gain 写坏 + 三层正常", '{"phosphor":0.6,"noise":0.4,"dissolve":1,"noise_gain":null}',
+     (0.6, 0.4, 1.0), None),
+]
+
 
 def main() -> None:
     try:
@@ -77,6 +96,23 @@ def main() -> None:
         print()
         print("（已还原 data/fx.json）")
 
+    print()
+    print("=== 底噪亮度键 `noise_gain`（批 94）===")
+    print()
+    print(f"{'坏法':>22} {'三层':>18} {'gain':>8} {'期望 gain':>10}  判定")
+    for name, body, want3, wantg in GAIN_CASES:
+        path.write_text(body, encoding="utf-8")
+        g3 = T._fx_load_file()
+        g = T._fx_read_gain()
+        ok3 = (g3 is None and want3 is None) or (
+            g3 is not None and want3 is not None
+            and len(g3) == 3 and all(abs(a - b) < 1e-9 for a, b in zip(g3, want3)))
+        okg = (g is None and wantg is None) or (
+            g is not None and wantg is not None and abs(g - wantg) < 1e-9)
+        good = ok3 and okg
+        ok &= good
+        print(f"{name:>22} {str(g3):>18} {str(g):>8} {str(wantg):>10}  "
+              f"{'PASS' if good else 'FAIL'}")
     print()
     print("总体：", "PASS" if ok else "FAIL")
     print()

@@ -57,6 +57,18 @@ import numpy as np
 #: `ramp` 的默认取值：10 档，两端各留一格空白，让场能"淡出到没有"。
 RAMP = " .:-=+*#%@"
 
+#: 底噪的基色——**已经调暗过一次**（批 94）。
+#:
+#: 原值是 `(120, 150, 190)`，而它乘上场值之后**最亮的一格是 `(60, 75, 95)`、luma 73.3
+#: = 正文的 34.5%**（`_dev/probe_noise_bright.py` 实测）。那个亮度正压在页脚
+#: （`ui(0.55)`，34.9%）上、还比 chrome 元素（`ui(0.62–0.8)`，41–50%）亮，
+#: 于是底纹读起来像"内容"——这就是"噪点太亮"的实质。
+#:
+#: 现在这个值比原值暗一档（`_dev/probe_palette_ladder.py` 的换算：要让最亮格落到正文的
+#: 20%，基色约 `(69, 87, 110)`），而且这个是一个**可直接改的调色板事实**：
+#: 想更暗就往下调，`tui_live.NOISE_GAIN` 是它的第二个旋钮。
+BASE_COLOUR = (69, 87, 110)
+
 #: 每帧算几个倍频。1 个是纯值噪声（平滑的云），3 个是 fbm（有细节的云）。
 #: **默认 2**：它是"留在 2 ms/帧预算内"的那个值（3 倍频实测 2.03 ms，刚好越线）。
 OCTAVES = 2
@@ -196,13 +208,27 @@ class Noise:
 
     # ------------------------------------------------------------------ 用法一：底噪
 
-    def field(self, screen, ramp: str = RAMP, colour=(120, 150, 190), box=None,
+    def field(self, screen, ramp: str = RAMP, colour=None, box=None,
               level: float = 0.5, floor: float = 0.12, period: float = 0.0,
-              stride: int = 1) -> int:
+              stride: int = 1, gain: float = 1.0) -> int:
         """把场按 `ramp` 画成字符进缓冲。
 
         `floor` 是"低于这个亮度就不画"的门槛——终端里一格淡到看不见的字就是脏点，
         和 `fx_trail` 的 `TRAIL_MIN`、余晖层的 `MIN_LEVEL` 是同一个道理。
+
+        **`colour` 不给就用 `BASE_COLOUR`，`gain` 再乘一次**（批 94）。两个旋钮分两层：
+        基色是"噪点是什么颜色"（一个调色板事实，放在这里），`gain` 是"这次画多暗"
+        （一个强度决定，由调用方给）。调用方改 `gain`，不需要知道基色是多少。
+
+        **为什么"调暗"要用 `gain` 而不是 `level`**：实测量过，`level=0.5` 与 `level=1.0`
+        的**峰值亮度完全一样**（都是 luma 73.3）——因为峰值那格 `v≈1`，`k = v * level`
+        只在 `level<1` 时压它，而它本来就在顶端。真正决定"最亮那格有多亮"的是基色。
+
+        **调多暗是按项目自己的调色板定的**（`_dev/probe_palette_ladder.py`）：正文 `UI`
+        luma 212.5 记作 100%，页脚 `ui(0.55)` 是 **34.9%**、chrome 元素在 `0.62–0.8`
+        （41–50%）。噪点原来最亮到 **34.5%**——正压在页脚上、还比 chrome 亮，
+        所以它读起来像"内容"而不是"底纹"。底纹必须比所有文字都暗，于是取 **20%**
+        （`NOISE_GAIN` 的默认值，见 `tui_live`）。
 
         **`stride` 是这一层真正的成本旋钮，`period` 只解决了一半。** 实测（真实画面，
         `draw + render_diff` 多轮中位数，`_dev/probe_noise_total.py`）：
@@ -222,6 +248,11 @@ class Noise:
         f = self.cur
         if f is None:
             return 0
+        if colour is None:
+            colour = BASE_COLOUR
+        _g = max(0.0, float(gain))
+        if _g != 1.0:
+            colour = (colour[0] * _g, colour[1] * _g, colour[2] * _g)
         n = len(ramp) - 1
         x0, y0, x1, y1 = box if box else (0, 0, self.cols - 1, self.rows - 1)
         x0, y0 = max(0, x0), max(0, y0)

@@ -270,7 +270,7 @@ def _fx_load_file() -> tuple | None:
         return None
     vals = None
     if isinstance(raw, dict):
-        vals = [raw.get("phosphor"), raw.get("noise"), raw.get("dissolve")]
+        vals = [raw.get(k) for k in _FX_KEYS]
     elif isinstance(raw, list) and len(raw) == 3:
         vals = list(raw)
     if not vals or any(v is None for v in vals):
@@ -283,6 +283,50 @@ def _fx_load_file() -> tuple | None:
         return tuple(out)
     except (TypeError, ValueError):
         return None
+
+
+#: `fx.json` 里"层强度"的三个键，与三元组一一对应。
+#: **只在这里写一遍**——加一个键就加一行，不要在读取处再抄一份 key 列表。
+_FX_KEYS = ("phosphor", "noise", "dissolve")
+
+
+def _fx_read_gain() -> float | None:
+    """Read the extra `noise_gain` key from `data/fx.json`, or None when absent/unusable.
+
+    **为什么它要单独读、单独容错**：它是"噪点画多暗"的旋钮（批 94，用户："希望把噪点的颜色调暗"），
+    与三个层强度是**互相独立**的东西。放在同一个 `try` 里读的后果是"三层强度里有一个写错，
+    调暗设置也被一起丢掉"——那是两个不相干的失败被绑在一起。解析规则与三层一致：
+    缺失/非数字 -> None（用默认），超范围 -> 夹到 `0.1..2.0`（`0` 会让噪点完全看不见，
+    那更像笔误而不是本意，所以下限给 0.1）。
+    """
+    path = ROOT / "data" / "fx.json"
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    if not isinstance(raw, dict):
+        return None
+    v = raw.get("noise_gain")
+    if v is None:
+        return None
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return 0.1 if f < 0.1 else (2.0 if f > 2.0 else f)
+
+
+#: 底噪的**颜色增益**：乘在 `school_noise.BASE_COLOUR` 上（批 94）。
+#: `data/fx.json` 的 `noise_gain` 覆盖它；不写就用这个默认。
+#:
+#: 默认 `0.8` 与基色一起把"最亮的一格"定在**正文的 20%**左右：基色已从
+#: `(120,150,190)` 调到 `(69,87,110)`（约 0.58 倍），再乘 0.8 = 相对原值约 0.46 倍，
+#: 最亮格 luma 从 73.3 降到约 34（正文 212.5 的 16%）。页脚是 34.9%，chrome 41-50%，
+#: 所以底纹现在**比所有文字都暗**——这正是"底纹"该有的位置。
+NOISE_GAIN = 0.8
+#: 运行时生效的那个值（`fx.json` 覆盖 `NOISE_GAIN`）。用列表是因为绘制函数在别处，
+#: 而且 `data/fx.json` 要等 main 解析——与 `FX_STRENGTH` / `FX_LEVEL` 同一套做法。
+NOISE_GAIN_RUNTIME: list = [NOISE_GAIN]
 
 
 def _fx_params(triple) -> dict:
@@ -4547,7 +4591,7 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
             lv = FX_LEVEL[0]
             stride = 3 if lv < 0.34 else (2 if lv < 0.72 else 1)
         NOISE[0].field(s, box=(0, 1, cols - 1, rows - 5), period=NOISE_PERIOD,
-                       stride=stride)
+                       stride=stride, gain=NOISE_GAIN_RUNTIME[0])
 
     # ------------------------------------------------------------------ header
     s.put(1, 0, "WORLD.EXECUTE(ME);", ui(1.0))
@@ -4860,6 +4904,10 @@ def main() -> None:
             fx_src = "data/fx.json"
     if fx_triple is not None:
         FX_STRENGTH[0] = fx_triple
+    # 底噪的调暗旋钮：`data/fx.json` 的 `noise_gain` 优先，否则用默认。
+    _g = _fx_read_gain()
+    if _g is not None:
+        NOISE_GAIN_RUNTIME[0] = _g
     # 一次性参数包：`--fx` / `data/fx.json` 定**上限**，`FX_LEVEL`（`x` 键）在它之上缩放。
     # 三层对象（余晖 / 底噪）要等 `cols,rows` 与对应模块就绪才建，所以这里**不**建它们，
     # 只把参数名占位符清成 None；`_fx_level_apply()` 在它们建好之后再调用一次（见下面）。
@@ -5027,6 +5075,13 @@ def main() -> None:
     else:
         print("fx: 三层全关（data/fx.json 不存在或不可用，也没给 --fx）；"
               "x 键仍可开关后期那一层", file=sys.stderr, flush=True)
+    # 底噪的亮度单独报一行：它是用户会去调的东西（"把噪点调暗"），而"我改了没生效"
+    # 是手改文件最常见的疑问。报的是**实际生效**的倍数与来源。
+    _g_eff = NOISE_GAIN_RUNTIME[0]
+    _g_src = "data/fx.json" if _fx_read_gain() is not None else f"默认 {NOISE_GAIN:g}"
+    print(f"    噪点亮度 gain={_g_eff:g}（来自 {_g_src}）"
+          f"{'；底噪未开启，这个值暂时不起作用' if (fx_triple or (0, 0, 0))[1] <= 0 else ''}",
+          file=sys.stderr, flush=True)
 
     if args.no_audio:
         pass
