@@ -685,10 +685,25 @@ def _kick_peaks() -> list[int]:
 
 
 def _beat_grid():
-    """全曲的节拍网格，算一次存下来。批 97。"""
-    if _BEATS[0] is None:
-        _BEATS[0] = _fit_beat_grid()
-    return _BEATS[0]
+    """全曲的节拍网格，算一次存下来。批 97。
+
+    **空网格不算数**（批 98g，真机 bug）：`Game()` 在**第一帧 `draw()` 之前**就构造，
+    那时 `DATA[0]` 还是 `None`，拟合只能得到空表；第一版把这个空表缓存进了 `_BEATS[0]`，
+    于是**整首歌都没有网格**——音游谱面 0 个音符（真机 stderr 打的 `music panel: 0 notes`），
+    而我的探针因为先设了 `DATA[0]` 永远看不到。
+    现在的规则：数据没到位就**不缓存**，下一次调用重算。
+    """
+    if _BEATS[0]:
+        return _BEATS[0]
+    if DATA[0] is None:
+        try:
+            DATA[0] = Data()                 # 探针/单测里没人替我们装
+        except Exception:
+            return []
+    grid = _fit_beat_grid()
+    if grid:
+        _BEATS[0] = grid
+    return grid
 
 
 def beat(t: float) -> tuple[int, float]:
@@ -3360,6 +3375,9 @@ PANE_BOX: list = [0, 0, 0, 0]
 RHYTHM_H = 6
 RHYTHM_ON: list = [True]
 RHYTHM_BOX: list = [0, 0, 0, 0]
+#: 音游面板的快照：`[[cell, ...], ...]`，在面板画完时存、在整帧效果之后贴回（批 99）。
+#: 见 `draw` 里 `_RHYTHM_SNAPSHOT` 的两处使用。
+_RHY_SNAP: list = []
 #: 音游对象本身（`school_rhythm.Game`），由 `main()` 建、`draw` 用。
 RHYTHM: list = [None]
 #: 这一帧的 `Data`（批 97）。`fx_cut` 需要音频特征来"切在拍上"，而它的签名里没有 `Data`；
@@ -4605,6 +4623,12 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
             else:
                 _RHY.draw(s, rx0, ry0, rx1, ry1, t, _rth,
                           ui, mix, ME_TEXT, BG, ANOM)
+                # **快照**（批 99）：整帧的全局效果（转场揭示 / 余晖拖尾 / 震屏 / 溶解）会在
+                # `fx_apply` 里扫过**每一格**，音游面板因此被拖着一起动——用户的报告是
+                # "music panel会被一些全局效果影响，从而导致卡顿"。所以面板画完立刻存一份，
+                # 效果链跑完之后原样贴回（在 `draw()` 末尾，见 `_RHY_SNAP` 的使用处）。
+                _RHY_SNAP[:] = [dict(t=t, buf=[[s.buf[y][x] for x in range(rx0, rx1 + 1)]
+                                                for y in range(ry0, ry1 + 1)])]
         except Exception as exc:
             print(f"warning: the music panel failed ({exc})", file=sys.stderr, flush=True)
 
@@ -5154,6 +5178,24 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
     # behind it are two cells that have to agree, and this is the one place that checks them all rather
     # than trusting a dozen writers. See `Screen.normalise` - and `_dev/ansi_probe.py`, which is what
     # measures whether it works (it decodes the escape stream back into a screen and diffs it).
+    # **音游面板不受全局效果影响**（批 99）：转场揭示、余晖拖尾、震屏、溶解都在上面这几步里
+    # 扫过整屏，面板也跟着动/糊——用户报告"music panel会被一些全局效果影响，从而导致卡顿"。
+    # 所以面板画完后存的那一份在这里原样贴回：面板是**文字/键道**，它不该被画面的运动拖走。
+    # 位置在 `normalise` 之前、所有效果之后，所以贴回的内容不会再被谁改。
+    if _RHY_SNAP and RHYTHM_BOX[2] > RHYTHM_BOX[0]:
+        snap = _RHY_SNAP[0]
+        rx0, ry0, rx1, ry1 = RHYTHM_BOX
+        if snap["t"] == t:                      # 必须是**这一帧**画的，否则贴回的是旧画面
+            for i, row in enumerate(snap["buf"]):
+                y = ry0 + i
+                if not (0 <= y < s.rows):
+                    continue
+                for j, cell in enumerate(row):
+                    x = rx0 + j
+                    if 0 <= x < s.cols:
+                        s.buf[y][x] = cell
+                        s.wide[y][x] = False        # 面板里都是单格字符（`█`/`░`/ASCII/框线）
+            _RHY_SNAP[:] = []
     # **音游的结算界面画在最后**（批 98）：用户要的是"结束界面**中央**显示总得分"，
     # 而结尾那两分钟是整屏事件（`crest` 构图、`sword` 闪光、`particles`）——
     # 画在 `draw_body` 里会被它们盖掉（实测 t=208 只剩一块黑与进度条）。
@@ -5618,8 +5660,10 @@ def main() -> None:
                     import school_rhythm as _RHY
                     if RHYTHM[0] is None:
                         RHYTHM[0] = _RHY.Game()          # 每首歌建一次；谱面确定，重建也一致
-                        print(f"music panel: {RHYTHM[0].total} notes "
-                              f"(D/J before {_RHY.EXEC_AT:g}s, then S D J)",
+                        print(f"music panel: {RHYTHM[0].total} notes  "
+                              f"windows=" + " ".join(
+                                  f"{a:g}-{b:g}({k}keys,{''.join(x.upper() for x in l)})"
+                                  for a, b, k, l in _RHY.WINDOWS),
                               file=sys.stderr, flush=True)
                     elif t < 1.0 < RHYTHM[0].last_t:
                         RHYTHM[0] = _RHY.Game()          # Home 回到开头：重新开一局

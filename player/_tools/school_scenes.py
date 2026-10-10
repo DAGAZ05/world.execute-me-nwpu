@@ -565,9 +565,9 @@ def pane_curriculum(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
             if u < reveal:
                 if int(t * 2) % 2 == 0:
                     s.put(cx, min(y1 - 3, y0 + 2 + len(courses)), "\u2588", _mix(ME_TEXT, 0.9))
-        s.put(x0 + 1, y1 - 1, _clip("\u2605 = \u4f60\u8981\u91cd\u70b9\u8bb0\u7684\uff1b"
-                                    "\u5176\u4f59\u662f\u540c\u4e00\u5b66\u671f\u4e00\u8d77\u4e0a\u7684",
-                                    w - 2), _mix(ME_TEXT, 0.75))
+        # **底部的图例整行删掉**（批 99，用户："该课程表面板删除最下方那句'你要重点记的...'那段话"）。
+        # 它占的是最后一行（`y1 - 1`），删掉之后课程列表多了一行的呼吸空间；
+        # 下面那行"四年的课表：共 N 门"是这一个 pane 的抬头说明，用户没有要求删，保留。
         s.put(x0 + 1, y1, _clip(f"\u56db\u5e74\u7684\u8bfe\u8868\uff1a\u5171 "
                                 f"{sum(len(cs) for _yr, cs in rows)} \u95e8\uff08"
                                 f"\u53ea\u5217\u4e86\u8fd9\u4e9b\uff09", w - 2), _ui(0.5))

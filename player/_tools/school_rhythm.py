@@ -28,8 +28,10 @@ import math
 import os
 from pathlib import Path
 
-#: 三个键道。顺序就是屏幕上的左右顺序：`S` 在中间（它到"执行"段才出现）。
-LANES = ("d", "j", "s")
+#: 三个键道，**顺序就是屏幕上的上下顺序**。批 99：用户要求学院段"三键顺序由上至下分别改为 SDJ"，
+#: 所以学校段是 `D`(上) `J`(下)，学院段是 `S`(上) `D`(中) `J`(下)。
+LANES = ("d", "j")
+LANES3 = ("s", "d", "j")
 LANE_LABEL = {"d": "D", "j": "J", "s": "S"}
 #: 判定窗口，秒。用户要的是"音乐感"，所以两个窗口都取比较宽的值：
 #: 严格到 ±0.05 在终端里会被键盘重复率影响，宽容到 ±0.25 又会让人觉得"怎么按都对"。
@@ -56,9 +58,19 @@ LANE_ROWS = {2: 2, 3: 2}
 #:     然后整屏变黑（`BLACK_START = 207.083`）。
 #:
 #: 中间 131.9–147.52 的十六秒面板**不在舞台上**：不画、不吃键、不记分（用户要求）。
-WINDOWS: list[tuple[float, float, int]] = [
-    (16.082, 131.9, 2),          # 学校部分：D J
-    (147.52, 205.9, 3),          # 学院部分：S D J
+#:
+#: **批 99 又把学院段拆成两半**：
+#:   * `174.90–177.50` 是原片的 `shot_collapse`（整屏收成一条线、再收成一点；
+#:     `school_fx.emerge` 的注释写着这一段 "the school variant draws no pane behind it"）。
+#:     屏幕上实测 ink 掉到 **841**（176.14–176.89）——用户："学院部分中间有一处全局变黑框，
+#:     music panel在那里也要减除"。所以这一段面板退场。
+#:   * 学院段的**终点 = 航小天跳跃结束**：`stand`（全身像）事件 193.60–199.00，
+#:     取 199.40 作为落地余量（用户："学院部分应在航小天跳跃结束时结束"）。
+COLLAPSE = (174.90, 177.50)
+WINDOWS: list[tuple[float, float, int, tuple[str, ...]]] = [
+    (16.082, 131.9, 2, LANES),          # 学校部分：D J
+    (147.52, COLLAPSE[0], 3, LANES3),   # 学院部分（collapse 之前）
+    (COLLAPSE[1], 199.40, 3, LANES3),   # 学院部分（collapse 之后）：到跳跃结束
 ]
 EXEC_AT = 147.52
 #: 面板从这一刻开始出现（前奏那 16 秒只有 logs，让人先看完开场）。
@@ -83,20 +95,27 @@ def result_live(t: float) -> bool:
 
 def live(t: float) -> bool:
     """这一时刻面板在舞台上吗？"""
-    return any(a <= t <= b for a, b, _n in WINDOWS)
+    return any(a <= t <= b for a, b, _n, _l in WINDOWS)
 
 
 def keys_at(t: float) -> int:
     """这一时刻有几个键（0 = 不在舞台上）。"""
-    for a, b, n in WINDOWS:
+    for a, b, n, _l in WINDOWS:
         if a <= t <= b:
             return n
     return 0
 
 
 def lanes_at(t: float) -> tuple[str, ...]:
-    n = keys_at(t)
-    return LANES[:n] if n else ()
+    """这一刻的键道，**顺序就是屏幕上的上下顺序**。
+
+    学校段 `("d","j")`；学院段 `("s","d","j")`——用户批 99 的要求
+    "学院部分三键顺序由上至下分别改为 SDJ"。
+    """
+    for a, b, _n, lanes in WINDOWS:
+        if a <= t <= b:
+            return tuple(lanes)
+    return ()
 
 #: 评语区间（百分比下限 -> 主句、副句）。主句写在中央大位置，副句在下一行。
 VERDICTS: list[tuple[float, str, str]] = [
@@ -124,14 +143,23 @@ def _clamp(v: float, lo: float, hi: float) -> float:
 def _beats() -> list[float]:
     """节拍网格（来自 `tui_live`，那里是唯一算它的地方）。
 
-    `tui_live._beat_grid()` 需要 `tui_live.DATA[0]`（拟合周期与相位要读 `kick`）。
-    播放器里它每帧都会被写，但在探针/单测里没有——所以这里补一次，**只在没装的时候**。
+    `tui_live._beat_grid()` 需要 `tui_live.DATA[0]`（拟合周期与相位要读 `kick`）。播放器里它每帧
+    都会被写，但在探针/单测里没有——所以这里补一次，**只在没装的时候**。
+
+    **`Game()` 会在第一帧 `draw()` 之前构造**（批 98g 的真机 bug）：那时 `DATA[0]` 还是 `None`，
+    第一版的 `_fit_beat_grid()` 拿到空网格又被缓存，于是整首谱面 0 个音符
+    （真机 stderr 的 `music panel: 0 notes`；探针因为先设了 `DATA[0]` 看不到）。
+    修法在 `tui_live._beat_grid`：空网格不缓存。这里再加一道保险——拿到空表就把数据装上重问一次。
     """
     try:
         import tui_live as T
         if T.DATA[0] is None:
             T.DATA[0] = T.Data()
-        return list(T._beat_grid())
+        grid = list(T._beat_grid())
+        if not grid:
+            T._BEATS[0] = None
+            grid = list(T._beat_grid())
+        return grid
     except Exception:
         return []
 
@@ -150,8 +178,7 @@ def chart() -> list[dict]:
         return []
     out: list[dict] = []
     i = 0
-    for at, end, n in WINDOWS:
-        lanes = LANES[:n]
+    for at, end, n, lanes in WINDOWS:
         last = -1e9
         for bt in grid:
             if bt < at or bt > end:
@@ -206,7 +233,7 @@ class Game:
         return 100.0 * self.score() / self.max_score()
 
     def phase_of(self, t: float) -> int:
-        for i, (a, b, _n) in enumerate(WINDOWS):
+        for i, (a, b, _n, _l) in enumerate(WINDOWS):
             if a <= t <= b:
                 return i
         return -1
