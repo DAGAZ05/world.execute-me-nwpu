@@ -311,11 +311,15 @@ def _fx_params(triple) -> dict:
 
 
 def _dissolve_for_cut(seed: int) -> bool:
-    """Is the dissolve on for the cut carrying `seed`? Deterministic, so a run repeats."""
-    s = FX_STRENGTH[0]
-    if s is None:
+    """Is the dissolve on for the cut carrying `seed`? Deterministic, so a run repeats.
+
+    Reads `FX_DISSOLVE` — the **runtime** probability, which is the file's value scaled by the `x`
+    key's current level (see `_fx_level_apply`). When the triple is absent it falls back to the
+    plain `DISSOLVE` switch, which is what `--dissolve` sets.
+    """
+    if FX_STRENGTH[0] is None:
         return bool(DISSOLVE[0])
-    d = s[2]
+    d = FX_DISSOLVE[0]
     if d <= 0.0:
         return False
     if d >= 1.0:
@@ -326,6 +330,120 @@ def _dissolve_for_cut(seed: int) -> bool:
 def _fx_on():
     """The triple, or None when the individual flags are in use."""
     return FX_STRENGTH[0]
+
+
+#: **运行时档位**（批 93）：`x` 键循环的那个乘数。`data/fx.json` 是**上限**，
+#: 这个乘数在它之上缩放，所以"现场调轻一点"不会动到你手写的那个文件。
+#:
+#: 为什么是乘数而不是"再存一份三元组"：手改的文件是这个项目里那种"唯一真相"，
+#: 而按键是临时观察用的。乘数把两者分得很干净——文件说最多给多少，按键说现在给多少。
+#: `1.0` 就是"按文件里的来"，所以默认（没按过键）与批 92 逐帧一致。
+FX_LEVEL: list = [1.0]
+#: `x` 循环的档位。0 = 全关（连后期一起），其余是给**所有层**的乘数。
+FX_LEVELS = (0.0, 0.45, 0.75, 1.0)
+
+
+def _fx_level_name(x: float) -> str:
+    return {0.0: "off", 0.45: "low", 0.75: "mid", 1.0: "full"}.get(x, f"{x:g}")
+
+
+def _fx_bundle(triple) -> dict:
+    """`--fx` / `data/fx.json` 的三元组 -> 一次性参数包（含"有几层开了"）。
+
+    `on` 是"有任意一层在起作用"，**不是** `FX["on"]`——footer 要报的是"屏幕上有几个增强层在跑"，
+    而 `FX["on"]` 只是后期那一层。把两者混起来正是批 92 之前 footer 那个 `fx:on/off`
+    说不清现状的原因（余晖/底噪/溶解开了它也说 `off`）。
+    """
+    p = _fx_params(triple)
+    on = (p["phosphor"] is not None) + (p["noise"] is not None) + (p["dissolve"] > 0.0)
+    return dict(phosphor=p["phosphor"], noise=p["noise"],
+                noise_stride=p["noise_stride"], dissolve=p["dissolve"],
+                triple=triple, on=on)
+
+
+#: 启动时算一次，用于 footer 的初始显示；`x` 每按一次重算一次。
+#: 不能每帧重算——`_fx_params` 便宜，但"每帧算一遍然后丢掉"是那种后来没人记得为什么的浪费。
+FX_BUNDLE: list = [None]
+#: 余晖层对象（`school_phosphor.Phosphor`），由 main 建好放进来。
+#: `x` 键要能在运行时改它的强度，而它是在 `cols,rows` 之后才建的，所以放在这里；
+#: `school_phos` 由 main 赋值，未启用时是 None。
+FX_PHOSPHOR: list = [None]
+
+
+def _fx_level_apply() -> None:
+    """把"文件的上限 × `x` 的当前档位"落到**四个东西**上：余晖 / 底噪 / 溶解 / 后期。
+
+    这是 `x` 键的全部逻辑，也是这一批要解决的问题。改之前 `x` 只翻一个 `FX["on"]`——
+    而批 90/91 之后屏幕上有四层可以独立开关的东西（后期、余晖、底噪、溶解），
+    那个切换只能动其中一层，footer 那句 `fx:on/off` 于是**说不清现状**：
+    余晖和溶解开着它也说 `off`。
+
+    现在 `x` 一次性**按档调全部四层**，从"什么增强都不开"一路到"文件里的满值"，
+    所以按键的效果在屏幕上一眼可见，而文件依然是上限。
+
+    **档位 0 是特例**：它连后期一起关（`FX["on"] = False`），因为"看看没有后期是什么样"
+    是这个键最早存在的理由（批 59），而单独关掉的后期没有别的入口。其余三档把后期打开。
+
+    **缩放规则**（与 `_fx_params` 的分段一致，见那里的说明）：
+      * 余晖：衰减率不能按比例缩（0.42 的尾巴和 0.72 的尾巴是两种东西，不是量的差别），
+        所以按档在**实测可用区间**里取值，再受文件上限夹住；
+      * 底噪：`scale` 反向（越小越细），`stride` 是成本旋钮，两者一起按档放宽；
+      * 溶解：是概率，按比例缩——所以半档就是"一半的转场用溶解"。
+    """
+    bundle = FX_BUNDLE[0]
+    lv = FX_LEVEL[0]
+    # 后期那一层：档位 0 关，其余开
+    FX["on"] = lv > 0.0
+    if lv <= 0.0:
+        # 全关：三层也不该在跑，否则"off"名不副实
+        NOISE[0] = None
+        DISSOLVE[0] = False
+        FX_DISSOLVE[0] = 0.0
+        if FX_PHOSPHOR[0] is not None:
+            FX_PHOSPHOR[0].clear()
+        return
+    if bundle is None:
+        # 没有 `--fx` 也没有 `data/fx.json`：只有后期这一层，按键照旧只管它。
+        return
+    # --- 余晖
+    ph = FX_PHOSPHOR[0]
+    if ph is not None:
+        if bundle["phosphor"] is None:
+            ph.clear()
+        else:
+            # 在 0.42..0.72 的可用区间里按档取值，再不被文件的上限超过
+            ph.decay = min(bundle["phosphor"], 0.42 + 0.30 * lv)
+    # --- 底噪
+    if bundle["noise"] is None:
+        NOISE[0] = None
+    else:
+        import school_noise as _NZ
+        # 档位越低的颗粒越粗（scale 越大），成本也越低（stride 越大）
+        scale = min(22.0, max(6.0, bundle["noise"] / max(0.25, lv)))
+        NOISE_SCALE[0] = scale
+        NOISE[0] = _NZ.Noise(FX_SIZE[0], FX_SIZE[1], seed=7, scale=scale)
+    # --- 溶解（概率，按比例缩）
+    DISSOLVE[0] = bundle["dissolve"] > 0.0
+    FX_DISSOLVE[0] = bundle["dissolve"] * lv
+
+
+def _fx_cycle() -> None:
+    """`x` 的循环：off -> low -> mid -> full -> off。"""
+    cur = FX_LEVEL[0]
+    try:
+        i = FX_LEVELS.index(cur)
+    except ValueError:
+        i = FX_LEVELS.index(1.0)
+    FX_LEVEL[0] = FX_LEVELS[(i + 1) % len(FX_LEVELS)]
+    _fx_level_apply()
+
+
+#: 底噪的场块大小与屏幕尺寸：`x` 重建 `Noise` 时需要，由 main 填。
+NOISE_SCALE: list = [14.0]
+FX_SIZE: list = [197, 52]
+#: 运行时生效的溶解概率（`bundle` 的是上限，乘过档位之后放这里）。
+#: `_dissolve_for_cut` 读它——这样"文件说 1.0、按键调到半档"就是"一半的转场用溶解"。
+FX_DISSOLVE: list = [0.0]
 
 
 #: **fbm 溶解转场**（批 86），默认关闭，`--dissolve` 打开。
@@ -4326,7 +4444,17 @@ def draw_footer(s: Screen, d: Data, t: float, playing: bool, fps: float, ent: di
                 left += f"{_G.window_left(t):3.1f}s left then Software"
         except Exception:
             pass
-    left += "  fx:" + ("on" if FX["on"] else "off")
+    # **footer 要报"屏幕上有几个增强层在跑"，不是一个开关**（批 93）。
+    # 改之前这里写 `fx:on/off`，读的是 `FX["on"]`——那只是**后期**那一层，
+    # 于是余晖/底噪/溶解开着的时候它也显示 `off`。现在报的是档位与层数。
+    #
+    # 怎么数：后期算一层，`data/fx.json` 里非零的那几层各算一层。**不要**把
+    # `bundle["on"]` 和 `FX["on"]` 直接相加——那会把后期数成两层（第一版就是，显示 `full(2)`
+    # 而文件是 0,0,0）。上限是 4：后期 + 余晖 + 底噪 + 溶解。
+    _lv = FX_LEVEL[0]
+    _b = FX_BUNDLE[0]
+    _n = (1 if FX["on"] else 0) + (0 if _lv <= 0.0 or _b is None else _b["on"])
+    left += f"  fx:{_fx_level_name(_lv)}" + (f"({_n})" if _n else "")
     # The hint line is right-aligned. At 96-120 columns the long version started *before* the left
     # text ended, so `PLAYING 24.0 fps` was printed on top of `her:auto->...`. Measure it first, and
     # keep a short version for narrow windows.
@@ -4412,7 +4540,12 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
         # 中间的帧只重刷颜色。实测 0 是 3.61 ms 且每帧重写约 4,000 格（读起来是噪点在闪），
         # 0.25 是 0.5 ms 上下且图案准静态（读起来才是"表面在流"）。见 school_noise.field。
         nx = _fx_on()
-        stride = NOISE_STRIDE if nx is None else _fx_params(nx)["noise_stride"]
+        if nx is None:
+            stride = NOISE_STRIDE
+        else:
+            # 档位越低颗粒越粗：`stride` 与 `scale` 一起按档放宽（成本也随之下降）
+            lv = FX_LEVEL[0]
+            stride = 3 if lv < 0.34 else (2 if lv < 0.72 else 1)
         NOISE[0].field(s, box=(0, 1, cols - 1, rows - 5), period=NOISE_PERIOD,
                        stride=stride)
 
@@ -4727,10 +4860,12 @@ def main() -> None:
             fx_src = "data/fx.json"
     if fx_triple is not None:
         FX_STRENGTH[0] = fx_triple
-        par = _fx_params(fx_triple)
-        args.phosphor = par["phosphor"]
-        args.noise = par["noise"]
-        DISSOLVE[0] = par["dissolve"] > 0.0
+    # 一次性参数包：`--fx` / `data/fx.json` 定**上限**，`FX_LEVEL`（`x` 键）在它之上缩放。
+    # 三层对象（余晖 / 底噪）要等 `cols,rows` 与对应模块就绪才建，所以这里**不**建它们，
+    # 只把参数名占位符清成 None；`_fx_level_apply()` 在它们建好之后再调用一次（见下面）。
+    args.phosphor = None
+    args.noise = None
+    FX_BUNDLE[0] = _fx_bundle(fx_triple) if fx_triple is not None else None
     if args.dissolve:
         DISSOLVE[0] = True
     if args.no_fx:
@@ -4882,22 +5017,16 @@ def main() -> None:
     if fx_triple is not None:
         _p = _fx_params(fx_triple)
         print(f"fx: 余晖={fx_triple[0]:g} 底噪={fx_triple[1]:g} 溶解={fx_triple[2]:g}"
-              f"   (来自 {fx_src})", file=sys.stderr, flush=True)
+              f"   (来自 {fx_src}；这是上限)", file=sys.stderr, flush=True)
         print(f"    余晖 decay={_p['phosphor'] if _p['phosphor'] is None else round(_p['phosphor'], 3)}"
               f" · 底噪 scale={_p['noise']} stride={_p['noise_stride']}"
               f" · 溶解 每次转场用不用={_p['dissolve']:g}", file=sys.stderr, flush=True)
+        print(f"    x 键在运行时按档调全部四层（后期/余晖/底噪/溶解）："
+              f"{' -> '.join(_fx_level_name(v) for v in FX_LEVELS)}"
+              f"   当前 {_fx_level_name(FX_LEVEL[0])}", file=sys.stderr, flush=True)
     else:
-        print("fx: 三层全关（data/fx.json 不存在或不可用，也没给 --fx）", file=sys.stderr, flush=True)
-
-    if args.noise is not None:
-        try:
-            import school_noise as _NZ
-            NOISE[0] = _NZ.Noise(cols, rows, seed=7, scale=float(args.noise))
-            print(f"noise backdrop on: scale={args.noise:g} octaves={_NZ.OCTAVES}",
-                  file=sys.stderr, flush=True)
-        except Exception as exc:
-            print(f"warning: the noise backdrop could not be loaded ({exc})", file=sys.stderr)
-            NOISE[0] = None
+        print("fx: 三层全关（data/fx.json 不存在或不可用，也没给 --fx）；"
+              "x 键仍可开关后期那一层", file=sys.stderr, flush=True)
 
     if args.no_audio:
         pass
@@ -4915,19 +5044,40 @@ def main() -> None:
         return nt
 
     out.write("\x1b[?1049h\x1b[?25l\x1b[2J")     # alt screen, hide cursor
-    # 荧光余晖（批 81），默认关闭。它自己的相位与成本见 `school_phosphor` 的模块文档：
-    # 这一层的开销是每帧几毫秒，所以在 24 fps 下是"可选的好看"，在 60 fps 下是"要先解决的新瓶颈"。
+    # 荧光余晖（批 81）。它自己的相位与成本见 `school_phosphor` 的模块文档。
+    # **对象在这里建、档位在 `_fx_level_apply` 里落**：余晖与底噪都要终端尺寸才能建，
+    # 所以不能更早；而 `x` 键要能在运行时改它们，所以对象要一直持有（`FX_PHOSPHOR`）。
+    FX_SIZE[0], FX_SIZE[1] = cols, rows
     phosphor = None
-    if args.phosphor is not None:
+    _b0 = FX_BUNDLE[0]
+    _want_ph = args.phosphor
+    if _want_ph is None and _b0 is not None:
+        _want_ph = _b0["phosphor"]
+    if _want_ph is not None:
         try:
             import school_phosphor as _PH
-            phosphor = _PH.Phosphor(cols, rows, decay=float(args.phosphor))
-            print(f"phosphor layer on: decay={args.phosphor:g} "
-                  f"(每 1/24 s 保留；~{0.4 if args.phosphor >= 0.5 else 0.25:.2f} s 尾巴)",
+            phosphor = _PH.Phosphor(cols, rows, decay=float(_want_ph))
+            FX_PHOSPHOR[0] = phosphor
+            print(f"phosphor layer on: decay={_want_ph:g} "
+                  f"(每 1/24 s 保留；~{0.4 if _want_ph >= 0.5 else 0.25:.2f} s 尾巴)",
                   file=sys.stderr, flush=True)
         except Exception as exc:
             print(f"warning: the phosphor layer could not be loaded ({exc})", file=sys.stderr)
             phosphor = None
+    # 底噪：`--noise` 直接给场块；`--fx` / 文件路径下由档位决定，交给 `_fx_level_apply`。
+    if args.noise is not None:
+        try:
+            import school_noise as _NZ
+            NOISE_SCALE[0] = float(args.noise)
+            NOISE[0] = _NZ.Noise(cols, rows, seed=7, scale=NOISE_SCALE[0])
+            print(f"noise backdrop on: scale={args.noise:g} octaves={_NZ.OCTAVES}",
+                  file=sys.stderr, flush=True)
+        except Exception as exc:
+            print(f"warning: the noise backdrop could not be loaded ({exc})", file=sys.stderr)
+            NOISE[0] = None
+    # **三层对象都建好之后，把 `x` 的当前档位落一次。** 默认档位 1.0 = 按文件里的满值，
+    # 所以这一调用不改变批 92 的默认行为。
+    _fx_level_apply()
     # ...and the clock starts *here*: everything above this line - the sprite decode, the schedule walk
     # and the moment the music is handed to the sound card - is set-up, and none of it is song time. See
     # the note where `last` is declared.
@@ -5034,8 +5184,10 @@ def main() -> None:
                         import her_glyphs as hg2
                         hg2.warm_h3()
                 elif ch in ("x", "X"):
-                    # the whole post pass and the cut reveals, so the difference can be seen live
-                    FX["on"] = not FX["on"]
+                    # **按档调全部四层**（批 93），不再是只翻一个 `FX["on"]`。
+                    # 档位循环 off -> low -> mid -> full，`data/fx.json` / `--fx` 是上限。
+                    # 见 `_fx_level_apply`：为什么是乘数、以及档位 0 为什么连后期一起关。
+                    _fx_cycle()
                     fx_clear(s)
                     s.dim = s._dim_field()
                 elif ch in ("c", "C"):
