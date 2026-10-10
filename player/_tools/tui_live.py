@@ -1097,6 +1097,10 @@ class Screen:
         self._span_cache: dict = {}           # row -> [(x0, x1)] of the readable rects on that row
         self.ghost: dict = {}                 # the trail, as (glyph, colour, level) per cell
         self.ghost_prev = bytearray(cols * rows)   # which cells of the last frame a ghost held
+        #: What `render_diff` last found different from the previous frame, as `[(row, [cols]), ...]`
+        #: (batch 81). Empty until the first diff. Consumers that want "what moved this frame" read this
+        #: instead of comparing the whole screen themselves - the phosphor layer did, and it cost 9 ms.
+        self.dirty: list = []
         # which rows have had a double-width character written in them this frame. `normalise` is the
         # only pass that walks the frame outside the renderer, and this is what keeps it proportional to
         # the CJK on screen rather than to the screen. Cleared by `normalise` itself.
@@ -1412,6 +1416,13 @@ class Screen:
             out.write("\x1b[2J")
             self.prev = [[self.blank] * self.cols for _ in range(self.rows)]
         written = 0
+        # **Which cells actually changed** (batch 81). `render_diff` compares every cell anyway, so it
+        # already knows; it just never said. Anything that wants the changed cells - the phosphor decay
+        # layer is the first - would otherwise have to walk all 52 rows of 197 cells itself, which
+        # measured 9 ms a frame, or re-derive this comparison. `[(row, [columns...]), ...]`, and the
+        # list is clipped per row the moment a row turns out to be identical, so a frame that moved a
+        # few hundred cells reports a few hundred columns rather than 10 000.
+        self.dirty: list = []
         # **What the terminal's cursor and its colours are already set to** (batch 59). The player is
         # usually the only writer, but a frame is a fresh negotiation: both start unknown, so the first
         # write of a frame is a full one.
@@ -1420,6 +1431,9 @@ class Screen:
         for y in range(self.rows):
             row, old = self.buf[y], self.prev[y]
             wide = self.wide[y]
+            if row == old:
+                continue                   # a row with nothing to write is not worth a walk
+            self.dirty.append((y, [x for x in range(self.cols) if row[x] != old[x]]))
             parts: list[str] = []
             x = 0
             col = 1                        # the terminal's column for cell `x`, 1-based
@@ -4360,8 +4374,13 @@ def main() -> None:
                          f"higher cap is genuinely smoother motion and not repeated frames - it costs "
                          f"CPU and terminal traffic, and the real rate is min(cap, 1000/frame ms). "
                          f"`_dev/paint_probe.py` prints both budgets.")
-    ap.add_argument("--crop", default=HER_CROP, choices=["auto", "face", "bust", "upper", "full"],
-                    help=f"which part of the sprite her pane draws (default {HER_CROP}: whichever "
+    ap.add_argument("--phosphor", metavar="DECAY", nargs="?", type=float, const=0.58, default=None,
+                    help="荧光余晖：把最近若干帧的亮度按指数衰减留在屏幕上，让字会亮一会儿再暗下去。"
+                         "**默认关闭**，因为它是这套东西里最贵的一个可选效果——实测 ink+poke "
+                         "约 1.7-8.9 ms 一帧（_dev/probe_phosphor.py），而 60 fps 的预算只有 16.7 ms。"
+                         "可选值就是每 1/24 s 的保留率：0.42 很轻、0.58（不带值时）约 0.4 s 的尾巴、"
+                         "0.70 是明显的长拖尾。与 x 控制的 fx_trail 正交，两者可以同时开。")
+    ap.add_argument("--crop", default=HER_CROP, choices=["auto", "face", "bust", "upper", "full"],                    help=f"which part of the sprite her pane draws (default {HER_CROP}: whichever "
                          f"crop's own shape is closest to the pane's)")
     ap.add_argument("--render", default=HER_RENDER, choices=list(RENDER_MODES),
                     help="auto = the film's own choice per shot: the H3 character takes nearly "
@@ -4561,6 +4580,19 @@ def main() -> None:
         return nt
 
     out.write("\x1b[?1049h\x1b[?25l\x1b[2J")     # alt screen, hide cursor
+    # 荧光余晖（批 81），默认关闭。它自己的相位与成本见 `school_phosphor` 的模块文档：
+    # 这一层的开销是每帧几毫秒，所以在 24 fps 下是"可选的好看"，在 60 fps 下是"要先解决的新瓶颈"。
+    phosphor = None
+    if args.phosphor is not None:
+        try:
+            import school_phosphor as _PH
+            phosphor = _PH.Phosphor(cols, rows, decay=float(args.phosphor))
+            print(f"phosphor layer on: decay={args.phosphor:g} "
+                  f"(每 1/24 s 保留；~{0.4 if args.phosphor >= 0.5 else 0.25:.2f} s 尾巴)",
+                  file=sys.stderr, flush=True)
+        except Exception as exc:
+            print(f"warning: the phosphor layer could not be loaded ({exc})", file=sys.stderr)
+            phosphor = None
     # ...and the clock starts *here*: everything above this line - the sprite decode, the schedule walk
     # and the moment the music is handed to the sound card - is set-up, and none of it is song time. See
     # the note where `last` is declared.
@@ -4708,6 +4740,8 @@ def main() -> None:
             if (ncols, nrows) != (s.cols, s.rows):
                 cols, rows = ncols, nrows
                 s.resize(cols, rows)
+                if phosphor is not None:
+                    phosphor.resize(cols, rows)
                 _CUT[0] = None               # the frozen frame is the old size
                 out.write("\x1b[2J")
             # the gate's clock: it opens at 02:11.9, a key inside the five seconds answers, and the
@@ -4721,6 +4755,14 @@ def main() -> None:
             # set-up above). This used to be here, which is what put three seconds of black screen after
             # the first note and three seconds of song into the first frame drawn.
             draw(s, d, eng, t, playing, fps, audio)
+            # **荧光余晖**（批 81）。相位见 `school_phosphor` 的模块文档：
+            # `poke` 读的是上一帧 `render_diff` 收好的 `s.dirty`，`ink` 必须在这一帧的 `draw`
+            # 之后（`draw` 每帧整屏重画，放在前面会被涂掉——实测 2,811 处写入活下来 0 处），
+            # 而 `render_diff` 放在最后，`prev` 才会带着余晖、只发出它真正变了的那几格。
+            # 默认关闭：它值 1.7-8.9 ms 一帧，而 60 fps 的预算只有 16.7 ms（见 `--phosphor`）。
+            if phosphor is not None:
+                phosphor.poke(s, dt)
+                phosphor.ink(s)
             s.render_diff(out)
             shown += 1
             if now - fps_t0 >= 0.5:
