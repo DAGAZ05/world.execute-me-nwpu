@@ -3246,6 +3246,66 @@ def draw_love(s: Screen, x0: int, y0: int, x1: int, y1: int, lt: float) -> None:
         s.put(x, y0 + 1 + r, "love", mix(ME_TEXT, 1.0 if last else 0.5))
 
 
+#: 片尾 `shot_whale_fall` 的起点（193.54 s）。卡在 99% 的进度条从这一刻开始动，
+#: 因为提示词文档第 06 条要的那一段（03:12.5-03:31.9）在这个 cut 里就是这个镜头。
+WHALE_FALL_START = 193.54
+#: 最后那句 `Execution` 所在的镜头起点（205.54 s）：**进度条变红的时刻就是这个**。
+#:
+#: 这里踩过一次：第一版写的是 `FP.chapter_start("EXECUTION")`，那是 147.4——
+#: "07 / EXECUTION" 这个**章节**的开始，离最后那句 execution 还有一分钟。
+#: 于是进度条在 fall 一开始就是红的，"最后一句 execution 时变红"这个动作根本没发生
+#: （`_dev/probe_stuckbar.py` 断言 3 抓到的）。变红的锚点必须是那句词自己的镜头，
+#: 不是任何中间产物的章节号。
+LAST_EXEC_START = 205.54
+#: 进度条涨到 99% 用多久。之后一直平在 99%——**平着的那几秒才是这个设计本身**。
+SKILL_BAR_FILL = 5.0
+
+
+def draw_stuck_progress(s: Screen, x0: int, y0: int, x1: int, y1: int, t: float) -> None:
+    """The bar that stops at 99% — over 03:12.5-03:31.9, which in this cut is `shot_whale_fall`.
+
+    This is the one visual item in the reference repo's prompt document
+    (`world.execute-me-ascii-main/docs/prompts/creation-prompts.md`, item 06) that had no counterpart
+    here: "在这一段，加一个卡在99%的进度条动画，最后一句execution的时候进度条变成一个同风格的红色
+    execution". In this cut 03:12.5-03:31.9 is the whale falling to the sea floor (193.54-205.54) and
+    the last `Execution` lands at 205.54, so the two halves of the request are the two shots that
+    follow each other.
+
+    **99% is the point, so the number is the literal 99, not `0.99`.** It fills to that exactly and
+    then stops; the `%` keeps blinking so the frame is visibly *alive* while the number is not — a
+    still bar would read as a freeze or a finished job, and the whole device is that this one cannot
+    finish. The fill is driven by the song's own clock rather than by the frame, so it is frame-rate
+    independent and lands on the same number every run (`_dev/probe_stuckbar.py` asserts the plateau).
+
+    Its home is the stdout band, which is empty here on purpose: `Data.line_at` has nothing between
+    `Trapped in lo-o-ve`'s fade-out and the last `Execution`, so this fills a slot that the lyrics
+    deliberately leave open rather than covering anything.
+    """
+    w = x1 - x0 + 1
+    if w < 24:
+        return
+    bar_w = max(12, min(w - 10, 28))
+    bx = x0 + max(0, (w - bar_w - 6) // 2)
+    by = y1 - 2                                     # the box's own bottom row is y1: stay off it
+    if by <= y0:
+        return
+    # the fill: 99% at 5 s into the fall, then flat. Never full.
+    k = min(1.0, max(0.0, (t - WHALE_FALL_START) / SKILL_BAR_FILL))
+    filled = int(round(bar_w * 0.99 * k))
+    # 变红的锚点是**最后那句 execution 自己的镜头**，不是任何章节号（见 LAST_EXEC_START 的说明）
+    red = t >= LAST_EXEC_START
+    colour = mix(RED if red else ME_TEXT, 1.0)
+    s.put(bx, by, "%03d%%" % int(round(99 * k)), colour)
+    s.put(bx + 5, by, "\u2500" * bar_w, ui(0.25))
+    if filled:
+        s.put(bx + 5, by, "\u2588" * filled, colour)
+    idle = 0.0 if k >= 1.0 else (0.35 + 0.65 * abs(math.sin(t * 6.0)))
+    s.put(bx + 5 + filled, by, "\u2591", mix(ANOM, idle))
+    # 标签也跟着换：停在 `RUNNING` 是"这个任务还在跑"的判词，红字出现时才配得上它
+    s.put(bx + 6 + bar_w, by, "EXECUTION" if red else ("RUNNING" if k >= 1.0 else "loading"),
+          mix(RED, 1.0) if red else ui(0.45 + 0.3 * k))
+
+
 def draw_last_execution(s: Screen, x0: int, y0: int, x1: int, y1: int, t: float, lt: float) -> None:
     """08 EVAL: the last 'Execution' (scenes_eval.py:673-679).
 
@@ -4303,6 +4363,11 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
         draw_count(s, 1, top, cols - 2, bottom, t)
     elif ent is not None and ent["name"] == "shot_last_execution":
         draw_last_execution(s, 1, top, cols - 2, bottom, t, t - ent["start"])
+        # **...and the bar is still there, still at 99%, and now it turns red with the word.**
+        # That is the second half of the prompt document's item 06: the progress bar becomes the
+        # red EXECUTION rather than being replaced by it. It is drawn *after* `draw_last_execution`
+        # so the word owns the middle of the frame and the bar reads as the thing it came out of.
+        # (The `whale_fall` half of the device is drawn later - see the note where it is.)
     elif ent is not None and ent["name"] == "shot_black":
         draw_black(s, 1, top, cols - 2, bottom, t)
     elif ent is not None and ent["name"] == "shot_flood":
@@ -4335,6 +4400,15 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
             print(f"warning: the full-frame layer failed ({exc})", file=sys.stderr, flush=True)
     # tuikit.py:468-476's post, and the cut's reveal, both after everything else has been drawn
     fx_apply(s, t, ent)
+    # **The stuck-99% bar goes on after the full-frame layer, and that placement is load-bearing.**
+    # The bar's home is the last row of the stdout band, and `shot_whale_fall`'s own pane paints
+    # selectively across that row as it falls: drawn from the shot's dispatch (before the layer) it
+    # survived at 193.6 and 198.6 but was painted over at 195.0 and 197.0 - measured, not guessed
+    # (`_dev/probe_stuckbar.py` found the gaps). Here it cannot be covered by a pane, because every
+    # pane has already run. Only the whale_fall / last_execution shots want it at all; see
+    # `draw_stuck_progress` for why the number is 99 and not 100.
+    if ent is not None and ent["name"] in ("shot_whale_fall", "shot_last_execution"):
+        draw_stuck_progress(s, 1, top, cols - 2, bottom, t)
     # **...and the counted number goes on last** (batch 68). It belongs to the stdout box, but it is
     # allowed to run past it - that is the user's own note - so it cannot be drawn *inside* the band's
     # own pass: the box is redrawn by `_band_restore` when a `behind` photograph goes down, and the
