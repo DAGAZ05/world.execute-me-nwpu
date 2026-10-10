@@ -3257,6 +3257,9 @@ WHALE_FALL_START = 193.54
 #: （`_dev/probe_stuckbar.py` 断言 3 抓到的）。变红的锚点必须是那句词自己的镜头，
 #: 不是任何中间产物的章节号。
 LAST_EXEC_START = 205.54
+#: `shot_black` 的起点（207.083 s）：画面全黑，**进度条必须跟着一起消失**——
+#: 黑屏上留一个进度条，等于在说"任务还在跑"，而这一帧说的正是"它停了"。
+BLACK_START = 207.083
 #: 进度条涨到 99% 用多久。之后一直平在 99%——**平着的那几秒才是这个设计本身**。
 SKILL_BAR_FILL = 5.0
 
@@ -4407,7 +4410,14 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
     # (`_dev/probe_stuckbar.py` found the gaps). Here it cannot be covered by a pane, because every
     # pane has already run. Only the whale_fall / last_execution shots want it at all; see
     # `draw_stuck_progress` for why the number is 99 and not 100.
-    if ent is not None and ent["name"] in ("shot_whale_fall", "shot_last_execution"):
+    # **The window is a time range, not a set of shot names.** The bar belongs to those two shots and
+    # must vanish with the picture: `shot_black` is a black frame, and a progress bar sitting in it
+    # says the job is still running while the screen is telling you it stopped. Keying it on the
+    # clock rather than on `ent["name"]` also survives the shot's last frame, where `ent` can still
+    # be the outgoing shot - `_dev/probe_boundary_frames.py` caught exactly that: the bar was still
+    # drawn at 207.21-207.46, inside `shot_black`, because the two-shot name test included the
+    # `last_execution` frame that had already handed over.
+    if LAST_EXEC_START <= t < BLACK_START:
         draw_stuck_progress(s, 1, top, cols - 2, bottom, t)
     # **...and the counted number goes on last** (batch 68). It belongs to the stdout box, but it is
     # allowed to run past it - that is the user's own note - so it cannot be drawn *inside* the band's
