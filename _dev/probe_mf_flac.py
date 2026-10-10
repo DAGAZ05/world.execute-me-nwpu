@@ -72,11 +72,33 @@ class MF:
     必须像下面这样每个方法写一遍 `WINFUNCTYPE` 与 `argtypes`。
     """
 
-    # IMFSourceReader 的下标（IUnknown 占 0-2）
-    R_GET_NATIVE = 5
-    R_GET_CURRENT = 6
-    R_SET_CURRENT = 7
-    R_READ_SAMPLE = 12
+    # **IMFSourceReader 继承 IMFAttributes，它的方法在很后面——而且是"标定"出来的，不是数出来的。**
+    # IUnknown 占 0-2，IMFAttributes 占 3-31（实测 GetUINT32 = 7、SetUINT32 = 21 都对得上），
+    # IMFSourceReader 自己的方法跟在后面。
+    #
+    # **实测锚点**：用一个自己建的 IMFMediaType 扫 `SetCurrentMediaType(stream, pmt)`，
+    # 唯一返回 hr=0 的是 **下标 38**（其余下标要么 E_INVALIDARG、要么直接访问越界——
+    # 后者说明那些槽根本不是方法）。于是按 ABI 顺序推出：
+    #   32 GetStreamSelection   33 SetStreamSelection   34 GetNativeMediaType
+    #   35 GetCurrentMediaType  36 SetCurrentMediaType  37 SetCurrentPosition
+    #   38 GetPresentationAttribute 39 GetCharacteristics 40 ReadSample 41 Flush
+    # ……但标定说 38 就是 SetCurrentMediaType，所以真实起点比 32 晚 2：起点 = 36。
+    # 这里**只用标定过的那个下标**（SetCurrentMediaType = 38），其余按 ABI 顺序推并逐个用
+    # "返回 hr 是否合理"验证，而不是假设。
+    #
+    # 教训（写下来因为踩了两轮）：**COM 虚表下标不要数，要标定。** 数错的下场是
+    # `SetCurrentMediaType` 打到别的槽上，而且**对 mp3 也一样失败**——
+    # "拿一个已知能用的格式做对照组"是发现这类错误的唯一办法。
+    R_SET_CURRENT = 38             # 标定值（用自己建的 media type 扫出来的唯一 hr=0 槽）
+    # !! 警告：上面这个 38 之前写成 7 时对 mp3 也失败，说明当时打错了槽；
+    # !! 而改成 38 之后 GetNativeMediaType(34/36) 又直接访问越界。两次自相矛盾说明
+    # !! **靠扫下标标定 COM 虚表在这个 ctypes 壳里不可靠**（扫的时候用的是通用签名，
+    # !! 打到非函数槽上就是越界）。正确做法是用 IMFSample/IMFMediaType 的真实头文件
+    # !! 对齐下标，或者干脆换一个已有明确定义的绑定。这个探针因此**只作为记录保留**，
+    # !! 不作为结论依据。
+    R_GET_CURRENT = 37             # ABI 顺序：SetCurrent 的前一个
+    R_GET_NATIVE = 36              # 再前一个
+    R_READ_SAMPLE = R_SET_CURRENT + 4   # 42
 
     # IMFAttributes 的下标（IUnknown 占 0-2）。**这一组最容易数错**：
     # 0 QueryInterface 1 AddRef 2 Release
