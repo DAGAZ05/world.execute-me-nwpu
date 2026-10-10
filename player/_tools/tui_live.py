@@ -243,6 +243,48 @@ NOISE: list = [None]
 FX_STRENGTH: list = [None]          # None = the individual flags decide; else (p, n, d) floats
 
 
+def _fx_load_file() -> tuple | None:
+    """Read `data/fx.json` — **the file the user edits by hand** — and return the triple, or None.
+
+    This is the intended way to set the three enhancement strengths: the file is three numbers with
+    a comment key, it sits beside the project's other hand-edited data (`data/song.json`,
+    `data/lyrics_synced_notext.json`), and it is read fresh on every start, so there is no build step
+    and nothing to recompile.
+
+    It is deliberately forgiving, because a hand-edited file is exactly where a typo lands:
+
+      * a missing file, unparseable JSON, a missing key or a non-numeric value -> **None**, i.e. the
+        defaults (all three layers off). The player runs;
+      * a value out of `0..1` is **clamped** rather than rejected, so `2` means "fully on" instead of
+        a crash, and a negative means off;
+      * a top-level **list** `[p, n, d]` is accepted as well as the object, since both are natural
+        things to write.
+
+    `--fx` on the command line still wins over this file, so a one-off experiment does not have to
+    edit the file back and forth.
+    """
+    path = ROOT / "data" / "fx.json"
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    vals = None
+    if isinstance(raw, dict):
+        vals = [raw.get("phosphor"), raw.get("noise"), raw.get("dissolve")]
+    elif isinstance(raw, list) and len(raw) == 3:
+        vals = list(raw)
+    if not vals or any(v is None for v in vals):
+        return None
+    try:
+        out = []
+        for v in vals:
+            f = float(v)
+            out.append(0.0 if f < 0.0 else (1.0 if f > 1.0 else f))
+        return tuple(out)
+    except (TypeError, ValueError):
+        return None
+
+
 def _fx_params(triple) -> dict:
     """Map `--fx p,n,d` (each 0-1) onto the three layers' own parameters.
 
@@ -4661,8 +4703,10 @@ def main() -> None:
         except Exception as exc:
             print(f"warning: the college gate could not be loaded ({exc}); the song will run "
                   f"through 02:11.9 unanswered", file=sys.stderr, flush=True)
-    # **`--fx` 先于三个单开关解析**，因为它优先：给了它就用它算出来的参数，
-    # 否则才回落到 `--phosphor` / `--noise` / `--dissolve`。这样"两套写法"最终只有一个实现。
+    # **三层强度：命令行 > `data/fx.json` > 默认（全关）。**
+    # 文件是"手改的那一份"（三个数，编辑器里改完直接重跑），`--fx` 是一次性试验用的覆盖。
+    # 两者最终落到同一组参数上，所以只有一份实现。
+    fx_src = None
     if args.fx is not None:
         parts = [p.strip() for p in str(args.fx).replace("\uff0c", ",").split(",")]
         if len(parts) != 3:
@@ -4676,6 +4720,12 @@ def main() -> None:
         for name, v in zip(("\u4f59\u6656", "\u5e95\u566a", "\u6eb6\u89e3"), fx_triple):
             if not (0.0 <= v <= 1.0):
                 raise SystemExit(f"--fx 的{name}强度必须在 0-1 之间，收到 {v}")
+        fx_src = "--fx"
+    else:
+        fx_triple = _fx_load_file()
+        if fx_triple is not None:
+            fx_src = "data/fx.json"
+    if fx_triple is not None:
         FX_STRENGTH[0] = fx_triple
         par = _fx_params(fx_triple)
         args.phosphor = par["phosphor"]
@@ -4827,6 +4877,18 @@ def main() -> None:
 
     # 噪声底噪（批 84），默认关闭。它垫在画面最下面，所以和余晖层不冲突：
     # 余晖叠在画好的帧上，底噪垫在任何内容之下。两者可以同时开。
+    # **一层启动横幅，说清三个强度是从哪来的。** 手改的文件最常见的疑问是"我改了怎么没生效"，
+    # 所以这里把"用了哪三个值、来自哪里"直接打出来，而不是让人去猜。
+    if fx_triple is not None:
+        _p = _fx_params(fx_triple)
+        print(f"fx: 余晖={fx_triple[0]:g} 底噪={fx_triple[1]:g} 溶解={fx_triple[2]:g}"
+              f"   (来自 {fx_src})", file=sys.stderr, flush=True)
+        print(f"    余晖 decay={_p['phosphor'] if _p['phosphor'] is None else round(_p['phosphor'], 3)}"
+              f" · 底噪 scale={_p['noise']} stride={_p['noise_stride']}"
+              f" · 溶解 每次转场用不用={_p['dissolve']:g}", file=sys.stderr, flush=True)
+    else:
+        print("fx: 三层全关（data/fx.json 不存在或不可用，也没给 --fx）", file=sys.stderr, flush=True)
+
     if args.noise is not None:
         try:
             import school_noise as _NZ
