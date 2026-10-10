@@ -158,17 +158,40 @@ def _mask(font, ch: str):
 
 
 def check_source() -> int:
-    import re
+    import ast
+
     sources = sorted((Path(__file__).resolve().parents[1] / "player" / "_tools").glob("*.py"))
-    esc = re.compile(r"\\u([0-9a-fA-F]{4})")
-    used: dict[int, set] = {}
+    #: 文档字符串的行首（用 `tokenize`/`ast` 的等价物太绕，这里用"是不是某个 docstring 值"直接判）。
+    docs: set[str] = set()
+    trees = {}
     for p in sources:
-        txt = p.read_text(encoding="utf8")
-        chars = {ch for ch in txt if ord(ch) > 127}
-        for m in esc.finditer(txt):
-            chars.add(chr(int(m.group(1), 16)))
-        for ch in chars:
-            used.setdefault(ord(ch), set()).add(p.name)
+        try:
+            tree = ast.parse(p.read_text(encoding="utf8"))
+        except SyntaxError:
+            continue
+        trees[p] = tree
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+                d = ast.get_docstring(node, clean=False)
+                if d:
+                    docs.add(d)
+        d = ast.get_docstring(tree, clean=False)
+        if d:
+            docs.add(d)
+    used: dict[int, set] = {}
+    for p, tree in trees.items():
+        # **只算真的会被 `put`/`print` 出去的字符串常量，不算注释与文档字符串**（批 96 修）。
+        # 原实现把整份源码里所有非 ASCII 字符都收进来，于是 `school_motifs` 里解释
+        # "参考提示词要求这些 ❤️ 不要有空洞" 的两个字符被当成"要打印的字形"报成缺字——
+        # 那是**探针的形状**，不是字体的缺陷（它们从不进画面）。
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Constant) or not isinstance(node.value, str):
+                continue
+            if node.value in docs:
+                continue                        # 文档字符串：只给人读，不上屏
+            for ch in node.value:
+                if ord(ch) > 127:
+                    used.setdefault(ord(ch), set()).add(p.name)
     fonts, refs = {}, {}
     for name, path in RENDER_FONTS.items():
         try:

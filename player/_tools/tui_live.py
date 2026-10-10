@@ -545,6 +545,27 @@ DISSOLVE: list = [False]
 #: 0.25 s 在 60 fps 下是每 15 帧重建一次，肉眼看不出"跳"。
 NOISE_PERIOD = 0.25
 
+#: 底噪的**亮度门槛**（批 96）：低于这个亮度的格子根本不去点它。
+#:
+#: `school_noise.field` 自己的默认是 `0.12`，而它在真实画面里意味着"把暗部每一格都点上"——
+#: 即使 stride 已经放到 2，那一档实测仍要画 2337 格 = 全屏 22.8%（`_dev/noise_live_probe.py`，t=130），
+#: ink 从 0.30 抬到 0.46。"底纹"不该有这么大的面积：**它是背景，不是内容。**
+#:
+#: 抬到 `0.65` 的实测（同一时刻、同一个 stride/scale，只动这一个数）：
+#:
+#:     floor 0.12 -> 2337 格（22.8% 全屏）  ink 0.458   Δink vs 全关 +0.116
+#:     floor 0.25 -> 2077 格（20.3%）       ink 0.437
+#:     floor 0.35 -> 1712 格（16.7%）       ink 0.411
+#:     floor 0.45 -> 1225 格（12.0%）       ink 0.379   Δink +0.093（中段窗口）
+#:     floor 0.55 ->  830 格（ 8.1%）       ink 0.357   Δink +0.064
+#:     floor 0.65 ->  451 格（ 4.4%）       ink 0.336   Δink +0.029   ← 出厂
+#:     floor 0.75 ->  168 格（ 1.6%）       ink 0.317   Δink +0.007（等于看不见）
+#:
+#: 选 `0.65` 的理由是它**同时**满足两件事：`Δink` 落在"底纹不该改变画面明暗"的预算内（+0.029，
+#: 判据是 +0.03），而全屏仍有约 450 格在流——既不是脏，也不是没有。0.75 那档已经接近不可见。
+#: `PV_NOISE_FLOOR` 可以在不改代码的情况下试别的值（见 `draw` 里的覆盖）。
+NOISE_FLOOR = 0.65
+
 #: 噪声的疏密：`stride=2` 让一个字符代表 2×2 格。**这是这一层真正的成本旋钮**——
 #: 代价来自"每帧重刷多少格"，与 stride² 成反比。实测（`_dev/probe_noise_total.py`，
 #: draw + render_diff 多轮中位数）：stride=1 是 +7.13 ms/帧，底噪是纹理，纹理不需要每格都有。
@@ -4632,11 +4653,32 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
         if nx is None:
             stride = NOISE_STRIDE
         else:
-            # 档位越低颗粒越粗：`stride` 与 `scale` 一起按档放宽（成本也随之下降）
+            # **`stride` 从 `bundle` 来，不再按档位重算。** 批 96 实测出来的缺陷：
+            # `_fx_params` 已经按强度算好了 `noise_stride`（0.1 给 2、0.85 以上才给 1），
+            # 但这里又按 `FX_LEVEL` 重算了一遍，于是**档位 1.0（默认）下永远是 stride=1**——
+            # `data/fx.json` 写 `noise: 0.4` 期望的是粗颗粒，实际拿到的是每格都画。
+            # 实测（`_dev/noise_live_probe.py`，197×52，t=130）：底噪一帧画 **9003 格 = 全屏 87.9%**，
+            # 占整屏 ink 的 93%（ink 从 0.30 涨到 0.94）。这就是"画面杂乱无章"的来源。
+            #
+            # `bundle["noise_stride"]` 是**上限**：档位只允许让它更粗（更省成本），不许更细。
+            # 所以取值是 `max(bundle 的档位, 当前档位的最低要求)`——`x` 按到 full 时 bundle 也会
+            # 给出 1，那时才真的每格都画。
             lv = FX_LEVEL[0]
-            stride = 3 if lv < 0.34 else (2 if lv < 0.72 else 1)
+            bnd = FX_BUNDLE[0] or {}
+            base = int(bnd.get("noise_stride", NOISE_STRIDE))
+            floor = NOISE_STRIDE if lv < 0.34 else (2 if lv < 0.85 else 1)
+            stride = max(base, floor)
+        # 亮度门槛：见 `NOISE_FLOOR`（批 96 的实测表）。`PV_NOISE_FLOOR` 只给探针/试验用，
+        # 生产路径不读它。
+        _floor = NOISE_FLOOR
+        _envfloor = os.environ.get("PV_NOISE_FLOOR", "").strip()
+        if _envfloor:
+            try:
+                _floor = float(_envfloor)
+            except ValueError:
+                pass
         NOISE[0].field(s, box=(0, 1, cols - 1, rows - 5), period=NOISE_PERIOD,
-                       stride=stride, gain=NOISE_GAIN_RUNTIME[0])
+                       stride=stride, gain=NOISE_GAIN_RUNTIME[0], floor=_floor)
 
     # ------------------------------------------------------------------ header
     s.put(1, 0, "WORLD.EXECUTE(ME);", ui(1.0))
