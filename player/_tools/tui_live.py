@@ -357,17 +357,44 @@ def _fx_params(triple) -> dict:
     return dict(
         phosphor=(None if p <= 0.0 else 0.42 + 0.30 * p),
         noise=(None if n <= 0.0 else 22.0 - 16.0 * n),
-        noise_stride=(3 if n < 0.34 else (2 if n < 0.72 else 1)),
-        dissolve=d,
+        # **`stride` 的档位按"看得见"划，不按"省成本"划**（批 95）。
+        # 旧分界是 0.34 / 0.72，于是 `--fx 0.2,0.1,0.05` 里那个 `0.1` 落进 `stride=3`
+        # ——1/9 的取样密度，实测只在 4355 个可用空格里填 3938 个（看着像占满，
+        # 实则每 9 格才画 1 格），用户的原话是"一个特效都没有"。
+        # 0.1 本来就该是"轻一点的底纹"，不是"几乎不画"。新分界让 0.1 落在 `stride=2`。
+        # **但 `stride=1` 依然只在 0.85 以上才给**：它值约 +7 ms/帧（见 `school_noise.field`），
+        # 而 24 fps 的预算是 41.7 ms——那是"想要就自己开到顶"的代价，不该被 0.5 顺手拿走。
+        noise_stride=(3 if n < 0.08 else (2 if n < 0.85 else 1)),
+        # 溶解的**概率门槛**：`0 -> off`，`1 -> 每一次转场`。
+        # 取 `d ** 0.35`（批 95）：原先是线性的，于是 `0.05` = **1/400 的转场**、
+        # `0.2` = 4/100——两个都等于"看不到"。用户把强度调小是想"轻一点"，
+        # 而"1/400 的转场有溶解"不是轻，是没有。0.35 次幂把低段抬起来：
+        # `0.05 -> 0.35`、`0.2 -> 0.57`、`0.5 -> 0.78`、`1.0 -> 1.0`。
+        # **只改"哪些转场用溶解"，不碰"转场里格子的切换"**——后者改弱会留下半个画面
+        # （见 `fx_reveal` 里那段说明与 `_dev/probe_fx_dissolve.py` 的实测）。
+        dissolve=(d ** 0.35) if d > 0.0 else 0.0,
     )
 
 
 def _dissolve_for_cut(seed: int) -> bool:
     """Is the dissolve on for the cut carrying `seed`? Deterministic, so a run repeats.
 
-    Reads `FX_DISSOLVE` — the **runtime** probability, which is the file's value scaled by the `x`
-    key's current level (see `_fx_level_apply`). When the triple is absent it falls back to the
-    plain `DISSOLVE` switch, which is what `--dissolve` sets.
+    Reads `FX_DISSOLVE` — the **runtime** value, which is the file's value scaled by the `x` key's
+    current level (see `_fx_level_apply`). When the triple is absent it falls back to the plain
+    `DISSOLVE` switch, which is what `--dissolve` sets.
+
+    **`0.05` 现在是有用的值，而它以前不是** (batch 95). The strength is raised to the power
+    `0.35` first, so the low end stops being a dead zone: `0.05 -> 0.35`, `0.2 -> 0.57`,
+    `0.5 -> 0.78`, `1.0 -> 1.0`. Before this, `--fx ...,0.05` meant a dissolve on **1 cut in 400**
+    and `0.2` on **4 in 100** — the user turned the feature on and reported "一个特效都没有",
+    which was an accurate description of what the mapping did.
+
+    **What is NOT done here**: scaling the per-cell threshold in `fx_reveal` to "weaken" the
+    dissolve. That was tried and it is wrong — `prog` only reaches `1.0`, so a threshold of
+    `prog * k` with `k < 1` leaves every cell whose order-quantile is above `k` **never
+    switching**, i.e. a fifth of the previous shot still on screen after the cut (`0.501` left
+    **2163 cells / 21%**; `_dev/probe_fx_dissolve.py`). Strength may choose *which cuts* dissolve,
+    never *whether a cell in a dissolving cut switches* — that one is conserved.
     """
     if FX_STRENGTH[0] is None:
         return bool(DISSOLVE[0])
@@ -470,11 +497,14 @@ def _fx_level_apply() -> None:
         NOISE[0] = None
     else:
         import school_noise as _NZ
-        # 档位越低的颗粒越粗（scale 越大），成本也越低（stride 越大）
+        # 档位越低的颗粒越粗（scale 越大），成本也越低（stride 越大）。
+        # **下限 0.25 是批 95 加的**：原来 `low` 档（0.45）算出 7.6/0.45 = 16.9，
+        # 而 `low` 的 stride 现在是 2，两者配起来是"粗颗粒 + 稀疏"，看着像什么都没有。
+        # 抬到下限之后低档是"颗粒粗但铺得满"，那才是"轻一点的底纹"。
         scale = min(22.0, max(6.0, bundle["noise"] / max(0.25, lv)))
         NOISE_SCALE[0] = scale
         NOISE[0] = _NZ.Noise(FX_SIZE[0], FX_SIZE[1], seed=7, scale=scale)
-    # --- 溶解（概率，按比例缩）
+    # --- 溶解（只决定"哪些转场用溶解"；转场里格子的切换是有守恒的，不能在这里调弱）
     DISSOLVE[0] = bundle["dissolve"] > 0.0
     FX_DISSOLVE[0] = bundle["dissolve"] * lv
 
@@ -965,6 +995,13 @@ def fx_reveal(s: "Screen", t: float) -> None:
                     # 溶解：这一格只有在"它的出场号已经轮到"时才真的切过去，否则保持旧画面。
                     # 于是切面从一条推进的边界变成一块块有机的斑——参考仓库提示词里
                     # "把所有字符都打乱"的同一族语言（`docs/prompts/creation-prompts.md` 第 05 条）。
+                    #
+                    # **不要把这个条件改成 `mrow[x] > prog * k`（`k < 1`）去"调弱溶解"。**
+                    # 我试过：`prog` 最多走到 1.0，所以 `prog * k` 最多到 `k`，
+                    # 于是出场号分位大于 `k` 的那些格子**永远不会切过去**——转场结束时
+                    # 屏幕上留着上一镜的一大片。实测 `k = 0.501` 留下 **2163 格（21%）**
+                    # （`_dev/probe_fx_dissolve.py`）。"调弱"只能改**哪些转场用溶解**，
+                    # 不能改"这一次转场里的格子切不切"——后者是有守恒的。
                     if mrow is not None and mrow[x] > prog:
                         continue
                     row[x] = nrow[x]
