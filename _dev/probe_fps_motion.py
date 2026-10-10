@@ -80,13 +80,20 @@ def main() -> None:
 
     print(f"{cols}x{rows} = {cells_total} cells; the film's own rate is 24 fps")
     print()
-    print(f"{'rate':>6} {'step ms':>8} {'changed/frame':>14} {'% of cells':>10} "
+    print("每一行：在**同一个时间窗**里，以该速率画的 `frames` 帧之间，逐格比较的平均变化量。")
+    print("如果画面是连续的，帧间隔缩小 N 倍，相邻帧的变化量也应该缩小约 N 倍；")
+    print("如果变化量不随帧间隔缩小，说明画面在时间上被量化了（例如内部按 1/24 s 取整），")
+    print("那么把 cap 提到 24 以上只会重复同一帧——这一检验就是为了证明它不会。")
+    print()
+    print(f"{'rate':>6} {'step ms':>8} {'frames':>7} {'changed/frame':>14} {'% of cells':>10} "
           f"{'identical':>10} {'mean ms':>8}")
     for lo, hi in windows:
+        span = hi - lo
         print(f"--- {lo:.1f}-{hi:.1f} s  ({SP.row_at((lo + hi) / 2)['name']})")
+        per_rate = {}
         for fps in rates:
             step = 1.0 / fps
-            n = int((hi - lo) * fps)
+            n = max(2, int(span * fps))          # 同一窗口、不同速率 → 帧数按比例变，步长按比例变
             # warm this window so caches and the previous-frame buffers are in the right state
             for k in range(3):
                 T.draw(s, data, eng, lo - 0.5 + k * 0.01, True, fps)
@@ -96,7 +103,7 @@ def main() -> None:
             identical = 0
             ms = []
             for k in range(n):
-                t = lo + k * step
+                t = lo + k * span / n
                 t0 = time.perf_counter()
                 T.draw(s, data, eng, t, True, fps)
                 s.render_diff(io.StringIO())
@@ -109,9 +116,21 @@ def main() -> None:
                         identical += 1
                 prev = cur
             mean_c = sum(changed) / len(changed) if changed else 0.0
-            print(f"{fps:6.0f} {step * 1000:8.1f} {mean_c:14.0f} "
+            per_rate[fps] = mean_c
+            print(f"{fps:6.0f} {step * 1000:8.1f} {n:7d} {mean_c:14.0f} "
                   f"{100 * mean_c / cells_total:9.1f}% {identical:10d} "
                   f"{sum(ms) / len(ms):8.1f}")
+        base = rates[0]
+        if base in per_rate and per_rate[base] > 0:
+            for fps in rates[1:]:
+                if fps not in per_rate:
+                    continue
+                ratio = per_rate[fps] / per_rate[base]
+                expect = base / fps
+                verdict = ("随帧间隔缩小（画面连续）" if ratio < 0.75
+                           else "几乎不缩小 —— 可疑，值得再查")
+                print(f"      {base:.0f}→{fps:.0f} fps: 变化量比 {ratio:.2f}"
+                      f"（连续画面应约 {expect:.2f}）— {verdict}")
         print()
 
 
