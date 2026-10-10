@@ -3246,18 +3246,22 @@ def draw_love(s: Screen, x0: int, y0: int, x1: int, y1: int, lt: float) -> None:
         s.put(x, y0 + 1 + r, "love", mix(ME_TEXT, 1.0 if last else 0.5))
 
 
-#: 片尾 `shot_whale_fall` 的起点（193.54 s）。卡在 99% 的进度条从这一刻开始动，
-#: 因为提示词文档第 06 条要的那一段（03:12.5-03:31.9）在这个 cut 里就是这个镜头。
-WHALE_FALL_START = 193.54
-#: 最后那句 `Execution` 所在的镜头起点（205.54 s）：**进度条变红的时刻就是这个**。
+#: 片尾 `shot_whale_fall` 的实际起点，**按 1/24 s 逐帧扫出来的**（193.583）。
+#:
+#: 下面三个常量都是这么来的，因为"我以为的时刻"错过：影片 shot 表上的 193.54 / 205.54 /
+#: 207.083 与 `Engine.at()` 真正返回的东西差 1–2 帧（表里还有硬切与 transition 的偏移），
+#: 而**进度条是按帧画的**，差一帧就是"整段本来该有、却没有"。用表里的数字写死，会得到
+#: "只在最后一个镜头里才出现"这种**看起来像生效、其实整段都错了**的结果——
+#: `_dev/probe_stuckbar.py`（看断言）与 `_dev/probe_scope_frames.py`（看范围）一起才抓出来。
+WHALE_FALL_START = 193.583
+#: 最后那句 `Execution` 所在的镜头起点（205.583）：**进度条变红的时刻就是这个**。
 #:
 #: 这里踩过一次：第一版写的是 `FP.chapter_start("EXECUTION")`，那是 147.4——
 #: "07 / EXECUTION" 这个**章节**的开始，离最后那句 execution 还有一分钟。
-#: 于是进度条在 fall 一开始就是红的，"最后一句 execution 时变红"这个动作根本没发生
-#: （`_dev/probe_stuckbar.py` 断言 3 抓到的）。变红的锚点必须是那句词自己的镜头，
-#: 不是任何中间产物的章节号。
-LAST_EXEC_START = 205.54
-#: `shot_black` 的起点（207.083 s）：画面全黑，**进度条必须跟着一起消失**——
+#: 于是进度条在 fall 一开始就是红的，"最后一句 execution 时变红"这个动作根本没发生。
+#: 变红的锚点必须是那句词自己的镜头，不是任何中间产物的章节号。
+LAST_EXEC_START = 205.583
+#: `shot_black` 的起点（207.083）：画面全黑，**进度条必须跟着一起消失**——
 #: 黑屏上留一个进度条，等于在说"任务还在跑"，而这一帧说的正是"它停了"。
 BLACK_START = 207.083
 #: 进度条涨到 99% 用多久。之后一直平在 99%——**平着的那几秒才是这个设计本身**。
@@ -4410,14 +4414,18 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
     # (`_dev/probe_stuckbar.py` found the gaps). Here it cannot be covered by a pane, because every
     # pane has already run. Only the whale_fall / last_execution shots want it at all; see
     # `draw_stuck_progress` for why the number is 99 and not 100.
-    # **The window is a time range, not a set of shot names.** The bar belongs to those two shots and
-    # must vanish with the picture: `shot_black` is a black frame, and a progress bar sitting in it
-    # says the job is still running while the screen is telling you it stopped. Keying it on the
-    # clock rather than on `ent["name"]` also survives the shot's last frame, where `ent` can still
-    # be the outgoing shot - `_dev/probe_boundary_frames.py` caught exactly that: the bar was still
-    # drawn at 207.21-207.46, inside `shot_black`, because the two-shot name test included the
-    # `last_execution` frame that had already handed over.
-    if LAST_EXEC_START <= t < BLACK_START:
+    # **The window is the two shots, and it is expressed as a time range, not as shot names.**
+    # It starts at the *fall*, not at the last `Execution`: the whole device is that the bar has been
+    # at 99% for a while by the time the word lands (the prompt document's window is 03:12.5-03:31.9,
+    # which is both shots here). An earlier version keyed the start on `LAST_EXEC_START`, so the bar
+    # existed only for the final 1.5 s - it looked right in a spot check and was wrong across 12 s,
+    # which is why `_dev/probe_bar_rows.py` walks every frame instead of sampling.
+    #
+    # It must also vanish with the picture: `shot_black` is a black frame, and a progress bar sitting
+    # in it says the job is still running while the screen is telling you it stopped. Keying the end
+    # on `BLACK_START` rather than on `ent["name"]` also survives the shot's last frame, where `ent`
+    # can still be the outgoing shot.
+    if WHALE_FALL_START <= t < BLACK_START:
         draw_stuck_progress(s, 1, top, cols - 2, bottom, t)
     # **...and the counted number goes on last** (batch 68). It belongs to the stdout box, but it is
     # allowed to run past it - that is the user's own note - so it cannot be drawn *inside* the band's
