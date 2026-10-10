@@ -232,6 +232,60 @@ FX = dict(on=True, reveal=True, mech=True, trail=True, vig=True, shake=True)
 #: `[None]` 表示不开；开时持有 `school_noise.Noise` 实例。
 NOISE: list = [None]
 
+#: **The three optional layers as one triple of numbers**, each `0.0`–`1.0`:
+#: `(phosphor, noise, dissolve)`. Set by `--fx`; `0` means off.
+#:
+#: This exists because a still screenshot cannot judge a *motion* effect: what matters is how the
+#: tail, the backdrop and the cut feel over a few seconds, and that can only be dialled in while
+#: watching. The individual `--phosphor` / `--noise` / `--dissolve` flags remain and are the more
+#: precise controls (a decay of 0.62, a noise scale of 9); the triple is the fast one, and it
+#: resolves onto those same parameters so there is one implementation rather than two.
+FX_STRENGTH: list = [None]          # None = the individual flags decide; else (p, n, d) floats
+
+
+def _fx_params(triple) -> dict:
+    """Map `--fx p,n,d` (each 0-1) onto the three layers' own parameters.
+
+    * **phosphor** `0 -> 0.42`, `1 -> 0.72` per 1/24 s. That is the measured useful band
+      (`school_phosphor.py`: 0.42 a light tail, 0.58 ~0.4 s, 0.70 a long smear). Above ~0.72 the tail
+      outlives the cut it belongs to and the picture stops clearing.
+    * **noise** `0 -> off`, `1 -> scale 6 / stride 1` (finest, most expensive). The scale runs the
+      *other* way from the intensity - a smaller scale is finer grain - and **stride follows it**,
+      which is the point: asking for more grain buys the density to show it. The cost table in
+      `school_noise.field` is why these two move together rather than independently.
+    * **dissolve** `0 -> off`, `1 -> every cut`. Below 1 it is a *probability* per cut, drawn
+      deterministically from that cut's own seed, so a half-strength setting is reproducible and does
+      not flicker between runs (`_dev/probe_dissolve.py` relies on that).
+    """
+    p = max(0.0, min(1.0, float(triple[0])))
+    n = max(0.0, min(1.0, float(triple[1])))
+    d = max(0.0, min(1.0, float(triple[2])))
+    return dict(
+        phosphor=(None if p <= 0.0 else 0.42 + 0.30 * p),
+        noise=(None if n <= 0.0 else 22.0 - 16.0 * n),
+        noise_stride=(3 if n < 0.34 else (2 if n < 0.72 else 1)),
+        dissolve=d,
+    )
+
+
+def _dissolve_for_cut(seed: int) -> bool:
+    """Is the dissolve on for the cut carrying `seed`? Deterministic, so a run repeats."""
+    s = FX_STRENGTH[0]
+    if s is None:
+        return bool(DISSOLVE[0])
+    d = s[2]
+    if d <= 0.0:
+        return False
+    if d >= 1.0:
+        return True
+    return ((seed * 2654435761) % 10007) / 10007.0 < d
+
+
+def _fx_on():
+    """The triple, or None when the individual flags are in use."""
+    return FX_STRENGTH[0]
+
+
 #: **fbm 溶解转场**（批 86），默认关闭，`--dissolve` 打开。
 #:
 #: 现有的转场是"按每格自己的时刻把新画面逐格换进来"（`fx_reveal` 的 order 循环），
@@ -677,7 +731,7 @@ def fx_reveal(s: "Screen", t: float) -> None:
         # 出场顺序表在这一次转场开始时取一次并存进 `c`，之后每帧复用——因为场每帧都变，
         # 每帧重算会让格子反复横跳，读成噪点而不是"画面在一片片地换"。
         mask = None
-        if DISSOLVE[0] and c.get("carry") is None:
+        if _dissolve_for_cut(seed) and c.get("carry") is None:
             if "diss" not in c:
                 try:
                     import school_noise as _NZd
@@ -4315,8 +4369,10 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
         # `period`（秒）是这一层的成本与观感的共同开关：图案每 period 秒重建一次，
         # 中间的帧只重刷颜色。实测 0 是 3.61 ms 且每帧重写约 4,000 格（读起来是噪点在闪），
         # 0.25 是 0.5 ms 上下且图案准静态（读起来才是"表面在流"）。见 school_noise.field。
+        nx = _fx_on()
+        stride = NOISE_STRIDE if nx is None else _fx_params(nx)["noise_stride"]
         NOISE[0].field(s, box=(0, 1, cols - 1, rows - 5), period=NOISE_PERIOD,
-                       stride=NOISE_STRIDE)
+                       stride=stride)
 
     # ------------------------------------------------------------------ header
     s.put(1, 0, "WORLD.EXECUTE(ME);", ui(1.0))
@@ -4534,6 +4590,17 @@ def main() -> None:
                          f"higher cap is genuinely smoother motion and not repeated frames - it costs "
                          f"CPU and terminal traffic, and the real rate is min(cap, 1000/frame ms). "
                          f"`_dev/paint_probe.py` prints both budgets.")
+    ap.add_argument("--fx", metavar="P,N,D", default=None,
+                    help="三个可选层一次调好，写成 `余晖,底噪,溶解` 三个 0-1 的数（例如 `--fx 0.6,0.4,1`）。"
+                         "**这是用来边看边调的**：三个效果都是动的，一张截图看不出好坏，"
+                         "而这条命令让你在同一次播放里把强度拨到合适的位置。"
+                         "`0` 表示那一层不开；`--fx 1,1,1` 是三层全开。"
+                         "映射到各自的参数：余晖 0.42->0.72（每 1/24 s 的保留率，实测可用的区间）；"
+                         "底噪 场块 22->6、stride 3->1（强度越高越细，**同时更贵**，"
+                         "因为要看得见更多颗粒就得画更多格）；"
+                         "溶解 是\u201c每一次转场用不用\u201d的概率，<1 时按转场自己的种子决定，"
+                         "所以同一个数值每次跑出来一样（不闪）。"
+                         "与 `--phosphor`/`--noise`/`--dissolve` 等价，同时给出时 **--fx 优先**。")
     ap.add_argument("--phosphor", metavar="DECAY", nargs="?", type=float, const=0.58, default=None,
                     help="荧光余晖：把最近若干帧的亮度按指数衰减留在屏幕上，让字会亮一会儿再暗下去。"
                          "**默认关闭**，因为它是这套东西里最贵的一个可选效果——实测 ink+poke "
@@ -4594,6 +4661,26 @@ def main() -> None:
         except Exception as exc:
             print(f"warning: the college gate could not be loaded ({exc}); the song will run "
                   f"through 02:11.9 unanswered", file=sys.stderr, flush=True)
+    # **`--fx` 先于三个单开关解析**，因为它优先：给了它就用它算出来的参数，
+    # 否则才回落到 `--phosphor` / `--noise` / `--dissolve`。这样"两套写法"最终只有一个实现。
+    if args.fx is not None:
+        parts = [p.strip() for p in str(args.fx).replace("\uff0c", ",").split(",")]
+        if len(parts) != 3:
+            raise SystemExit(
+                f"--fx 需要三个数（余晖,底噪,溶解），收到 {len(parts)} 个：{args.fx!r}\n"
+                f"例如 --fx 0.6,0.4,1   或   --fx 1,1,1（三层全开）")
+        try:
+            fx_triple = tuple(float(p) for p in parts)
+        except ValueError:
+            raise SystemExit(f"--fx 的三个值必须都是数字，收到：{args.fx!r}")
+        for name, v in zip(("\u4f59\u6656", "\u5e95\u566a", "\u6eb6\u89e3"), fx_triple):
+            if not (0.0 <= v <= 1.0):
+                raise SystemExit(f"--fx 的{name}强度必须在 0-1 之间，收到 {v}")
+        FX_STRENGTH[0] = fx_triple
+        par = _fx_params(fx_triple)
+        args.phosphor = par["phosphor"]
+        args.noise = par["noise"]
+        DISSOLVE[0] = par["dissolve"] > 0.0
     if args.dissolve:
         DISSOLVE[0] = True
     if args.no_fx:

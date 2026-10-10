@@ -631,51 +631,140 @@ def epicycles(k, t: float) -> None:
                     k.put(px2, py2, "\u2022", _mix(_C.RED, lv))
 
 
-def hearts9(k, t: float) -> None:
-    """**One** heart curve, big - "心形曲线可以只画1个大的".
+#: The classic parametric heart, `x = 16 sin³t`, `y = 13 cos t − 5 cos 2t − 2 cos 3t − cos 4t`.
+#:
+#: **Not the implicit `(x²+y²−1)³ = x²y³`.** That equation is used elsewhere in this project
+#: (`school_courses.ai_diffusion` fills its diffusion panels with it) and it is the usual "implicit
+#: heart", but `_dev/probe_heart_shape.py` scanned it cell by cell and it is **not a heart**: its
+#: x-interval is still `±1.00` at the very top row, so the two lobes never separate and there is
+#: **no notch at all** — it rasterises to a rounded blob. A shape with no cusp cannot read as a
+#: heart, and a blob is not a fix for "looks hollow".
+#:
+#: This curve does have the two lobes and the cusp at the top, and it is the same heart whose Fourier
+#: coefficients `epicycles` already derives and draws (`想法.md`'s own formula list), so the two
+#: hearts in this file agree on the shape instead of disagreeing.
+HEART_T_STEPS = 2880
+#: The curve's extent in its own units: `x ∈ [-16, 16]`, `y ∈ [-17, +12]`. The cusp reaches only +12
+#: while the point reaches -17, so it is **not** symmetric about `y = 0`; dividing both sides by 17
+#: (the first version) put the cusp at +0.71 instead of +1.0 and squashed the top.
+HEART_X_MAX = 16.0
+HEART_Y_MIN = -17.0
+HEART_Y_MAX = 12.0
+#: height : width in the curve's own units.
+HEART_RATIO = (HEART_Y_MAX - HEART_Y_MIN) / (2.0 * HEART_X_MAX)
 
-    This was nine: `想法.md` lists five heart formulae and asks for nine, so it drew a 3x3 contact sheet
-    of tiny dotted loops with nine equations printed over them. The user's note at this batch is
-    "有些演出太复杂导致图像精细度不够，可以进行简化，重点放在细节刻画（比如心形曲线可以只画1个大的）", and
-    they are right about the cause: at a band's height each cell of that sheet had three rows, so every
-    heart was a dash and the equations overlapped. Nine shapes at three rows each is not nine times the
-    information, it is no information - what the sheet was for ("同一个形状，九个方程") survives as one
-    line of text under one heart that can actually be seen.
 
-    The curve is `r = 1 - sin θ`: the one polar heart everybody recognises, with the cusp at the top and
-    the point at the bottom. It is drawn at the band's own size with the cell aspect divided out, so it is
-    a heart rather than a squashed heart, and with a second contour inside it at 0.82 - two passes are
-    what give a curve *weight* at terminal resolution. The whole thing breathes, so the pane's clock
-    (`_dev/clock_probe.py`) sees it move.
+def _heart_outline(steps: int = HEART_T_STEPS) -> list:
+    """The parametric heart as `(x, y)` in the curve's own units, **cusp at the top**.
+
+    `y` is negated so the cusp (raw `+12`) becomes the smallest value, i.e. the top in screen
+    coordinates where y grows downward.
     """
-    k.section(k.by0, "\u5fc3\u5f62\u66f2\u7ebf r = 1 \u2212 sin \u03b8", 0.28)
-    if k.bw < 14 or k.bh < 5:
+    pts = []
+    for i in range(steps):
+        t = 2.0 * math.pi * i / steps
+        x = HEART_X_MAX * math.sin(t) ** 3
+        y = 13.0 * math.cos(t) - 5.0 * math.cos(2 * t) - 2.0 * math.cos(3 * t) - math.cos(4 * t)
+        pts.append((x, -y))
+    return pts
+
+
+def heart_cells(w: int, h: int) -> set:
+    """The parametric heart as a set of `(x, y)` cells inside a `w` x `h` box, **solid**.
+
+    Solid is the point: the reference repo's prompt document asks for "这些❤️不要有这种空洞" (item 21),
+    with items 22/24 adding "是这个部分，有三个" / "后面这里也有三个凹陷".
+
+    **Even-odd scanline fill, not `min..max`.** The first version filled every cell between the
+    leftmost and rightmost crossing, which fills *across the cusp*: on the rows above the notch the
+    two lobes are separate, and spanning between them put a bridge over the gap. The raster then read
+    as a round crown instead of two lobes - `_dev/probe_heart.py` printed it, and the width profile in
+    `_dev/probe_heart_notch.py` made it explicit (the notch-depth line came out 0.00 rows). Counting
+    crossings and filling between odd/even pairs is the standard scanline fill and gets the cusp right
+    for free.
+
+    "No holes" is then checkable rather than asserted: `_dev/probe_heart.py` counts enclosed holes two
+    different ways (four-neighbour, and flood fill from outside) at five sizes.
+    """
+    if w < 3 or h < 3:
+        return set()
+    pts = _heart_outline()
+    x_lo, x_hi = -HEART_X_MAX, HEART_X_MAX
+    y_lo, y_hi = HEART_Y_MIN, HEART_Y_MAX        # screen y already negated in `pts`
+    out = set()
+    for gy in range(h):
+        uy = y_lo + (y_hi - y_lo) * (gy + 0.5) / h
+        xs = []
+        for i in range(len(pts)):
+            x0p, y0p = pts[i]
+            x1p, y1p = pts[(i + 1) % len(pts)]
+            if (y0p - uy) * (y1p - uy) > 0.0:
+                continue
+            if y1p == y0p:
+                continue                          # a horizontal edge contributes nothing to parity
+            xs.append(x0p + (uy - y0p) / (y1p - y0p) * (x1p - x0p))
+        if len(xs) < 2:
+            continue
+        xs.sort()
+        for k in range(0, len(xs) - 1, 2):
+            a, b = xs[k], xs[k + 1]
+            for gx in range(w):
+                ux = x_lo + (x_hi - x_lo) * (gx + 0.5) / w
+                if a <= ux <= b:
+                    out.add((gx, gy))
+    return out
+
+
+def hearts9(k, t: float) -> None:
+    """**One** heart, big and **solid** - "心形曲线可以只画1个大的" + "这些❤️不要有这种空洞".
+
+    This was nine: `想法.md` lists five heart formulae and asks for nine, so it drew a 3x3 contact
+    sheet of tiny dotted loops with nine equations printed over them. The user's note is "有些演出太
+    复杂导致图像精细度不够，可以进行简化，重点放在细节刻画（比如心形曲线可以只画1个大的）" - at a band's
+    height each cell of that sheet had three rows, so every heart was a dash.
+
+    **Batch 90 replaced both the curve and the fill**, on the reference repo's prompt document:
+
+      * item 21 "这些❤️不要有这种空洞", items 22/24 "是这个部分，有三个" / "后面这里也有三个凹陷". The old
+        drawing was **two dotted contours** of `r = 1 - sin θ`, which is a **cardioid**: one cusp at
+        the top and a round bottom, with the whole middle empty. A cardioid has one lobe, not two, so
+        at this resolution its single notch read as a dent and the empty middle read as a hole.
+        Neither is something a fill can fix - the shape itself was wrong.
+      * It is now the **parametric heart** (see `heart_cells`), **filled**, with the rim drawn one
+        shade brighter so the outline survives the fill. A flat filled blob at fourteen cells across
+        is not a heart either - the rim is what carries the two lobes.
+
+    The whole thing still breathes on `t`, so the pane's clock probe sees it move.
+    """
+    k.section(k.by0, "\u5fc3\u5f62\u66f2\u7ebf x=16sin\u00b3t, y=13cost\u22125cos2t\u22122cos3t\u2212cos4t", 0.28)
+    if k.bw < 8 or k.bh < 5:
         return
-    # The heart hangs *below* its cusp: `r = 1 - sin θ` is 0 at the top (the notch) and 2 at the bottom
-    # (the point), so `cy` is the top of the drawing rather than its middle - the first version centred
-    # `cy` and clipped the point off the bottom of every box. Both radii come from what is left: the width
-    # is `2 rx` and the height `2 ry`, and a cell is `_CA` times taller than it is wide.
-    cx = k.bx0 + k.bw // 2
-    cy = k.by0 + 2
-    room = max(4, (k.by1 - cy) - 1)
-    ry = max(3, min(room // 2, int((k.bw // 2 - 2) / _CA)))
-    rx = max(5, int(ry * _CA))
+    # The heart's box keeps the curve's own proportion **after** dividing out the cell aspect: a cell
+    # is `_CA` times taller than it is wide, so a box of `w` cells by `h` cells shows a shape of true
+    # proportion when `h / w = HEART_RATIO / _CA`. Getting this wrong is what makes a heart look
+    # squashed or like a lollipop, and at fourteen cells across it is not a subtle difference.
+    want = HEART_RATIO / max(0.1, _CA)
+    top = k.by0 + 2
+    avail_h = (k.by1 - top) - 1
+    avail_w = k.bw - 2
+    if avail_h < 4 or avail_w < 8:
+        return
+    h = min(avail_h, max(5, int(round(avail_w * want))))
+    w = max(8, min(avail_w, int(round(h / want))))
+    h = max(4, min(avail_h, int(round(w * want))))
+    x0 = k.bx0 + max(0, (k.bw - w) // 2)
+    y0 = top + max(0, (avail_h - h) // 2)
+    cells = heart_cells(w, h)
+    if not cells:
+        return
     beat = 0.62 + 0.38 * abs(math.sin(t * 1.9))
-    for i in range(0, 360, 2):
-        th = math.radians(i)
-        r = 1.0 - math.sin(th)
-        x = cx + int(rx * r * math.cos(th))
-        y = cy - int(ry * r * math.sin(th))
-        k.put(x, y, "\u00b7", _mix(_C.RED, beat))
-        if i % 6 == 0:                              # every third sample again, brighter: the contour
-            k.put(x, y, "\u2022", _mix(_C.RED, min(1.0, beat + 0.25)))
-    for i in range(0, 360, 3):                      # the inner contour, the curve's own body
-        th = math.radians(i)
-        r = (1.0 - math.sin(th)) * 0.82
-        k.put(cx + int(rx * r * math.cos(th)), cy - int(ry * r * math.sin(th)),
-              "\u00b7", _mix(_C.VIOLET, 0.34 + 0.2 * beat))
-    k.put(k.bx0, k.by1, "\u540c\u4e00\u4e2a\u5f62\u72b6\uff0c\u4e5d\u4e2a\u65b9\u7a0b\uff1a"
-                        "\u6ca1\u6709\u54ea\u4e2a\u662f\u201c\u5bf9\u201d\u7684", _ui(0.5))
+    for (x, y) in cells:
+        edge = ((x - 1, y) not in cells or (x + 1, y) not in cells
+                or (x, y - 1) not in cells or (x, y + 1) not in cells)
+        k.put(x0 + x, y0 + y, "\u2588",
+              _mix(_C.RED, min(1.0, beat + (0.28 if edge else 0.0))))
+    k.put(k.bx0, k.by1, "\u540c\u4e00\u4e2a\u5f62\u72b6\uff0c\u4e00\u4e2a\u65b9\u7a0b\uff1a"
+                        "\u91cc\u9762\u662f\u5b9e\u7684", _ui(0.5))
 
 
 def fork_bomb(k, t: float) -> None:
