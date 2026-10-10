@@ -157,6 +157,11 @@ class Noise:
         self.cur: np.ndarray | None = None
         self._quant: np.ndarray | None = None
         self._q_for: np.ndarray | None = None      # 分位表是为哪一帧的场算的
+        #: 准静态图案的缓存（见 `field` 的 `period`）：[(y, x, 字符, 亮度), ...]
+        self._pat: list | None = None
+        self._pat_box: tuple | None = None
+        self._pat_t = -1e9
+        self._pat_checked = 0
         self.t = 0.0
         self._grid(0.0)
 
@@ -174,32 +179,45 @@ class Noise:
             self._grid(self.t)
 
     def tick(self, t: float, seed_offset: int = 0) -> np.ndarray:
-        """算这个时刻的整屏场（每帧一次）。返回 (rows, cols) 的 float32。"""
+        """算这个时刻的整屏场。返回 (rows, cols) 的 float32。
+
+        **`t` 每帧都在变，所以场每帧都会重算**——这是有意的：`field` 的颜色强度要每帧连续。
+        但**图案**不该跟着每帧重建，那由 `field` 的 `period` 单独控制（它的时间戳是
+        `self._pat_t`，与这里无关）。第一版在这里把图案缓存清掉，于是 `period` 完全不起作用
+        （每帧都判定为"需要重建"），实测成本一点没降——`_dev/probe_noise_ab.py` 把它抓了出来。
+        """
+        self.t = float(t)
         if (self.cur is None or abs(t - self._t) > 1e-9 or seed_offset):
             self._grid(t)
             f = fbm(self._fx, self._fy, self.seed + seed_offset * 7919, self.octaves)
             self.cur = contrast(f) if self.stretch else f
+            self._q_for = None
         return self.cur
 
     # ------------------------------------------------------------------ 用法一：底噪
 
     def field(self, screen, ramp: str = RAMP, colour=(120, 150, 190), box=None,
-              level: float = 0.5, floor: float = 0.12) -> int:
+              level: float = 0.5, floor: float = 0.12, period: float = 0.0,
+              stride: int = 1) -> int:
         """把场按 `ramp` 画成字符进缓冲。
 
         `floor` 是"低于这个亮度就不画"的门槛——终端里一格淡到看不见的字就是脏点，
         和 `fx_trail` 的 `TRAIL_MIN`、余晖层的 `MIN_LEVEL` 是同一个道理。
 
-        **这里是朴素的逐格循环，因为实测它最快。** 这一层的最后一步必须把上万个元组写进
-        `list[list[tuple]]`，那一步只能是 Python；在它之上再套 numpy（掩码 + argsort 分组 +
-        按行切片）是净亏——`_dev/probe_field_variants.py` 三种写法并排量（197×52，各 15 轮）：
+        **`stride` 是这一层真正的成本旋钮，`period` 只解决了一半。** 实测（真实画面，
+        `draw + render_diff` 多轮中位数，`_dev/probe_noise_total.py`）：
 
-            逐格全屏（本实现）              3.48 ms
-            向量化 + 按行分组               7.98 ms   ← argsort 一万个元素自己就要 3-4 ms
-            稀疏逐格（只遍历够亮的格）      4.97 ms
+            stride=1  period=0.25     +7.13 ms/帧   （其中 `render_diff` 只占很小一部分：
+                                      终端流只多 12 KB/帧，所以钱花在画格子上）
 
-        "向量化一定更快"在这个规模上是错的。真正省下时间的是**不遍历整屏**：
-        整行都低于 `floor` 的行直接跳过（`frow` 的最大值一次比较），安静段落里能跳掉大半。
+        代价的来源是"每帧要重刷约 4,000 个格子"，而不是求值场（场只要 0.5-1.3 ms）。
+        底噪是一层**纹理**，纹理不需要每格都有：`stride=2` 让一个字符代表 2×2 格，
+        成本按 stride² 掉，而观感上只是纹理粗一点——对"pane 之间空隙里的暗部质感"这个用途
+        完全够。`period` 控制图案多久重建一次（准静态），`stride` 控制图案有多密。
+
+        **`period` 还顺手修了一个观感错误**：`period=0`（每帧按当前场重画）会让这 4,000 格
+        每帧都变，读起来是噪点在闪，不是表面在流——一层"缓慢流动的底噪"不该每帧重写四成屏幕。
+        这和 `tui_live.fx_trail` 那条"按 dt 步进而非按帧重画"是同一个道理。
         """
         f = self.cur
         if f is None:
@@ -209,26 +227,44 @@ class Noise:
         x0, y0 = max(0, x0), max(0, y0)
         x1, y1 = min(self.cols - 1, x1), min(self.rows - 1, y1)
         cr, cg, cb = int(colour[0]), int(colour[1]), int(colour[2])
+        stride = max(1, int(stride))
+
+        # ---- 图案：每隔 period 秒重建一次，其余帧直接用上一次的 ----
+        fresh = (self._pat is None or self._pat_box != (x0, y0, x1, y1, stride)
+                 or abs(self.t - self._pat_t) >= period or period <= 0.0)
+        if fresh:
+            cells = []
+            for y in range(y0, y1 + 1, stride):
+                frow = f[y]
+                row = screen.buf[y]
+                for x in range(x0, x1 + 1, stride):
+                    if row[x][0] != " ":
+                        continue             # 底噪是背景，不许盖掉任何内容
+                    v = float(frow[x])
+                    if v < floor:
+                        continue
+                    ch = ramp[int(v * n)]
+                    if ch == " ":
+                        continue
+                    cells.append((y, x, ch, v))
+            self._pat = cells
+            self._pat_box = (x0, y0, x1, y1, stride)
+            self._pat_t = self.t
+        else:
+            cells = self._pat
+            # 复用图案时不再求值场、也不再逐格比较亮度；只确认这些格子现在还是空的
+            # （中间可能有文字压上来），颜色按当前的 `level` 重刷——所以观感上仍然是
+            # "亮度每帧连续变化、图案缓慢流动"。
+
+        k = float(level)
         drawn = 0
-        for y in range(y0, y1 + 1):
-            frow = f[y]
-            # 整行都够不着 floor：这一行一格都不用看
-            if float(frow[x0:x1 + 1].max()) < floor:
+        for y, x, ch, v in cells:
+            cell = screen.buf[y][x]
+            if cell[0] != " ":
                 continue
-            row = screen.buf[y]
-            for x in range(x0, x1 + 1):
-                cell = row[x]
-                if cell[0] != " ":
-                    continue                 # 底噪是背景，不许盖掉任何内容
-                v = float(frow[x])
-                if v < floor:
-                    continue
-                ch = ramp[int(v * n)]
-                if ch == " ":
-                    continue
-                k = v * float(level)
-                row[x] = (ch, (int(cr * k), int(cg * k), int(cb * k)), cell[2])
-                drawn += 1
+            kk = v * k
+            screen.buf[y][x] = (ch, (int(cr * kk), int(cg * kk), int(cb * kk)), cell[2])
+            drawn += 1
         return drawn
 
     # ------------------------------------------------------------------ 用法二：扰动

@@ -226,6 +226,20 @@ SIM_START, SIM_END = 12.389, 16.082
 # cuts use them (39 radial, 12 inward, 11 sweep, cut classes in continuity_full_v2/cuts.py). The
 # film's cell is 8x16 px of a 1280x720 pane; one terminal cell stands in for one of those.
 FX = dict(on=True, reveal=True, mech=True, trail=True, vig=True, shake=True)
+
+#: 噪声底噪层（批 84）。和 `FX` 分开，因为它不是"后期"——它垫在画面最下面，
+#: 是底色而不是滤镜，而且它默认关闭（成本见 `--noise`）。
+#: `[None]` 表示不开；开时持有 `school_noise.Noise` 实例。
+NOISE: list = [None]
+
+#: 噪声图案的重建周期，秒。图案重建时才做整屏求值，中间的帧只重刷颜色（准静态图案）。
+#: 0.25 s 在 60 fps 下是每 15 帧重建一次，肉眼看不出"跳"。
+NOISE_PERIOD = 0.25
+
+#: 噪声的疏密：`stride=2` 让一个字符代表 2×2 格。**这是这一层真正的成本旋钮**——
+#: 代价来自"每帧重刷多少格"，与 stride² 成反比。实测（`_dev/probe_noise_total.py`，
+#: draw + render_diff 多轮中位数）：stride=1 是 +7.13 ms/帧，底噪是纹理，纹理不需要每格都有。
+NOISE_STRIDE = 2
 TRAIL = 0.42               # tuikit.py:468's own trail factor
 TRAIL_MIN = 0.06           # below this a ghost is not worth a cell
 SCAN_DIM = 0.86            # tuikit.py:445 draws every 3rd pixel row at 55/255 black
@@ -4183,6 +4197,25 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
     UI_GAIN[0] = FP.ui_gain_at(t, ent["name"] if ent else "", ent["u"] if ent else 0.0)
     s.fill(0, 0, cols - 1, rows - 1, " ", UI, BG)
 
+    # ------------------------------------------------------------------ 噪声底噪
+    # **底噪垫在画面最下面**（批 84）。位置是这里——`fill` 之后、任何 pane 与文字之前——
+    # 因为它是一层"背景质感"，语义上属于底色而不是内容：
+    #   * 它在 pane 之前画，所以 pane 自己的底与边框、以及所有文字都压在它上面；
+    #   * 而 `Noise.field` 只写**空格**，所以它连"会不会压到别人"都不用判断。
+    # 于是它出现的地方正是画面最缺质感的地方：pane 之间的空隙、左侧窗口周围的留白、
+    # 大面积空着的暗部。它**不**覆盖任何内容，这一点有断言守着
+    # （`_dev/out/sanity_noise.py` 第 7 组）。
+    #
+    # 成本 1.0-1.5 ms 一帧（`_dev/probe_noise_cost.py`），**默认关闭**，见 `--noise`。
+    if NOISE[0] is not None:
+        NOISE[0].resize(cols, rows)
+        NOISE[0].tick(t)
+        # `period`（秒）是这一层的成本与观感的共同开关：图案每 period 秒重建一次，
+        # 中间的帧只重刷颜色。实测 0 是 3.61 ms 且每帧重写约 4,000 格（读起来是噪点在闪），
+        # 0.25 是 0.5 ms 上下且图案准静态（读起来才是"表面在流"）。见 school_noise.field。
+        NOISE[0].field(s, box=(0, 1, cols - 1, rows - 5), period=NOISE_PERIOD,
+                       stride=NOISE_STRIDE)
+
     # ------------------------------------------------------------------ header
     s.put(1, 0, "WORLD.EXECUTE(ME);", ui(1.0))
     s.put(21, 0, ("hangxiaotian@nwpu:~" if (SP is not None and VAR[0] == "school")
@@ -4380,6 +4413,12 @@ def main() -> None:
                          "约 1.7-8.9 ms 一帧（_dev/probe_phosphor.py），而 60 fps 的预算只有 16.7 ms。"
                          "可选值就是每 1/24 s 的保留率：0.42 很轻、0.58（不带值时）约 0.4 s 的尾巴、"
                          "0.70 是明显的长拖尾。与 x 控制的 fx_trail 正交，两者可以同时开。")
+    ap.add_argument("--noise", metavar="SCALE", nargs="?", type=float, const=14.0, default=None,
+                    help="噪声底噪：把一层 fbm 值噪声垫在画面最下面（只填空格，不覆盖任何内容），"
+                         "给 pane 之间的空隙与暗部一点在流的质感。**默认关闭**：实测 1.0-1.5 ms "
+                         "一帧（_dev/probe_noise_cost.py），是继余晖之后第二个要花帧预算的可选层。"
+                         "可选值就是场的块大小：6 细碎、14（不带值时）适中、22 大块。"
+                         "噪声场是两个参考仓库共同的空白（见 增强方向.md §二）。")
     ap.add_argument("--crop", default=HER_CROP, choices=["auto", "face", "bust", "upper", "full"],                    help=f"which part of the sprite her pane draws (default {HER_CROP}: whichever "
                          f"crop's own shape is closest to the pane's)")
     ap.add_argument("--render", default=HER_RENDER, choices=list(RENDER_MODES),
@@ -4563,6 +4602,18 @@ def main() -> None:
             print(f"  {_n_rows} frames of the schedule walked", file=sys.stderr, flush=True)
         except Exception as exc:
             print(f"warning: the schedule could not be walked ({exc})", file=sys.stderr, flush=True)
+
+    # 噪声底噪（批 84），默认关闭。它垫在画面最下面，所以和余晖层不冲突：
+    # 余晖叠在画好的帧上，底噪垫在任何内容之下。两者可以同时开。
+    if args.noise is not None:
+        try:
+            import school_noise as _NZ
+            NOISE[0] = _NZ.Noise(cols, rows, seed=7, scale=float(args.noise))
+            print(f"noise backdrop on: scale={args.noise:g} octaves={_NZ.OCTAVES}",
+                  file=sys.stderr, flush=True)
+        except Exception as exc:
+            print(f"warning: the noise backdrop could not be loaded ({exc})", file=sys.stderr)
+            NOISE[0] = None
 
     if args.no_audio:
         pass
