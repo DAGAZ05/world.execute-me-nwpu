@@ -1943,41 +1943,78 @@ def pane_yolo(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     `Be your only satisfaction` 在 **64.29 s**（原来那一行是 `pane_motif_pixelsort`，
     像素排序动画按用户要求**挪到后面**——见 128.42 那一处）。
 
-    画的是目标检测那一套：一个**虚线框**随目标移动、框上挂标签 `satisfaction 0.xx`，
-    下面再排几行其它标签（置信度随 `t` 抖动）。
+    批 125 用户重提："yolo打标的演出不太好看，既然是目标检测，可以在动画框中加几个表情字符画
+    或者颜文字之类（对应标签 laugh、satisfaction、just so so、dishearted 等类似的），
+    框不断移动，最后框住表示 satisfaction 的表情或颜文字，此时百分数最大"。
+
+    所以这一屏是**一次检测过程**，三拍：
+
+    1. **搜寻**（前 45%）：框在几个颜文字之间快速跳，标签是那个颜文字的类别、置信度低（0.3-0.6）；
+    2. **逼近**（中 40%）：跳的频率降下来，框越来越常停在 `satisfaction` 上，置信度爬升；
+    3. **锁定**（最后 15%）：框停住不再动，标签 `satisfaction` 的百分数到**最高**（0.99）。
+
+    颜文字用 ASCII 拼（`(^_^)` `(o_O)` `(>_<)` `(T_T)`），渲染字体里都有。
     """
     import school_courses as _C
     k = _kit(s, x0, y0, x1, y1, 0, "YOLO \u00b7 \u6253\u6807")
-    if k is None or k.bh < 6 or k.bw < 34:
+    if k is None or k.bh < 7 or k.bw < 40:
         return
-    # 目标在框里走一条 8 字形的路
-    px = 0.5 + 0.32 * math.sin(t * 0.9)
-    py = 0.5 + 0.28 * math.sin(t * 1.7)
-    bw_ = max(14, k.bw // 3)
-    bh_ = max(4, min(9, k.bh // 3))
-    bx = k.bx0 + int((k.bw - bw_ - 2) * min(1.0, max(0.0, px)))
-    by = k.by0 + int((k.bh - bh_ - 2) * min(1.0, max(0.0, py)))
-    # 虚线框
-    for x in range(bx, bx + bw_ + 1):
-        k.put(x, by, "\u2504" if (x - bx) % 2 else "\u2500", _mix(_C.GREEN, 0.85))
-        k.put(x, by + bh_, "\u2504" if (x - bx) % 2 else "\u2500", _mix(_C.GREEN, 0.85))
-    for y in range(by + 1, by + bh_):
-        k.put(bx, y, "\u2506" if (y - by) % 2 else "\u2502", _mix(_C.GREEN, 0.85))
-        k.put(bx + bw_, y, "\u2506" if (y - by) % 2 else "\u2502", _mix(_C.GREEN, 0.85))
-    # 目标本体（框里那个"东西"）
-    gx, gy = bx + bw_ // 2, by + bh_ // 2
-    for dy, rowv in enumerate(("\u25cb", "\u256d\u2500\u256e", "\u2570\u2500\u256f")):
-        k.put(gx - 1, gy - 1 + dy, rowv, _mix(_C.AMBER, 0.9))
-    # 标签：贴着框的左上角，置信度随 t 抖
-    conf = 0.90 + 0.09 * (0.5 + 0.5 * math.sin(t * 3.1))
-    lab = f"satisfaction {conf:.2f}"
-    k.put(bx, by - 1, lab, _mix(_C.AMBER, 0.95))
-    # 其它候选标签，越往下置信度越低
-    others = (("satisfaction 0.94", _C.AMBER), ("happiness 0.71", _C.BLUE),
-              ("simulation 0.43", _C.VIOLET), ("satisfied 0.28", _C.GREEN))
-    yy = k.by1 - len(others)
-    for i, (txt, tone) in enumerate(others):
-        k.put(k.bx0, yy + i, txt, _mix(tone, 0.80 - 0.12 * i))
+    # 候选：颜文字 + 类别 + 本命（`satisfaction` 是这一句歌词要框住的那一个）
+    faces = (("(^_^)", "satisfaction", _C.AMBER, True),
+             ("(o_O)", "just so so", _C.BLUE, False),
+             ("(>_<)", "nervous", _C.VIOLET, False),
+             ("(T_T)", "disheartened", _C.GREEN, False))
+    # 摆位：两行两列。**列间距要放得下"标签最长的那个"**（`disheartened 0.48` = 16 格），
+    # 第一版 `slot_w = max(16, (bw-4)//2)` 正好等于 16、于是第 2 列的标签压在第 3 个颜文字上。
+    slot_w = max(20, (k.bw - 3) // 2)
+    pos = []
+    for i, (face, lab, tone, star) in enumerate(faces):
+        fx = k.bx0 + 1 + (i % 2) * slot_w
+        fy = k.by0 + 2 + (i // 2) * 5          # 行距 5：留出框（框占 3 行）与标签各一行
+        pos.append((fx, fy, face, lab, tone, star))
+        k.put(fx, fy, face, _mix(tone, 0.92))
+        k.put(fx + len(face) + 1, fy, lab, _mix(tone, 0.70))
+    # ---- 三拍（**按这一行的绝对秒数**，不按比例）
+    # 比例分拍不行：这一行 64.29-66.17 的头 0.9 s 是 `fx_reveal` 的转场（上一屏像素排序的
+    # 字符还在），按比例的话"搜寻"整段被转场吃掉、看不到框在动。实测转场到 65.2 才干净。
+    lt0 = lt if lt is not None else 0.0
+    T_SEARCH, T_APPROACH, T_LOCK = 0.45, 0.95, 1.45
+    star_i = next(i for i, p in enumerate(pos) if p[5])
+    if lt0 < T_SEARCH:
+        pick, conf = None, 0.0                  # 还没开始检测：只摆着四个颜文字
+    elif lt0 < T_APPROACH:
+        pick = int(t * 7.0) % len(pos)          # 搜寻：跳得快
+        conf = 0.30 + 0.30 * (lt0 - T_SEARCH) / (T_APPROACH - T_SEARCH)
+    elif lt0 < T_LOCK:
+        j = int(t * 2.6) % len(pos)             # 逼近：跳得慢、越来越常落在本命上
+        pick = star_i if (j % 3 == 0) else j
+        conf = 0.60 + 0.32 * (lt0 - T_APPROACH) / (T_LOCK - T_APPROACH)
+    else:
+        pick, conf = star_i, 0.92 + 0.07 * min(1.0, (lt0 - T_LOCK) / 0.35)
+    if pick is not None:
+        fx, fy, face, lab, tone, _star = pos[pick]
+        # ---- 框：虚线框，正好框住那一个颜文字
+        bx, by = fx - 1, fy - 1
+        bw_, bh_ = len(face) + 2, 3
+        for x in range(bx, bx + bw_ + 1):
+            k.put(x, by, "\u2504" if (x - bx) % 2 else "\u2500", _mix(_C.GREEN, 0.88))
+            k.put(x, by + bh_, "\u2504" if (x - bx) % 2 else "\u2500", _mix(_C.GREEN, 0.88))
+        for y in range(by + 1, by + bh_):
+            k.put(bx, y, "\u2506", _mix(_C.GREEN, 0.88))
+            k.put(bx + bw_, y, "\u2506", _mix(_C.GREEN, 0.88))
+        # 标签：就在框上方，锁定时最亮
+        locked = pick == star_i and lt0 >= T_LOCK
+        k.put(bx, by - 1, f"{lab} {conf:.2f}",
+              _mix(_C.AMBER if locked else tone, 0.99 if locked else 0.80))
+    # ---- 底部：一句话说明这一拍
+    if lt0 < T_SEARCH:
+        k.put(k.bx0, k.by1, "\u5f85\u68c0\u6d4b\u2026", _ui(0.45))
+    elif lt0 >= T_LOCK:
+        k.put(k.bx0, k.by1,
+              f"\u9501\u5b9a\uff1asatisfaction {conf:.2f} \u00b7 \u5176\u4f59\u5019\u9009\u4e0b\u964d",
+              _mix(_C.AMBER, 0.9))
+    else:
+        k.put(k.bx0, k.by1, "\u68c0\u6d4b\u4e2d\u2026", _ui(0.5))
 
 
 def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:

@@ -287,6 +287,29 @@ def quantize(k, t: float) -> None:
     k.put(k.bx0 + 2 + int((t * 7.0) % max(1, n)), y - 1, "\u25bc", _mix(_C.AMBER, 0.9))
 
 
+def _row_window(name: str) -> tuple[float, float]:
+    """`(start, end)` of the **whole window** the schedule gives `name` — earliest `at` to latest `end`.
+
+    批 125：`_row_span` 只取**第一条**同名行。双星现在排成两行（`If I can, if I can` 58.65-60.57
+    与 `Give you all the simulations` 60.57-64.29，都是 `pane_motif_binary`），于是 `binary`
+    在第二行里算出的相位 `ph` 早就是 1.0——**整个 `Give you all the simulations` 都在看静止的终态**
+    （用户："if I can if i can歌词时在转，但 give you all simulations 时基本就停了"）。
+    一个 pane 被排成多行时，"它在演多久"应当是这些行的**并集**，不是第一条的跨度。
+    """
+    try:
+        import school_panels as _SP
+        ats, ends = [], []
+        for r in _SP.shot_rows():
+            if r.get("name") == name:
+                ats.append(float(r["at"]))
+                ends.append(float(r["end"]))
+        if ats:
+            return min(ats), max(ends)
+    except Exception:
+        pass
+    return 0.0, 1.0
+
+
 @lru_cache(maxsize=None)
 def _row_span(name: str) -> tuple[float, float]:
     """`(start, end)` of the row the schedule gives `name`, read out of `school_panels`.
@@ -1442,11 +1465,21 @@ def binary(k, t: float) -> None:
     for. The quarter-power law is kept: widening it early and rushing at the end is the physics the
     caption names.
     """
-    at, end = _row_span("pane_motif_binary")
+    at, end = _row_window("pane_motif_binary")
     k.section(k.by0, "\u53cc\u661f\u65cb\u8fd1 a \u221d (t_c\u2212t)^\u00bc", 0.28)
     # the row's first ~0.45 s is its transition, which moves the whole column; timing the merger to the
-    # *visible* part keeps the inspiral out from under a page turn
+    # *visible* part keeps the inspiral out from under a page turn.
+    # **窗口的起点各排期行都要让一次**（批 125）：两行之间那次换行也有转场，第一行的转场在
+    # `at`，第二行的转场在 60.57——两处都要跳过，否则第二行开头会把第一行末尾的画面重复一遍。
+    try:
+        import school_panels as _SPw
+        _cuts = [float(r["at"]) for r in _SPw.shot_rows()
+                 if r.get("name") == "pane_motif_binary"]
+    except Exception:
+        _cuts = [at]
     span = max(0.8, end - at)
+    # 只让掉**一次**转场（窗口开头那一次）；两行交界处那次换行由 `fx_reveal` 自己处理，
+    # 若按切点数各让一次，窗口开头会静止 0.9 s（用户要的是"一直在转"）。
     vis = max(0.5, span - 0.45)
     ph = max(0.0, min(1.0, (t - at - 0.45) / vis))
     cx = k.bx0 + min(30, k.bw // 2)
