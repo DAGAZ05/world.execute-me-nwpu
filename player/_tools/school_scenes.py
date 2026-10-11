@@ -2545,25 +2545,32 @@ def pane_isolation(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     k = _kit(s, x0, y0, x1, y1, 0, "\u5b64\u7acb \u00b7 in isolation")
     if k is None:
         return
-    # **框内加一幅 `ISOLATION` 字符画**（批 128，清单第 48 条："动画孤立框内加上字符画
+    # **框内加一幅 `ISOLATION` 字符画**（批 128/129，清单第 48 条："动画孤立框内加上字符画
     # isolation（目前只有点的纹样，有点单调）"）。
-    # 走 NWPU 那一套管线（`school_sculpture.banner_cells`）：资产当模板、8 倍上采样、
-    # 按格覆盖率取笔画——所以是**字形**而不是方块。
+    # **不走 `assets/校园标识物/` 那条管线**（批 129 用户更正："isolation 又不是校园标识物，
+    # 我让你画 isolation 这几个字母的字符画"）——那一套是给校园里的实物（何尊 / 猫学长 / NWPU
+    # 字标）用的。这九个字母自己画在 `isolation_art.py` 里，输出形状与 `banner_cells` 相同。
     # 画在右下角，点阵让出那一块（点阵的宽度也只画到它左边），两者不重叠。
     art = None
     art_x = art_y = 0
     art_w = art_h = 0
     try:
-        import school_sculpture as _SCU
-        art_h = min(6, max(3, k.bh // 4))
-        art_w = min(max(20, k.bw // 3), k.bw - 12)
-        # `banner_cells` 返回的是 `(cells, w, h)` 三元组（批 128 第一次把 `cells` 当成了返回值，
-        # 下一行 `len(r)` 就炸在 `int` 上）
-        got = _SCU.banner_cells("ISOLATION", art_w, art_h)
-        if got:
-            art, art_w, art_h = got[0], int(got[1]), int(got[2])
-            art_x = k.bx1 - art_w + 1
-            art_y = k.by1 - art_h + 1
+        import isolation_art as _IA
+        cells, art_w, art_h = _IA.cells("ISOLATION")
+        # **抽屉给的是绝对坐标**（批 129 量出来是 `(100,12)-(194,38)`，不是相对 pane 的偏移）——
+        # 我前两版按相对算，字符画落在 y=39..43、比抽屉下沿还低 5 行，右端还被切掉。
+        # 分栏（量过抽屉 95 宽）：左边 `LEAD=8` 列给点阵的口子，右边留给字符画，中间留白。
+        LEAD = 8
+        art_x = max(k.bx0 + LEAD + 4, k.bx1 - art_w + 1)
+        art_y = k.by1 - art_h + 1
+        # 放不下就整个不画（宁可只要点阵，也不要一幅被切掉或压住点阵的字）。判据与上面同一套账：
+        # 点阵的宽 = `2 + 8*a`，要留在 `art_x - 3` 左边；高度要到 `art_y - 2` 为止。
+        room_w = (art_x - 3) - k.bx0 - 2
+        room_h = (art_y - 2) - (k.by0 + 2)
+        if art_w > k.bw - LEAD - 8 or room_w < 8 or room_h < 4:
+            art = None
+        elif cells:
+            art = cells
     except Exception:
         art = None
     k.section(k.by0, "\u4e00\u4e2a\u70b9\u7559\u4e0b", 0.25)
@@ -2576,6 +2583,7 @@ def pane_isolation(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         k.put(k.bx0, k.by1, "\u53ea\u5269\u4e00\u4e2a\u70b9", _C._ui(0.6))
         return
     step_x = max(4, k.bw // 9)
+    step_x = max(3, min(step_x, max(3, (field_x1 - k.bx0 - 2) // 8)))
     # the field: nine points a row, erased in order of distance from the middle, so what is left at the
     # end is the point the whole drawing is about - and the order is a function of `u` rather than of a
     # random number, so it is the same every time the second is played.
@@ -2613,17 +2621,18 @@ def pane_isolation(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     # ...and the count has to agree with the point that is drawn: this read "剩 0 / 116" with the
     # surviving dot right there (batch 31's audit: off-by-one in the denominator)
     total = 9 * len(rows)
+    # 计数与说明**排在字符画左边**（批 129）：原来在 `by1-1` / `by1`（整行最左），字符画要占
+    # 右下角，两者在 x 上会撞。现在两行都收在字符画左侧那一小片里。
     k.put(k.bx0, k.by1 - 1, f"\u5269 {total - gone} / {total}", _C._ui(0.5))
     k.put(k.bx0, k.by1, "\u4f60\u8d70\u4e86\uff0c\u5269\u4e0b\u7684\u90fd\u5728\u706d", _C._ui(0.55))
     # ---- 字符画（右下角，覆盖在留白上；点阵在它左边与上面都让开了）
-    # 每个格是 `(字符, 亮度)` 二元组（`banner_cells` 的输出形状，见 `_landmark` 里 NWPU 那几行）
+    # `isolation_art.cells` 的格**是单个字符或 `None`**（不是 `banner_cells` 那种
+    # `(字符, 亮度)` 二元组——这两套形状不同，我第一版按后者解包，`ValueError` 立刻炸）。
     if art:
         for ry, rowv in enumerate(art):
-            for rx, cell in enumerate(rowv):
-                if cell is None:
-                    continue
-                ch_, lv = cell
-                k.put(art_x + rx, art_y + ry, ch_, _C._mix(_C.BLUE, 0.35 + 0.55 * (lv / 255.0)))
+            for rx, ch in enumerate(rowv):
+                if ch:
+                    k.put(art_x + rx, art_y + ry, ch, _C._mix(_C.BLUE, 0.80))
 
 
 def pane_fragments(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
