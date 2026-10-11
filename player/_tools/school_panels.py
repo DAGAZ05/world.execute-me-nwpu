@@ -331,8 +331,14 @@ SHOT_ROWS: list[dict] = [
     # by either, which is what a gap screen is for.
     dict(at=17.00, name="pane_landmark_crest", lyric="[gap]",
          ops=["\u6821\u5fbd", "1938"], mascot=False, ),
-    dict(at=21.00, name="pane_landmark_crest", lyric="[gap]",
-         ops=["\u6821\u5fbd", "1938", "\u516c\u8bda\u52c7\u6bc5"], mascot=False, ),
+    # **第一处间奏的中段：超椭圆**（批 137，清单第 11 条）。用户："第一处间奏的动画内容为
+    # 校徽 + **超椭圆（替换一部分校徽动画）** + 刚才的傅里叶分析 两部分"、"超椭圆之前做过，
+    # 可以改一下直接沿用"。所以这一行从"校徽"换成 `pane_hyper`——它直接调 `pane_exchange` 里
+    # 那个现成的 `_ex_hyper`，没有重写。于是第一处间奏成了
+    # **17.00 校徽 → 21.00 超椭圆 → 25.14 傅里叶** 三段。
+    dict(at=21.00, name="pane_hyper", lyric="[gap]",
+         ops=["\u8d85\u692d\u5706", "n"], mascot=False, end=25.14,
+         sub="|x|^n + |y|^n = r^n\uff1a\u83f1\u5f62 \u2192 \u5706 \u2192 \u65b9\u6846"),
     # **第一处间奏：叶序 → 傅里叶分解**（批 136，清单第 9 + 11 条）。
     # 用户："scene12动画框沿用之前场景的动画，不要使用叶序（这段是间奏），改用傅里叶分析的动态图示
     # （音乐分解）"、"第一处间奏的动画内容为校徽 + 超椭圆 + 刚才的傅里叶分析 两部分"。

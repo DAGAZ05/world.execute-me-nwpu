@@ -2319,6 +2319,22 @@ def pane_supervisory(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
               "\u8f6e\u5230\u4ed6\u4e86", _ui(0.55))
 
 
+def pane_hyper(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
+    """**第一处间奏的中段**（21.00-25.14）：超椭圆（清单第 11 条）。
+
+    用户："第一处间奏的动画内容为校徽 + **超椭圆（替换一部分校徽动画）** + 刚才的傅里叶分析
+    两部分"、"超椭圆之前做过，可以改一下直接沿用"。
+
+    所以这一屏**不重写**——直接沿用 `pane_exchange` 里的 `_ex_hyper`（`|x|^n + |y|^n = r^n`，
+    `n` 从 1 的菱形呼吸到 6 的圆角方框）。这里只负责给它一个自己的抽屉、并把抬头换成间奏的说法
+    （那一段的 `_ex_hyper` 原来是"互换"的语境）。
+    """
+    k = _kit(s, x0, y0, x1, y1, 0, "\u8d85\u692d\u5706 \u00b7 \u6821\u5fbd\u91cc\u7684\u4e00\u90e8\u5206")
+    if k is None or k.bh < 7:
+        return
+    _ex_hyper(k, t, u)
+
+
 def pane_fourier(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     """**第一处间奏**（25.14-29.28）：傅里叶分解 —— 音乐分解成谐波（清单第 9 + 11 条）。
 
@@ -3058,6 +3074,8 @@ PANE_BY_NAME.update({
     "pane_spinoza": pane_spinoza,
     # 清单第 31 条：`To S, to M` 的监察博弈支付矩阵
     "pane_supervisory": pane_supervisory,
+    # 清单第 11 条：第一处间奏中段的超椭圆（沿用 _ex_hyper）
+    "pane_hyper": pane_hyper,
     # 清单第 9 + 11 条：第一处间奏的傅里叶分解
     "pane_fourier": pane_fourier,
     "pane_landmark_dialogue": pane_landmark_dialogue,
