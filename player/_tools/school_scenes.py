@@ -2288,6 +2288,35 @@ def pane_supervisory(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     k.put(k.bx0, y_note + 3,
           "\u67e5\u5f97\u5230\u5c31\u7f5a\u3001\u67e5\u4e0d\u5230\u5c31\u767d\u62ff \u2014\u2014 \u4e24\u8fb9\u90fd\u6ca1\u6709\u7eaf\u7b56\u7565\u5747\u8861",
           _ui(0.55))
+    # ---- **S / M 两个点阵，一明一暗交替**（批 135，用户："监察博弈支付矩阵动画，SM可以像改之前
+    # 的那样字符画交替闪烁"）。这就是 `_ex_letters` 里那套 5x7 点阵（"To S, to M" 原来挂的
+    # `letters` 面板）——同一个字的两个身份、每半秒换一次谁亮。
+    # 这里把"谁亮"**绑到博弈的轮次**上（不是独立计时）：轮到委托人就 S 亮，轮到代理人就 M 亮，
+    # 于是大字与矩阵里被点亮的那一行/列说的是同一件事。
+    GLYPH = {
+        "S": ("01110", "10000", "10000", "01110", "00001", "00001", "01110"),
+        "M": ("10001", "11011", "10101", "10001", "10001", "10001", "10001"),
+    }
+    gw, gh = len(GLYPH["S"][0]), len(GLYPH["S"])
+    total = gw * 2 + 3
+    gx0 = k.bx0 + max(0, (k.bw - total) // 2)
+    gy0 = y_note + 6
+    if gy0 + gh + 2 <= k.by1:
+        for idx, (gname, grows) in enumerate(GLYPH.items()):
+            on = idx == turn                          # 轮到谁，谁亮
+            ox = gx0 + idx * (gw + 3)
+            for r, row in enumerate(grows):
+                for j, chv in enumerate(row):
+                    if chv != "1":
+                        continue
+                    col = (255, 246, 190) if on else _mix(_C.BLUE, 0.28)
+                    k.put(ox + j, gy0 + r, "\u2588" if on else "\u2591", col)
+            k.put(ox + gw // 2, gy0 + gh + 1, gname,
+                  (255, 246, 190) if on else _ui(0.35))
+        k.put(gx0 + total + 2, gy0 + 2,
+              s_name if turn == 0 else m_name, _mix(_C.GREEN, 0.9))
+        k.put(gx0 + total + 2, gy0 + 4,
+              "\u8f6e\u5230\u4ed6\u4e86", _ui(0.55))
 
 
 def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
