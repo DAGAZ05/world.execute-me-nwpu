@@ -934,6 +934,22 @@ def draw_scene_pane(pane: str, s, x0: int, y0: int, x1: int, y1: int,
     """
     _CO.PANE_SUB[0] = sub
     try:
+        # **IF/THEN 框挂在这里**（批 108）：这是右栏的**最外层**入口，而下面两条快捷路径
+        # （课程图 / 仪表）会提前 `return`、绕过 `school_scenes.draw_pane`——
+        # 探针第一版量出"只有 5/10 对两格都亮"，缺的正是走那两条路径的 pane。
+        # `_ifthen_frame` 自带同帧去重，所以两个调用点同时挂着也不会画两遍。
+        try:
+            import school_scenes as _SC2
+            _SC2._ifthen_frame(s, x0, y0, x1, y1, t, lt, dur, u)
+        except Exception as _exc:
+            # **不要静默**：这个框曾经因为一个被吞掉的异常（`_C` 未定义）整整一批没画出来，
+            # 而屏幕上只是"少了个框"、没有任何提示。只报一次。
+            global _IFTHEN_BROKEN
+            if not _IFTHEN_BROKEN:
+                _IFTHEN_BROKEN = True
+                import sys as _sys
+                print(f"warning: the IF/THEN frame failed ({_exc!r})",
+                      file=_sys.stderr, flush=True)
         if _CO.draw_course(pane, s, x0, y0, x1, y1, t, lt, dur, u, run=_run_of(pane),
                            total=len(EXEC_PANES)):
             return True
@@ -942,6 +958,10 @@ def draw_scene_pane(pane: str, s, x0: int, y0: int, x1: int, y1: int,
         return _SC.draw_pane(pane, s, x0, y0, x1, y1, t, lt, dur, u, args=args)
     finally:
         _CO.PANE_SUB[0] = ""
+
+
+#: "IF/THEN 框画失败"只报一次的开关（见 `draw_scene_pane`）。
+_IFTHEN_BROKEN = False
 
 
 def _run_of(pane: str) -> int:

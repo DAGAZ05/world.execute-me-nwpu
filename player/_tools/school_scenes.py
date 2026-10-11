@@ -593,32 +593,106 @@ def pane_curriculum(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
             s.put(x1 - 2, yy, "\u2588", _mix(ME_TEXT, 0.9))
 
 
+#: IF/THEN 框的同帧去重（见 `_ifthen_frame`）与"异常只报一次"的开关。
+_IFTHEN_LAST: list = [None]
+_IFTHEN_N: list = [0]
+_IFTHEN_BROKEN = False
+
+
+def _ifthen_frame(s, x0, y0, x1, y1, t, lt, dur, u) -> int:
+    """`If … -> Then …` 两格框，**对整首歌里每一对 If/Then 都画**（批 108）。
+
+    用户："scene13 动画框点集上部有一个 IF THEN 的框，但动画中只演出了 IF 的内容，
+    在 scene14 矩阵没有演出 THEN 的内容，请补上，此外**后续所有歌词出现 IF THEN 的地方**，
+    动画框都补上该框"。
+
+    原来的框是 `pane_point_set` 里硬写的两行：它只服务于"点集"那个 pane，所以一换 pane
+    （点集 29.28-31.20 -> 矩阵 31.20-33.01，两条歌词其实是同一句 `If I'm a set of point`）
+    框就消失了，右格永远等不到自己的 `Then`。
+
+    现在改成按**歌词**驱动、并挂在 `draw_pane` 的公共出口上（所以**每个 pane 都有它**）。
+    `If …` 与它后面最近的 `Then …` 配成一对，整对的时间跨度里左格写条件、右格写结果——
+    跨 pane 也成立，因为配对是从 `school_panels.shot_rows()`（字幕的同源表）算出来的，
+    与"现在画的是哪个 pane"无关。
+
+    返回占用行数（0 = 这一段本来就没有 If/Then）。
+    """
+    import school_panels as _SP
+    import school_courses as _C          # `GREEN` 等颜色（本模块其它 pane 也是这么局部取的）
+    rows = _SP.shot_rows()
+    # **去重删掉**（批 108 第二次修正）：本来想让两个调用点各画一次也不重复，但任何"按时刻/位置
+    # 去重"的写法都会把**同一时刻的第 2..N 次调用**跳掉，而回放与探针恰恰是在最后一帧上取画面。
+    # 现在只由 `school_panels.draw_scene_pane`（右栏最外层）画一次，本函数不再画。
+
+    # **按歌词顺序配对**：`If …` 与它**后面最近的那一句** `Then …` 是一对，而两者常常分属
+    # 前后两个 pane、时间上不重叠（`If I'm a set of point` 跨了 `pane_point_set` 与
+    # `pane_motif_matrix`，`Then …` 往往在第三个 pane 里）。所以框的内容**不按"同一帧有没有 Then"**
+    # 决定，而是"本帧落在哪一对的跨度里"——整对一起点亮，左格写条件、右格写结果。
+    cond = cons = ""
+    for j in range(len(rows)):
+        if not str(rows[j].get("lyric", "")).startswith("If "):
+            continue
+        k = j + 1
+        while k < len(rows) and not str(rows[k].get("lyric", "")).startswith("Then "):
+            k += 1
+        if k >= len(rows):
+            break                       # 后面再没有 Then 了
+        # **同一句 `If …` 会连续占据好几个 pane**（`If I'm a set of point` 在 rows 12 与 13 上各有一行），
+        # 所以跨度要算到**这一组 If 的最后一行**为止；命中之后**不 break**，取最后一个匹配的
+        # （越靠后的那一行越贴近当前 t，才是"现在这一屏"的那一对）。
+        j_end = rows[j]["end"]
+        for m in range(j + 1, k):
+            if str(rows[m].get("lyric", "")).startswith("If "):
+                j_end = max(j_end, rows[m]["end"])
+        if rows[j]["at"] - 1e-6 <= t < max(j_end, rows[k]["end"]) + 1e-6:
+            cond = str(rows[j].get("lyric", ""))
+            cons = str(rows[k].get("lyric", ""))
+    if not cond:
+        # 单独落在某一句 THEN 里（它的 If 在此之前就结束了）：只点亮右格
+        for r in rows:
+            if r["at"] <= t + 1e-6 < r["end"] and str(r.get("lyric", "")).startswith("Then "):
+                cons = str(r["lyric"])
+                break
+    if not cond and not cons:
+        return 0
+    w, h = x1 - x0, y1 - y0
+    if w < 14 or h < 3:
+        return 0
+    half = max(6, (w - 3) // 2)
+    s.put(x0, y0, "\u250c" + "\u2500" * (half - 1) + "\u252c" + "\u2500" * (w - half - 2) + "\u2510",
+          _mix(ME_TEXT, 0.7))
+    s.put(x0 + 2, y0, "IF", _mix(ME_TEXT, 0.95) if cond else _ui(0.35))
+    s.put(x0 + half + 2, y0, "THEN", _mix(_C.GREEN, 0.95) if cons else _ui(0.35))
+    s.put(x0, y0 + 1, "\u2502" + " " * (w - 2) + "\u2502", _mix(ME_TEXT, 0.7))
+    # 两格的内容都从歌词里剪：左格 = IF 的条件，右格 = THEN 的结果
+    lw, rw = max(0, half - 4), max(0, w - half - 6)
+    if cond:
+        s.put(x0 + 2, y0 + 1, cond[3:][:lw] if cond.startswith("If ") else cond[:lw],
+              _ui(0.9))
+    if cons:
+        s.put(x0 + half + 2, y0 + 1, cons[5:][:rw] if cons.startswith("Then ") else cons[:rw],
+              _mix(_C.GREEN, 0.9))
+    s.put(x0, y0 + 2, "\u2514" + "\u2500" * (w - 2) + "\u2518", _mix(ME_TEXT, 0.7))
+    return 3
+
+
 def pane_point_set(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     """`If I'm a set of point` (29.28 s): the IF/THEN device, and the points it will become.
 
     Batch 1 rule R3: the conditional's two-cell frame is the film's one device for the whole
     `If I'm X -> Then Y` family, and it is introduced here. The left cell fills on `If`, the right
-    cell stays **empty** until the next line's `Then` - that emptiness is the design, not an
-    unfinished panel.
+    cell fills on the next line's `Then` - and since batch 108 that frame is drawn by
+    `_ifthen_frame` and appears on **every** If/Then pair in the song, not just this pane's.
     """
     w, h = x1 - x0, y1 - y0
     if w < 14 or h < 4:
         return
-    half = max(6, (w - 3) // 2)
-    # (half - 2) made the top border one cell shorter than the bottom one (95 against 96)
-    s.put(x0, y0, "\u250c" + "\u2500" * (half - 1) + "\u252c" + "\u2500" * (w - half - 2) + "\u2510",
-          _mix(ME_TEXT, 0.7))
-    s.put(x0 + 2, y0, "IF", _mix(ME_TEXT, 0.95))
-    s.put(x0 + half + 2, y0, "THEN", _ui(0.45))
-    s.put(x0, y0 + 1, "\u2502" + " " * (w - 2) + "\u2502", _mix(ME_TEXT, 0.7))
-    s.put(x0 + 2, y0 + 1, "a set of point"[: max(0, half - 4)], _ui(0.9))
-    if h >= 4:
-        s.put(x0, y0 + 2, "\u2514" + "\u2500" * (w - 2) + "\u2518", _mix(ME_TEXT, 0.7))
-    # scattered points below: the line says "point", not "grid", and a grid would say the wrong thing
+    # 框由 `draw_pane` 统一画（批 108），这里只留点集本身——顶部三行让给它。
+    top = y0 + 3
     rnd = random.Random(2928)
     for k in range(max(4, (h - 3) * 6)):
         px = x0 + 1 + rnd.randrange(0, max(1, w - 2))
-        py = y0 + 3 + rnd.randrange(0, max(1, h - 3))
+        py = top + rnd.randrange(0, max(1, y1 - top))
         if py <= y1:
             # ...and each point breathes on the song clock: a point *set* that never changes is a still
             # picture, and this pane's only motion used to come from the motif band under it
