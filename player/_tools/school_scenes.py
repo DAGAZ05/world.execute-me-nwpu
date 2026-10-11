@@ -755,57 +755,23 @@ IFTHEN_TOP_ROW = 9
 IFTHEN_RESERVE = IFTHEN_ROWS
 
 
-#: 上一帧画过框的行区间 `[x0, x1, y0, y1]`，供"这一帧不该有框时把它擦掉"（见 `_ifthen_frame`）。
-_IFTHEN_DRAWN: list = []
 #: 当前这一屏框上要写的说明（由 `draw_pane` 按 pane 与时间发布；空则用调用方给的 `sub`）。
 _IFTHEN_SUB: list = [""]
 
-
-def _ifthen_erase(s, x0, x1) -> None:
-    """擦掉框所在那条**固定的行带**（不依赖任何记录）。
-
-    为什么需要：这一帧不该有框时，如果不擦，**上一帧的框会留在画面上**——右栏并不是每帧都
-    整体重绘的（谁画那一栏、画多少格由上游镜头决定），所以没人覆盖那三行。
-    实测：`Switch my current` 从 44.04 起不该有框，而 44.08 的帧里第 10 行仍是
-    `│ IF I approach infinity   THEN you can be my limitations │`。
-
-    **为什么不用"上一帧记下的区间"**：框有两个调用点（`school_panels.draw_scene_pane` 给
-    `pane_probe` 的兜底路径用 `y0+2`，`tui_live.draw` 的主路径用 `IFTHEN_TOP_ROW`），
-    两个区间不同、互相覆盖同一份记录，于是"真正在屏幕上的那份墨"失去记录、永远擦不掉
-    （我为此连着两批都没修好）。擦固定行带就没有这个耦合：主路径的行带是常量，
-    擦它是幂等的，多擦几次也只是把已经空白的格子再写一次空格。
-
-    **底色必须用屏幕自己的空白格**（批 117）：原来写 `(0, 0, 0)`，而 `Screen.blank` 是
-    `(' ', UI, BG)` = `(' ', (200,214,234), (4,7,15))`。于是擦过的地方成了**实心黑**——
-    差异渲染器把黑当成"这一格改了"、照样打印出来，屏幕上就是一条**深色横带**
-    （用户批 117 的截图：4.4 s 频谱下面那一条）。用屏幕的空白格擦，擦完的结果与
-    "从来没画过"完全一致。
-    """
-    for y in range(IFTHEN_TOP_ROW, IFTHEN_TOP_ROW + IFTHEN_ROWS):
-        for x in range(x0, x1 + 1):
-            if 0 <= y < s.rows and 0 <= x < s.cols:
-                s.set_cell(x, y, " ", s.blank[1], s.blank[2])
-    _IFTHEN_DRAWN[:] = []
+# **擦除机制已整块删除**（批 118，用户："请直接回退加入擦除机制前的版本，后续所有实现禁止擦除"）。
+# 它从批 111 引入，之后 112/113/114/115/116/117 六批都在给它打补丁，**每一次都在屏幕上留下
+# 可见的破坏**（整行黑带、涂黑的格子），而它想解决的问题只有一个：
+# "某一帧不该有框时，上一帧的框会留在画面上"。
+#
+# 那个问题的**正确解法不是擦，而是不要让它成为问题**：`_draw_ifthen_frame` 只在
+# `_ifthen_wanted(t)` 为真时画框；框消失的那一帧，pane/上游本来就会重画它们自己的区域。
+# 真出现残留，也应当由**画它的人**在下一帧画上正确内容，而不是由别人往缓冲区里涂空格——
+# 涂写会与差异渲染器的 `(字符, 前景, 背景)` 三元组比较打架，这正是黑带的来源。
+#
+# 所以：这里不再有任何 `set_cell` / 擦写。**后续实现一律禁止擦除。**
 
 
-def _ifthen_forget(s, ax0: int, ax1: int, ay0: int, ay1: int) -> None:
-    """擦掉**指定区间**的框、并清掉记录。
-
-    **把"擦"和"记"拆开是有原因的**：`_ifthen_frame` 有两个调用点（`school_panels` 的探针兜底
-    路径与 `tui_live.draw` 的主路径），它们用的行区间不同（`y0+2` 与 `IFTHEN_TOP_ROW`）。
-    曾经两边都写记录，于是后一次调用把 `_IFTHEN_DRAWN` 覆盖成**另一个区间**，
-    而真正在屏幕上的那份墨就**再也没人擦**——实测 44.08 那一帧"记录空了、墨还在"，
-    探针连报了两批。现在只有主路径写记录，擦用记录里的区间。
-    """
-    for y in range(ay0, ay1 + 1):
-        for x in range(ax0, ax1 + 1):
-            if 0 <= y < s.rows and 0 <= x < s.cols:
-                s.set_cell(x, y, " ", s.blank[1], s.blank[2])   # 同 `_ifthen_erase`：用屏幕的空白格
-    _IFTHEN_DRAWN[:] = []
-
-
-def _ifthen_frame(s, x0, y0, x1, y1, t, lt, dur, u, sub: str = "",
-                  record: bool = False) -> int:
+def _ifthen_frame(s, x0, y0, x1, y1, t, lt, dur, u, sub: str = "") -> int:
     """`If … -> Then …` 两格框，**对整首歌里每一对 If/Then 都画**（批 108）。
 
     用户："scene13 动画框点集上部有一个 IF THEN 的框，但动画中只演出了 IF 的内容，
@@ -833,13 +799,13 @@ def _ifthen_frame(s, x0, y0, x1, y1, t, lt, dur, u, sub: str = "",
     # **只在"此刻唱的这一句就是条件句"时才出现**（批 110），且 `if I can …` 那一族不算条件句
     # （批 111）。**配对从歌词文件取**（`_ifthen_pair`）——镜头表被压缩过，缺了
     # `Then I will give you my dimension` 这类行，按它配对会把前四句 If 全配到 86.21 那句。
+    # **不画就是全部**（批 118）：这一帧不是条件句，直接返回、**不做任何清理**。
+    # 见文件上方 `_IFTHEN_SUB` 那一段注释——擦除机制已整块删除，后续实现一律禁止擦除。
     pair = _ifthen_pair(t)
     if pair is None:
-        _ifthen_erase(s, x0, x1)          # 这一帧不该有框：把上一帧的擦掉（见 `_ifthen_erase`）
         return 0
     cond, cons = pair
     if not cond and not cons:
-        _ifthen_erase(s, x0, x1)
         return 0
     w, h = x1 - x0, y1 - y0
     if w < 14 or h < 3:
@@ -869,11 +835,7 @@ def _ifthen_frame(s, x0, y0, x1, y1, t, lt, dur, u, sub: str = "",
             s.put(x0 + _tail + 3, y0 + 1, "\u00b7 " + use[:max(0, w - _tail - 5)], _ui(0.6))
     _IFTHEN_SUB[0] = ""
     s.put(x0, y0 + 2, "\u2514" + "\u2500" * (w - 2) + "\u2518", _mix(ME_TEXT, 0.7))
-    # **只有主路径写记录**（`tui_live.draw` 的调用点用 `record=True`）。
-    # 探针兜底那条路径（`school_panels.draw_scene_pane`）画的区间不同，它写记录会把主路径的
-    # 记录覆盖掉、那份墨就擦不掉了（`_ifthen_forget` 的注释里有完整的现场）。
-    if record:
-        _IFTHEN_DRAWN[:] = [(x0, x1, y0, y0 + 2)]
+    return 3
     return 3
 
 

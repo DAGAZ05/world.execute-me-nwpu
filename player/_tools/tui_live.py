@@ -4525,18 +4525,14 @@ def _draw_ifthen_frame(s: Screen, t: float) -> bool:
         return False
     try:
         import school_scenes as _SC
-        x0, _y0, x1, y1 = PANE_BOX
+        # **不画就是全部**（批 118，用户："请直接回退加入擦除机制前的版本，后续所有实现禁止擦除"）。
+        # 这里曾经有 `_ifthen_erase(...)`，从批 111 起、连着六批打补丁，每一次都在屏幕上留下
+        # 可见的破坏（整行黑带、涂黑的格子）。它想解决的"上一帧的框留在画面上"应该由
+        # **画它的人**在下一帧画上正确内容，而不是由别人往缓冲区涂空格——涂写会与差异渲染器
+        # 的 `(字符, 前景, 背景)` 比较打架，黑带就是这么来的。**擦除机制已整块删除。**
         if not _SC._ifthen_wanted(t):
-            # **只有"这一帧不该有框"时才清**（批 116）。**这一句原来是放在门前的**——也就是
-            # 每一帧（包括该有框的每一帧）都先把那三行擦一遍，而擦是往缓冲区写空格/黑，
-            # pane 的内容在这一步之前就画完了、不会再补，于是屏幕上出现**黑带**
-            # （用户："黑框只改了半边"、"我完全没明白你搞个擦除是为了什么"）。放在门后，
-            # 该有框的帧一格都不擦。
-            #
-            # 而且擦的范围必须就是框自己那一段（`PANE_BOX`）：批 115 我写成
-            # `_ifthen_erase(s, 0, s.cols - 1)`（整行），把画图栏之外的格子也擦了。
-            _SC._ifthen_erase(s, x0, x1)
             return False
+        x0, _y0, x1, y1 = PANE_BOX
         if x1 - x0 < 16 or y1 - _y0 < 16:
             return False
         top = max(_y0 + 1, _SC.IFTHEN_TOP_ROW)
@@ -4545,8 +4541,7 @@ def _draw_ifthen_frame(s: Screen, t: float) -> bool:
             sub = _SC._lyric_at(t)[1]
         except Exception:
             sub = ""
-        return bool(_SC._ifthen_frame(s, x0, top, x1, y1, t, 0.0, 1.0, 0.0, sub=sub,
-                                      record=True))
+        return bool(_SC._ifthen_frame(s, x0, top, x1, y1, t, 0.0, 1.0, 0.0, sub=sub))
     except Exception as exc:
         print(f"warning: the IF/THEN frame failed ({exc})", file=sys.stderr, flush=True)
         return False
