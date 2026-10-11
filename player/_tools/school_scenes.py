@@ -1751,6 +1751,72 @@ _SIN_LIMIT_TO = 44.04
 ACDC_FROM, ACDC_TO = 45.52, 47.27
 
 
+def _ex_gate(k, t: float, u: float) -> None:
+    """逻辑门 / 晶体管：**一个"开关"控制电流通不通**，三个门轮着来。
+
+    用户批 121（清单第 23 条）："歌词 switch my current 处改为逻辑门开关示例（晶体管构成）"。
+    原来这一处是 `bits`（F→M 三位取反）——那件事对应的歌词是后面的 `To F, to M`（它自己
+    那一行还在，没动）。
+
+    "switch my current" 的字面就是**开关 + 电流**，所以这里画：
+
+    * 左边一个 **NMOS 晶体管**：`G`（栅）是一根**受逻辑电平控制的竖线**——它**画成虚线**时
+      表示"关断"；漏 `D` 与源 `S` 之间那一格随之从 `─` 变成 `╳`；
+    * 右边该门的**真值表**，满足的那一行用当前门的颜色高亮——高亮行随 `t` **一行一行走**，
+      所以这一屏一直在动（`_dev/clock_probe.py` 就是查这个的）；
+    * 顶部三个门名 `AND / OR / NOT`，**当前那一个亮**，每 2.6 s 换一个：`switch` 本来
+      就含"切换"的意思，光画一个门反而少了这层。
+
+    `A` / `B` 两个输入也在闪，与真值表那一行同源——所以"输入 → 门 → 通不通"是一条链在动，
+    不是三张静态图。
+    """
+    import school_courses as _C
+    w, h = k.bw, k.bh
+    if w < 30 or h < 7:
+        return
+    # **每一行都要是"一行"**：`NOT` 的表原来写成 `(1, 0)`——那是两个整数、不是两行，
+    # `table[ai][-1]` 立刻 `TypeError`，异常被 `draw_pane` 吞掉、回落到四格布局
+    # （实测：抬头上写着"逻辑门"，正文还是 F→M / 12小时 / 辫群 / 超椭圆那四格旧画）。
+    gates = (("AND", ((0, 0, 0), (0, 1, 0), (1, 0, 0), (1, 1, 1)), _C.GREEN),
+             ("OR", ((0, 0, 0), (0, 1, 1), (1, 0, 1), (1, 1, 1)), _C.AMBER),
+             ("NOT", ((0, 1), (1, 0)), _C.VIOLET))
+    gi = int(t / 2.6) % len(gates)
+    name, table, col = gates[gi]
+    # ---- 顶部：三个门名，当前那个亮
+    for i, (nm, _tb, c) in enumerate(gates):
+        k.put(k.bx0 + 1 + i * 7, k.by0, nm, _mix(c, 0.95) if i == gi else _ui(0.30))
+    # ---- 左：晶体管（栅 G 控制 D-S 通不通）
+    tx = k.bx0 + 3
+    ty = k.by0 + 3
+    ai = int(t * 2.0) % len(table)                # 真值表走到第几行（同时也决定 D-S 通不通）
+    on = bool(table[ai][-1])
+    k.vline(tx + 1, ty, ty + 3, "\u2502", _ui(0.45))            # D 到 S 的沟道
+    k.put(tx + 1, ty - 1, "D", _mix(_C.BLUE, 0.85))
+    k.put(tx + 1, ty + 4, "S", _mix(_C.BLUE, 0.85))
+    k.put(tx - 2, ty + 2, "G", _mix(_C.RED, 0.85))
+    k.hline(tx - 1, ty + 2, tx + 0, "\u2500", _mix(_C.RED, 0.85))   # 栅
+    k.put(tx + 1, ty + 2, "\u2500" if on else "\u2573", _mix(col, 0.95))
+    # 栅是虚线 = 关断，实线 = 导通（这就是"开关"本身）
+    for i in range(4):
+        k.put(tx + 0, ty + 1 + i, "\u2506" if not on else "\u2502",
+              _mix(_C.RED, 0.75 if on else 0.40))
+    # ---- 右：真值表，当前行高亮
+    bx = tx + 9
+    hdr = ("A B | Y",) if name != "NOT" else ("A | Y",)
+    k.put(bx, ty - 1, hdr[0], _ui(0.55))
+    for i, rowv in enumerate(table):
+        lit = i == ai
+        if name == "NOT":
+            s_ = f"{rowv[0]} | {rowv[1]}"
+        else:
+            s_ = f"{rowv[0]} {rowv[1]} | {rowv[2]}"
+        k.put(bx, ty + i, s_, _mix(col, 0.95) if lit else _ui(0.42))
+        if lit:
+            # **`U+25B8`（`▸`）不在渲染字体里**（`_dev/glyph_probe.py` 抓到），换成 `>`。
+            k.put(bx - 1, ty + i, ">", _mix(col, 0.95))
+    k.put(k.bx0 + 1, k.by1, f"{name} \u00b7 switch my current", _ui(0.5))
+
+
 def _ex_acdc(k, t: float, u: float) -> None:
     """交流 → 直流：**左右两个坐标系**，中间写着做了哪两步。
 
@@ -1845,6 +1911,8 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
              "hyper": "\u8d85\u692d\u5706",
              "acdc": "\u4ea4\u6d41 \u2192 \u76f4\u6d41",
              "phyllo": "\u5411\u65e5\u8475\u53f6\u5e8f",
+             "gate": "\u903b\u8f91\u95e8 \u00b7 \u6676\u4f53\u7ba1",
+             "timeline": "\u65f6\u95f4\u7ebf",
              "letters": "S \u2192 M \u00b7 \u5b57\u5f62\u7ffb\u4f4d"}
     # **抬头要和里面画的东西一致**（批 98e 的规矩，批 111 又用到一次）：40.36-45.52 这一段
     # 里面画的是 `sin x / x`（见下），所以抬头这时不能还写 `F → M · 3 位`——那是 `panel="bits"`
@@ -1876,7 +1944,8 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
     # of them the line it belongs to: the bit flip on "Switch my current", the clock on "To AC, to DC",
     # the braid on "blind my vision", the superellipse on "we can travel".
     one = {"bits": _ex_bits, "clock": _ex_clock, "braid": _ex_braid, "hyper": _ex_hyper,
-           "acdc": _ex_acdc, "phyllo": _ex_phyllo, "letters": _ex_letters}.get(panel)
+           "acdc": _ex_acdc, "phyllo": _ex_phyllo, "gate": _ex_gate,
+           "timeline": _ex_timeline, "letters": _ex_letters}.get(panel)
     if one is not None:
         # **先撒装饰、后画主体**（批 98f）。原来的顺序是反的（主体先、装饰后），而 `_motes` 的
         # 判据是 `_C.blank`——"这一格还是空的"。主体画完之后它照样认为别处是空的，于是那些
@@ -1884,7 +1953,9 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
         # 装饰是烘托，不该压主体。
         # **`phyllo` 一格完全不要装饰**（批 119，清单第 27 条："框内的文字去掉"）：叶序是点阵，
         # 空白格很多，`_motes` 会把 `+# < * : }^ ;` 这类字符直接落在花上，那就是"框内有文字"。
-        if panel != "phyllo":
+        # **`gate` 也不要**（批 121）：它是一张线路图（晶体管＋真值表），撒点是"字符杂乱"
+        # ——清单第 7 条点名的就是这件事。
+        if panel not in ("phyllo", "gate", "timeline"):
             _motes(k, {"bits": "01", "clock": "o\u00b7", "braid": "/\\",
                        "hyper": "o\u00b7\u00b7", "letters": "S M \u00b7"}.get(panel, "\u00b7"),
                    t, level=0.34, seed=13)
@@ -1913,6 +1984,55 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
             k.vline(cx0 - 2, k.by0, k.by1, "\u2502", _ui(0.18))
     else:
         _ex_bits(k, t, u)
+
+
+#: `Oh, we can travel`（50.95）与 `To AD, to BC`（52.99）—— 清单第 29 条：
+#: "scene 20 当前为超椭圆，改为时间线，歌词 if we can travel 展示时间线西工大校史，
+#: to ad to bc 展示西工大所在西安的公元前后历史（汉长安bc-唐长安ad-西安，在此基础上扩充具体年份）"。
+TRAVEL_SCHOOL_AT, TRAVEL_XIAN_AT = 50.95, 52.99
+
+
+def _ex_timeline(k, t: float, u: float) -> None:
+    """时间线：前段是**西工大校史**，`To AD, to BC`（52.99）起换成**西安的公元前后**。
+
+    清单第 29 条。原来这一处钉的是 `hyper`（超椭圆），与歌词无关。
+
+    两段共用同一条轴和同一个"游标"：
+    * **校史**（50.95 起）：`1938 国立西北工学院` → `1957 西安航空学院` → `1970 西北工业大学`
+      → `2026 四个数字：24 个专业学院 / 72 个本科专业 / 四万余人`（这四个数字是这一屏上文
+      已经在说的话，时间线把它接到轴上）；
+    * **西安**（52.99 起）：`BC 202 汉长安` → `AD 618 唐长安` → `今 西安`，
+      并在轴上加一句"同一块地方，换了三个名字"。
+    游标按 `t` 沿线走，走过的节点亮起来——所以它是一条**在演的时间线**，不是一张年表。
+    """
+    import school_courses as _C
+    w = k.bw
+    if w < 30 or k.bh < 6:
+        return
+    xian = t >= TRAVEL_XIAN_AT
+    title = "\u897f\u5b89\u5e02 \u00b7 \u516c\u5143\u524d\u540e" if xian else "\u897f\u5de5\u5927 \u00b7 \u6821\u53f2"
+    nodes = (("BC 202", "\u6c49\u957f\u5b89"), ("AD 618", "\u5510\u957f\u5b89"), ("\u4eca\u5929", "\u897f\u5b89")) if xian \
+        else (("1938", "\u56fd\u7acb\u897f\u5317\u5de5\u5b66\u9662"), ("1957", "\u897f\u5b89\u822a\u7a7a\u5b66\u9662"),
+              ("1970", "\u897f\u5317\u5de5\u4e1a\u5927\u5b66"), ("2026", "24 \u9662 \u00b7 72 \u4e13\u4e1a"))
+    y_axis = k.by0 + max(2, k.bh // 2)
+    k.put(k.bx0, k.by0, title, _mix(_C.AMBER, 0.9))
+    k.hline(k.bx0, y_axis, k.bx0 + w - 1, "\u2500", _ui(0.35))
+    span = max(1, w - 4)
+    n = len(nodes)
+    prog = (t - (TRAVEL_XIAN_AT if xian else TRAVEL_SCHOOL_AT)) * 0.9   # 游标沿轴走
+    for i, (year, name) in enumerate(nodes):
+        x = k.bx0 + 2 + int(span * (i + 0.5) / n)
+        lit = prog >= (i + 0.5) / n
+        col = _mix(_C.GREEN if lit else _C.BLUE, 0.95 if lit else 0.40)
+        k.put(x, y_axis, "\u25cf" if lit else "\u25cb", col)
+        k.put(x, y_axis - 1, "|", col)
+        k.put(x - len(year) // 2, y_axis - 2, year, col)
+        k.put(x - len(name) // 2, y_axis + 1, name[:10], _mix(_C.AMBER, 0.85) if lit else _ui(0.40))
+    # 游标：走到哪一格，那一格加个亮度
+    curx = k.bx0 + 2 + int(span * min(1.0, max(0.0, prog)))
+    k.put(curx, y_axis + 2, "\u25b2", _mix(_C.RED, 0.9))
+    k.put(k.bx0, k.by1, ("\u540c\u4e00\u5757\u5730\u65b9\uff0c\u6362\u4e86\u4e09\u4e2a\u540d\u5b57" if xian
+                         else "\u4e00\u6761\u8def\u8d70\u5230\u4eca\u5929"), _ui(0.5))
 
 
 def _ex_hyper(k, t: float, u: float) -> None:

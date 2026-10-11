@@ -420,8 +420,16 @@ LANDMARK_ROWS: list[dict] = [
     dict(at=49.11, name="pane_exchange", lyric="So dizzy, so dizzy",
          ops=["PHYLLO", "137.5\u00b0"], mascot=False, args=dict(panel="phyllo"),
          sub="\u5411\u65e5\u8475\u53f6\u5e8f"),
+    # **`Oh, we can travel` 与 `To AD, to BC` 各占一行**（批 121，清单第 29 条）：它们是**两张
+    # 不同的时间线**（西工大校史 / 西安的公元前后），而 pane 的格子不会自己清——批 119 的教训。
+    # **原来是 `hyper`（超椭圆），已改成 `timeline`**：这份清单第 29 条就是"当前为超椭圆，改为
+    # 时间线"。
     dict(at=50.95, name="pane_exchange", lyric="Oh, we can travel",
-         ops=["|x|^n", "SUPERELLIPSE"], mascot=False, args=dict(panel="hyper"), sub="换个 n，圆就走到更远"),
+         ops=["1938", "1957", "1970", "2026"], mascot=False, args=dict(panel="timeline"),
+         sub="\u4e00\u6761\u8def\u8d70\u5230\u4eca\u5929\uff1a1938 \u2192 1957 \u2192 1970 \u2192 2026"),
+    dict(at=52.99, name="pane_exchange", lyric="To AD, to BC",
+         ops=["BC 202", "AD 618", "\u4eca"], mascot=False, args=dict(panel="timeline"),
+         sub="\u540c\u4e00\u5757\u5730\u65b9\uff0c\u6362\u4e86\u4e09\u4e2a\u540d\u5b57\uff1a\u6c49\u957f\u5b89 \u2192 \u5510\u957f\u5b89 \u2192 \u897f\u5b89"),
     # Acts 1 and 2 only (`max_phase=1`): `unite` shows the hands approaching and `deeply` the star
     # between them. **Act 3 - the star alone - is its own row at 84.60**, on the lyric `02b §3.3` pins
     # it to; it used to be the tail of this row, which put "只剩那颗星" under `If I can, if I can` at
@@ -773,12 +781,21 @@ THEME_PINS: list[tuple[float, str, str, str]] = [
     (93.52, "pane_exchange", "clock", "12 小时钟面：一天被这半圈覆盖两次"),
     # F→M：三位取反的两个名字 —— 字面念出 F 与 M 的这一行
     (89.91, "pane_exchange", "bits", "F 与 M 只差三位：翻过去还能翻回来"),
+    # 逻辑门 / 晶体管 —— **清单第 23 条**："歌词 switch my current 处改为逻辑门开关示例
+    # （晶体管构成）"。原来这一处钉的是 `bits`（F→M 三位取反），而"三位取反"那件事对应的歌词是
+    # 后面的 `To F, to M`（**清单第 21 条**：'F->M 三位取反应放在后面歌词 to f to m（实际上
+    # 已经有了）'）——所以 `bits` 不该留在这里，它的行在 89.91，那里才是它的位置。
+    (41.92, "pane_exchange", "gate", "逻辑门：一个开关控制电流通不通"),
     # AC/DC：电流的两个名字 —— **内容改成交流/直流示意**（批 119，清单第 25 条："scene18 歌词
     # to ac to dc，但动画框抬头你写的是超椭圆，动画框内展出应当是直流、交流电示意，请修改抬头
     # 及内容"）。原来钉的是 `hyper`（超椭圆），与歌词无关；现在换成 `acdc`
     # （`school_scenes._ex_acdc` = 全波整流 + RC 滤波，抬头"交流 → 直流"）。
-    # 钟面（`clock`）仍然留在它自己那一行 93.52 `From AM to PM` 上——用户点名过那里要它。
     (45.52, "pane_exchange", "acdc", "交流变直流：整流 → 滤波"),
+    # **时间线**（清单第 29 条）："scene 20 当前为超椭圆，改为时间线，歌词 if we can travel 展示
+    # 时间线西工大校史，to ad to bc 展示西工大所在西安的公元前后历史"。两个 pane 行分别钉，
+    # `_ex_timeline` 按时刻自己切两段内容——**不合并成一行**（批 119 的教训：一行演两张画会叠）。
+    (50.95, "pane_exchange", "timeline", "一条路走到今天：1938 → 1957 → 1970 → 2026"),
+    (52.99, "pane_exchange", "timeline", "同一块地方，换了三个名字：汉长安 → 唐长安 → 西安"),
     # 角色 S/M：字形互换 —— 与 F→M 是同一台机器上的另一次翻位
     (97.32, "pane_exchange", "letters", "S 与 M：一个字的两个身份，来回翻"),
 ]
