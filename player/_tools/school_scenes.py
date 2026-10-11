@@ -2119,6 +2119,75 @@ def _block_word(k, x: int, y: int, word: str, colour) -> None:
         cx += len(glyph[0]) + 1
 
 
+def pane_spinoza(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
+    """`If I'm the only God`：斯宾诺莎**只有一个实体**的证明（清单第 41 条）。
+
+    用户："if I'm the only god 歌词对应的动画框一闪而过对话雕塑，请删除，这段歌词对应的动画
+    改为 斯宾诺莎对于上帝为唯一实体（∃!）的证明"。
+
+    原来这一行（84.60-86.21）是 `pane_landmark_dialogue` 的 `phase=2`——"手放下了、只剩那颗星"，
+    和"唯一的实体"没有关系。**那一闪而过的正是它**。
+
+    证明四步（用户给的形式，也是《伦理学》第一部分那条链）：
+
+    1. 两个实体若不同，则至少 ①**属性**不同，或 ②**样式**不同；
+    2. 两个实体**不可能只有样式不同**（样式依附于实体，不构成实体的区别）；
+    3. 两个实体**也不可能属性不同**（属性即本质，同一实体不能有两个本质）；
+    4. 所以**不可能有两个实体** —— 世界上只有一个实体，那就是上帝。
+
+    画法：左边一列 `①②③④` 四行，**按 `lt` 一行一行亮**（0.26 s 一步，四步读得完）；
+    右边一个 2x2 的小格（`属性` / `样式` × `可以不同` / `不可能只有它不同`），
+    已经把"哪一种不同不成立"标出来；底部是结论 `E! 1 substance`（`∃` 在渲染字体里没有，
+    用 `E!`）。
+
+    **不做擦除**（批 118 的硬规矩）：每一步只是把该行**画出来**，不亮的那几行不画。
+    """
+    import school_courses as _C
+    k = _kit(s, x0, y0, x1, y1, 0, "Spinoza \u00b7 E! 1")
+    if k is None or k.bh < 8 or k.bw < 40:
+        return
+    steps = (
+        ("\u2460", "\u4e24\u4e2a\u5b9e\u4f53\u82e5\u4e0d\u540c\uff0c\u5219\u81f3\u5c11\u5c5e\u6027\u4e0d\u540c\u3001\u6216\u6837\u5f0f\u4e0d\u540c"),
+        ("\u2461", "\u4e0d\u53ef\u80fd\u53ea\u6709\u6837\u5f0f\u4e0d\u540c\uff08\u6837\u5f0f\u4e0d\u6784\u6210\u5b9e\u4f53\u7684\u533a\u522b\uff09"),
+        ("\u2462", "\u4e5f\u4e0d\u53ef\u80fd\u5c5e\u6027\u4e0d\u540c\uff08\u5c5e\u6027\u5373\u672c\u8d28\uff09"),
+        ("\u2463", "\u6240\u4ee5\uff1a\u4e0d\u53ef\u80fd\u6709\u4e24\u4e2a\u5b9e\u4f53"),
+    )
+    # 一步一步亮；四步走完剩下的时间把结论**留着**（不再变化）。
+    # **`int(...)+1` 要夹在 `len(steps)+1`**（批 128）：第一版夹在 `len(steps)`，于是
+    # "四步都走完"这个状态永远取不到，底部那句结论一次都没画出来。
+    # **步子 0.30 s**：这一行只有 1.61 s（84.60→86.21），0.26 s 时第 ④ 步要到 1.30 s 才亮、
+    # 结论（第 5 个状态）要到 1.56 s——只剩 0.05 s，等于没有。0.30 s 让结论有 0.4 s。
+    step = min(len(steps) + 1, int((lt if lt is not None else 0.0) / 0.30) + 1)
+    col = _mix(_C.AMBER, 0.92)
+    for i, (num, text) in enumerate(steps):
+        if i >= step:
+            break
+        y = k.by0 + i * 2
+        done = i < step - 1
+        k.put(k.bx0, y, num, col if not done else _mix(_C.GREEN, 0.9))
+        k.put(k.bx0 + 2, y, text, col if not done else _ui(0.62))
+    # ---- 右边：两条"可以不同"的路，逐条划掉
+    # **整块放到 `k.bx0 + 66`**（批 128）：第一版从 `bx0+62` 起，正好压在 `_Kit` 的竖分隔线上，
+    # `✗` 被那根线盖掉（实测 t=86.05 那一帧右栏只剩一个 `─`）。
+    gx = k.bx0 + 66
+    if gx + 17 <= k.bx1:
+        for j, lab in enumerate(("\u5c5e\u6027\u4e0d\u540c\uff1f", "\u6837\u5f0f\u4e0d\u540c\uff1f")):
+            y = k.by0 + j * 2
+            struck = step > j + 1                      # 第 ② / ③ 步走完就划掉对应那条
+            k.put(gx, y, lab, _ui(0.70) if not struck else _ui(0.35))
+            if struck:
+                # **`gx + 8`，不是 `gx + 7`**（批 128）：`属性不同？` 正好 7 格，从 +7 写就压在
+                # 它最后一个字上（实测 `属性不 ✗ 不成立`）。
+                # `✗`（U+2717）与 `✕`（U+2715）渲染字体里都**没有**（`_dev/glyph_probe.py` 抓到、
+                # 会画成备用方框），换成 `×`（U+00D7，四个字体都有）。
+                k.put(gx + 8, y, "\u00d7 \u4e0d\u6210\u7acb", _mix(_C.RED, 0.95))
+    # ---- 结论（四步走完后最亮）
+    if step > len(steps):
+        k.put(k.bx0, k.by1,
+              "E! 1 substance \u00b7 \u4e16\u754c\u4e0a\u53ea\u6709\u4e00\u4e2a\u5b9e\u4f53\uff0c\u5373\u4e0a\u5e1d",
+              _mix(_C.GREEN, 0.98))
+
+
 def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
     """互换: four things that are the same thing twice, on the lines about switching roles.
 
@@ -2476,9 +2545,33 @@ def pane_isolation(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     k = _kit(s, x0, y0, x1, y1, 0, "\u5b64\u7acb \u00b7 in isolation")
     if k is None:
         return
+    # **框内加一幅 `ISOLATION` 字符画**（批 128，清单第 48 条："动画孤立框内加上字符画
+    # isolation（目前只有点的纹样，有点单调）"）。
+    # 走 NWPU 那一套管线（`school_sculpture.banner_cells`）：资产当模板、8 倍上采样、
+    # 按格覆盖率取笔画——所以是**字形**而不是方块。
+    # 画在右下角，点阵让出那一块（点阵的宽度也只画到它左边），两者不重叠。
+    art = None
+    art_x = art_y = 0
+    art_w = art_h = 0
+    try:
+        import school_sculpture as _SCU
+        art_h = min(6, max(3, k.bh // 4))
+        art_w = min(max(20, k.bw // 3), k.bw - 12)
+        # `banner_cells` 返回的是 `(cells, w, h)` 三元组（批 128 第一次把 `cells` 当成了返回值，
+        # 下一行 `len(r)` 就炸在 `int` 上）
+        got = _SCU.banner_cells("ISOLATION", art_w, art_h)
+        if got:
+            art, art_w, art_h = got[0], int(got[1]), int(got[2])
+            art_x = k.bx1 - art_w + 1
+            art_y = k.by1 - art_h + 1
+    except Exception:
+        art = None
     k.section(k.by0, "\u4e00\u4e2a\u70b9\u7559\u4e0b", 0.25)
     top = k.by0 + 2
-    rows = list(range(top, k.by1 - 2, 2))
+    # 点阵的行只排到字符画上面那一行；列只排到字符画左边
+    last_row_y = (art_y - 2) if art else (k.by1 - 2)
+    field_x1 = (art_x - 3) if art else k.bx1
+    rows = list(range(top, max(top + 2, last_row_y), 2))
     if not rows or k.bw < 12:
         k.put(k.bx0, k.by1, "\u53ea\u5269\u4e00\u4e2a\u70b9", _C._ui(0.6))
         return
@@ -2497,6 +2590,7 @@ def pane_isolation(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     beat = 0.55 + 0.45 * _beat(t)
     middle = len(rows) // 2
     gone = 0
+    step_x = max(3, min(step_x, max(3, (field_x1 - k.bx0 - 2) // 8)))
     for i, y in enumerate(rows):
         for j in range(9):
             x = k.bx0 + 2 + j * step_x
@@ -2521,6 +2615,15 @@ def pane_isolation(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     total = 9 * len(rows)
     k.put(k.bx0, k.by1 - 1, f"\u5269 {total - gone} / {total}", _C._ui(0.5))
     k.put(k.bx0, k.by1, "\u4f60\u8d70\u4e86\uff0c\u5269\u4e0b\u7684\u90fd\u5728\u706d", _C._ui(0.55))
+    # ---- 字符画（右下角，覆盖在留白上；点阵在它左边与上面都让开了）
+    # 每个格是 `(字符, 亮度)` 二元组（`banner_cells` 的输出形状，见 `_landmark` 里 NWPU 那几行）
+    if art:
+        for ry, rowv in enumerate(art):
+            for rx, cell in enumerate(rowv):
+                if cell is None:
+                    continue
+                ch_, lv = cell
+                k.put(art_x + rx, art_y + ry, ch_, _C._mix(_C.BLUE, 0.35 + 0.55 * (lv / 255.0)))
 
 
 def pane_fragments(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
@@ -2736,6 +2839,8 @@ PANE_BY_NAME.update({
     "pane_yolo": pane_yolo,
     # 清单第 52 条：`Illegal arguments` 的 IEEE-754 演出
     "pane_ieee754": pane_ieee754,
+    # 清单第 41 条：`If I'm the only God` 的斯宾诺莎证明
+    "pane_spinoza": pane_spinoza,
     "pane_landmark_dialogue": pane_landmark_dialogue,
     "pane_landmark_sword": pane_landmark_sword,
     "pane_landmark_hezun": pane_landmark_hezun,

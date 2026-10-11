@@ -505,8 +505,14 @@ LANDMARK_ROWS: list[dict] = [
     # The user's ruling on the placement question the audit raised ("02b §3.3 把它钉在 84.60"):
     # **84.60, on `If I'm the only God`**. `stardiff` follows on the next line, where a star as the
     # *proof of an existence* is the reading it was always meant to carry.
-    dict(at=84.60, name="pane_landmark_dialogue", lyric="If I'm the only God",
-         ops=["\u5bf9\u8bdd", "the only God"], mascot=False, args=dict(phase=2), sub="手放下了，只剩那颗星：唯一的存在"),
+    #
+    # **已换成斯宾诺莎的证明**（批 128，清单第 41 条）：用户："if I'm the only god 歌词对应的动画框
+    # 一闪而过对话雕塑，请删除，这段歌词对应的动画改为 斯宾诺莎对于上帝为唯一实体（∃!）的证明"。
+    # 那一闪而过的就是这条 `pane_landmark_dialogue` 的 `phase=2`（"手放下了，只剩那颗星"）。
+    # `pane_landmark_dialogue` 本身没删——它还在 54.74 那一行演"两只手"。
+    dict(at=84.60, name="pane_spinoza", lyric="If I'm the only God",
+         ops=["E!", "SUBSTANCE"], mascot=False,
+         sub="\u53ea\u6709\u4e00\u4e2a\u5b9e\u4f53\uff1a\u5c5e\u6027\u4e0d\u540c\u3001\u6837\u5f0f\u4e0d\u540c\uff0c\u4e24\u6761\u90fd\u4e0d\u6210\u7acb"),
     dict(at=86.21, name="pane_motif_stardiff", lyric="Then you're the proof of my existence",
          ops=["STAR", "衍射"], mascot=False, sub="你在，就是我在的证据"),
     dict(at=88.34, name="pane_motif_quantize", lyric="Switch my gender",
