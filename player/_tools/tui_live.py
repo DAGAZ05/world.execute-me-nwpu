@@ -1050,6 +1050,28 @@ def fx_cut(s: "Screen", t: float, ent: dict | None) -> None:
     # 不准删改**"，节点指学校/学院切开、学院压缩框那些），所以这里按**排期区间**关：
     # `互换` 这一段就是"一行一个面板"的五屏（41.92→54.74）。
     # 同一张画继续演的转场在别的区间，完全不受影响；这一段的每一格直接切到新画面（等于硬切）。
+    # **同一张画被排成多行时，行与行之间不转场**（批 126，用户："双星旋进动画内部有个切换
+    # 特效，删掉"）。双星现在是两行（58.65 `If I can, if I can` 与 60.57 `Give you all the
+    # simulations`，都是 `pane_motif_binary`），中间那次换行会触发一次揭幕——可**画的是同一张画**，
+    # 转场就成了一块"动画内部的切换特效"。
+    #
+    # 判据：**这一刀的两边是同一张画**（`_pane_id`，含 `panel`），且中间跨过一次行边界。
+    #   * 用 `_pane_id` 而不是 `ent["pane"]`：实测这一刀的 `ent` **没有 `pane` 键**
+    #     （`_dev/same_pane_cut_trace.py`：`ent.pane=None`），按 entry 写的比较永远不成立；
+    #   * 含 `panel` 而不是只用 `name`：`pane_exchange` 的五个面板同名但是五张不同的画。
+    try:
+        import school_panels as _SPq
+        _rows = _SPq.shot_rows()
+        _w0, _w1 = max(0.0, t - 0.25), t
+        _ids = {_pane_id(r) for r in _rows
+                if _w0 < float(r["end"]) and float(r["at"]) < _w1 and r.get("name")}
+        _crossed = any(_w0 < float(r["at"]) <= _w1 for r in _rows)
+        if _crossed and len(_ids) == 1:
+            c["no_hold"] = True
+            c["old"] = None
+            c["old_wide"] = None
+    except Exception:
+        pass
     try:
         import school_panels as _SPp
         _row = _SPp.row_at(t)
@@ -1061,6 +1083,12 @@ def fx_cut(s: "Screen", t: float, ent: dict | None) -> None:
         pass
     if c["holds"]:
         c["old"] = c["old"] or [r[:] for r in s.prev]
+    # **"同一张画被排成多行"这种刀干脆不出转场**（批 126）：`no_hold` 让旧格不被保留，
+    # 但这次揭幕自己的**前沿**（`_fx_front` 那条亮线 / 溶解斑）还在，实测双星交界处左边
+    # 仍有两格 `██`。用户要的是"删掉"，那就整刀不建立——和 `kind == "hard"` 那条同一条路。
+    if c.get("no_hold"):
+        _CUT[0] = None
+        return
     if kind == "hard" and c["carry"] is None and not c["holds"]:
         _CUT[0] = None                 # nothing to stage after all: a plain hard cut
         return
@@ -4534,11 +4562,16 @@ def _pane_id(ent: dict | None) -> str:
     `pane_exchange` 一个 pane 里住着六个面板（`bits` / `clock` / `braid` / `acdc` / `phyllo`…），
     名字都是 `pane_exchange`——所以"两屏是不是同一张画"不能只看 pane 名，要看**面板参数**。
     转场要不要留旧格就是按这个判的（批 120）。
+
+    **排期行也可以直接传进来**（批 126）：行的键是 `name` / `args`，entry 的键是 `pane` /
+    `pane_args`，这里两种都认，`school_fx._cuts` 与 `school_panels.school_cuts` 因此能共用
+    同一个判据（否则三处各写一份、必然分叉）。
     """
     if not ent:
         return ""
-    args = ent.get("pane_args") or {}
-    return f"{ent.get('pane')}#{args.get('panel', '')}" if args else str(ent.get("pane") or "")
+    pane = ent.get("pane") or ent.get("name") or ""
+    args = ent.get("pane_args") or ent.get("args") or {}
+    return f"{pane}#{args.get('panel', '')}" if args else str(pane)
 #: 临时诊断：框那一行在各阶段的内容（定位"谁把旧框带回来"）。
 _DBG_ROW: list = ["", "", "", ""]
 

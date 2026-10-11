@@ -737,6 +737,7 @@ def school_cuts() -> list[float]:
     rows = shot_rows()
     cuts: list[float] = []
     upstream: list[float] = []
+    _prev: dict | None = None          # 上一行（判"是不是同一个 pane 被排成多行"）
     try:
         upstream = sorted(float(e["start"]) for e in T.Engine().table)
     except Exception:
@@ -750,6 +751,15 @@ def school_cuts() -> list[float]:
         at = float(r["at"])
         if at <= 1.0:
             continue
+        # **同一张画被排成多行时，行边界不是切点**（批 126，用户："双星旋进动画内部有个
+        # 切换特效，删掉"）。双星是 58.65 与 60.57 两行，都叫 `pane_motif_binary`——画的是
+        # 同一张画在继续演，中间那次"切"就成了**动画内部的切换特效**。
+        # 判据用 `T._pane_id`（**含 `panel`**）：`pane_exchange` 的五个面板同名但 `panel` 不同，
+        # 那五处**是**切点；只用 `name` 会把它们也跳掉。
+        if _prev is not None and T._pane_id(_prev) == T._pane_id(r):
+            _prev = r
+            continue
+        _prev = r
         k, bt = T.beat(at)
         if k < 0:
             continue

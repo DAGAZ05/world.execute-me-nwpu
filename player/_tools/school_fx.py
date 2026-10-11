@@ -1705,10 +1705,26 @@ def _cuts():
     them": raising it to a full beat brought the two 0.435 s rows under the line as well.)
     """
     import school_panels as SP
+    import tui_live as T
     rows = SP.shot_rows()
     out = {}
+    prev = None
     for i, row in enumerate(rows):
         at = row["at"]
+        # **同一张画被排成多行时，行边界没有转场**（批 126，用户："双星旋进动画内部有个
+        # 切换特效，删掉"）。双星是 58.65 与 60.57 两行、都叫 `pane_motif_binary`——画的是同一
+        # 张画在继续演，中间那次 `slide` 就成了"动画内部的切换特效"。
+        # 这一层（`school_fx.transition`）与 `tui_live.fx_cut`（揭幕）、`school_panels.school_cuts`
+        # （横向拉开）是**三层**，都要挡；我第一版只挡了中间那层，
+        # `_dev/block_writer_trace.py` 才抓到是这一层的 `_carry` 在写 `█`。
+        #
+        # 判据用 `T._pane_id`（**含 `panel`**），不是只用 `name`：`pane_exchange` 的五个面板
+        # 同名但 `panel` 不同，那五处**是**切点（用户点名要的"互换"演出）。
+        # 第一版只用 `name`，把 41.92/45.52/47.27/49.11/50.95/52.99 那六个边界也跳过了。
+        same_pane = prev is not None and T._pane_id(prev) == T._pane_id(row)
+        prev = row
+        if same_pane:
+            continue
         span = float(row.get("end", at) or at) - at
         if span and span < TRANS_DUR:
             continue
