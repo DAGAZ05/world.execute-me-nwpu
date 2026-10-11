@@ -2373,38 +2373,56 @@ def pane_fourier(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
             v += amp * math.sin(n * x + 0.35 * n + 0.6 * math.sin(t * 0.4 + n * 0.7))
         return v / 1.8
 
-    # ---- 左半：谐波柱
-    bar_x = k.bx0
-    bar_y1 = k.by0 + 3 + max(6, k.bh // 2)
-    for n in range(1, NH + 1):
-        # **乘 8 必须写在 round 里面**（批 136）：原来是 round(v) * 8，round 先把振幅取整成
-        # 0 或 1，于是只有第 1 根柱有高度、第 2-8 根全是 0（实测整屏只有一列实心）。
-        v_amp = max(0.0, min(1.0, (1.0 / n) * (0.75 + 0.25 * math.sin(t * 1.7 + n))))
-        h = int(round(v_amp * 8))
-        bx = bar_x + (n - 1) * 4
-        if bx + 2 > k.bx0 + 40:
+    # ---- **时域：不同波形一条一条叠上去**（批 138，用户："音乐分解我希望做出时域不同波形
+    # 动态叠加的效果"）。上一版是"横轴=一个周期、竖轴=累加值"的一条收敛曲线，读不出"叠"这件事。
+    # 现在是**分层**：上面 NL 条窄道各画**一根谐波自己的时域波形**（横轴 = 时间），
+    # 每 0.5 s 亮起一条（那是它被加进去的时刻）；下面一大条画**已经亮起的那些谐波的叠加**，
+    # 迭加起来就是越来越复杂的复合波形——这才是"音乐分解"的意思：把一条复杂的波拆成几条简单的。
+    NL = 5                                    # 画得出几条：1..5 次谐波
+    lane_h = 2
+    n_lanes = min(NL, max(1, (k.bh - 8) // (lane_h + 1)))
+    upto = max(1, min(n_lanes, 1 + int(lt0 / 0.5)))
+    plot_x = k.bx0
+    plot_w = max(12, k.bw - 1)
+    lane_top = k.by0 + 2
+
+    def harm(xx: float, n: int) -> float:
+        return (1.0 / n) * math.sin(n * xx + 0.35 * n + 0.6 * math.sin(t * 0.4 + n * 0.7))
+
+    # ---- 每根谐波自己的那一条
+    for n in range(1, n_lanes + 1):
+        ly = lane_top + (n - 1) * (lane_h + 1)
+        if ly + lane_h > k.by1 - 4:
             break
-        k.put(bx, k.by0 + 3, f"{n}", _ui(0.5))
-        for j in range(h):
-            k.put(bx + 1, bar_y1 - j, "\u2588", _mix(_C.BLUE, 0.45 + 0.5 * (j / max(1, h))))
-    k.put(bar_x, bar_y1 + 2, "\u7b2c n \u6b21\u8c10\u6ce2\u7684\u5e45\u5ea6 a_n", _ui(0.6))
-    # ---- 右半：逐次累加（每 0.35 s 添一根谐波）
-    steps = 1 + int(lt0 / 0.35)
-    upto = max(1, min(NH, steps))
-    plot_x = k.bx0 + min(44, k.bw // 2)
-    plot_w = max(12, k.bx1 - plot_x - 1)
-    cy = k.by0 + 3 + max(4, k.bh // 3)
-    scale = max(3, min(9, k.bh // 5))
-    for i in range(plot_w):
-        xx = (i / max(1, plot_w - 1)) * (2 * math.pi)
-        yv = int(cy - scale * partial(xx, upto))
-        yt = int(cy - scale * wave(xx))
-        if k.by0 + 2 <= yv <= k.by1:
-            k.put(plot_x + i, yv, "\u2022", _mix(_C.AMBER, 0.95))
-        if k.by0 + 2 <= yt <= k.by1:
-            k.put(plot_x + i, yt, "\u00b7", _mix(_C.BLUE, 0.35))
-    k.put(plot_x, cy, "\u2500", _ui(0.3))
-    k.put(plot_x, cy + 2, f"\u52a0\u5230\u7b2c {upto} \u6839\uff1a\u21d2 \u76ee\u6807\u6ce2\u5f62", _mix(_C.GREEN, 0.85))
+        on = n <= upto
+        mid = ly + 1
+        amp = max(1, lane_h)
+        for i in range(plot_w):
+            xx = (i / max(1, plot_w - 1)) * (8 * math.pi)
+            yy = int(mid - amp * harm(xx, n) * n / 1.0)
+            yy = max(ly, min(ly + lane_h, yy))
+            k.put(plot_x + i, yy, "\u00b7" if not on else "\u2022",
+                  _mix(_C.BLUE, 0.30 if not on else 0.95))
+        k.put(k.bx1 - 3, mid, f"{n}f", _mix(_C.BLUE, 0.45 if not on else 0.95))
+    # ---- 底下那一条：叠加的结果
+    sy = lane_top + n_lanes * (lane_h + 1) + 1
+    if sy + 3 <= k.by1:
+        smid = sy + 3
+        sscale = 3.0
+        for i in range(plot_w):
+            xx = (i / max(1, plot_w - 1)) * (8 * math.pi)
+            tot = sum(harm(xx, n) for n in range(1, upto + 1))
+            full = sum(harm(xx, n) for n in range(1, n_lanes + 1))
+            yy = int(smid - sscale * tot)
+            yf = int(smid - sscale * full)
+            if sy <= yy <= sy + 6:
+                k.put(plot_x + i, yy, "\u2022", _mix(_C.AMBER, 0.95))
+            if sy <= yf <= sy + 6:
+                k.put(plot_x + i, yf, "\u00b7", _mix(_C.BLUE, 0.28))
+        k.put(plot_x, smid, "\u2500", _ui(0.25))
+        k.put(plot_x, min(k.by1, sy + 7),
+              f"\u53e0\u52a0\u4e86 {upto} \u6839\uff1a\u590d\u5408\u6ce2\u5f62\u6b63\u5728\u957f\u51fa\u6765",
+              _mix(_C.GREEN, 0.85))
     if k.bh >= 12:
         k.put(k.bx0, k.by1, "x(t) = a\u2081sin \u03c9t + a\u2082sin 2\u03c9t + a\u2083sin 3\u03c9t + \u2026",
               _ui(0.55))
