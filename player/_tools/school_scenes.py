@@ -2353,7 +2353,7 @@ def pane_fourier(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     同一秒永远同一幅，拉动进度条不会看到两种画面。
     """
     import school_courses as _C
-    k = _kit(s, x0, y0, x1, y1, 0, "\u5085\u91cc\u53f6\u5206\u89e3 \u00b7 \u97f3\u4e50\u5206\u89e3")
+    k = _kit(s, x0, y0, x1, y1, 0, "\u5085\u91cc\u53f6\u5206\u6790 \u00b7 \u97f3\u4e50\u5206\u89e3")
     if k is None or k.bh < 8 or k.bw < 40:
         return
     lt0 = lt if lt is not None else 0.0
