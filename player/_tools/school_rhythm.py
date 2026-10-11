@@ -37,10 +37,31 @@ LANE_LABEL = {"d": "D", "j": "J", "s": "S"}
 #: 严格到 ±0.05 在终端里会被键盘重复率影响，宽容到 ±0.25 又会让人觉得"怎么按都对"。
 PERFECT = 0.09
 GOOD = 0.20
-#: 音符之间的最小间隔（秒）与全曲上限。0.45 s 略大于两个拍（0.229 s 一拍），
-#: 于是"每两个拍一个音"是常态，重拍处可以连到"每拍一个"。
+#: 音符之间的最小间隔（秒）与全曲上限。
 GAP = 0.45
 MAX_NOTES = 520
+#: **谱面的音乐参数**（批 100，见 `chart`）。第一版调出来 251/273 全是"重音"、长按只有 6 个——
+#: 因为 `kick` 的中位数就有 0.42，等于没有筛选。现在改成**分层密度**：
+#:
+#:   * `loud < LOUD_LO`（安静）→ 16 分网格上**每 4 格**才可能落一个（约 0.458 s 一个）；
+#:   * `LOUD_LO ≤ loud < LOUD_HI` → **每 2 格**（约 0.229 s）；
+#:   * `loud ≥ LOUD_HI`（高潮）→ **每格**（0.114 s，最密）。
+#:
+#: 落点还要过 `TAP_KICK`（那一拍的 kick 够强）——所以安静段落自然稀疏、鼓点密集处自然密。
+#: 这就是用户要的"根据音乐节奏变化"。
+LOUD_LO, LOUD_HI = 0.38, 0.66
+#: 三档的 kick 门槛（**越响要求越低**，见 `chart.kick_need`）。
+KICK_LO, KICK_MID, KICK_HI = 0.34, 0.20, 0.10
+BEAT_LOUD = 0.70
+#: 长按：**落在稀疏的地方**（前后 0.80 s 没有别的音符），长度取到下一个音符之前，
+#: 限制 0.35–1.20 s。这样"按住多久"跟音乐里那一段的留白一致，而不是随机数。
+HOLD_GAP = 0.80
+HOLD_MIN, HOLD_MAX = 0.35, 1.20
+HOLD_LOUD = 0.42
+#: 长按出现概率（只在符合条件的稀疏落点上，所以实际比例会低于它）。
+HOLD_PCT = 0.55
+#: 长按松手的容差（秒）：比尾巴早这么多松就算"断"。
+HOLD_RELEASE = 0.18
 #: 面板高度（行）：**按当前有几个键决定**。用户的要求："我让你学院部分增加music panel高度，
 #: 容纳3个键位，你完全没改"——3 键那一段面板更高，并且每个键道有 **2 行**（音符是"厚块"，
 #: 单行 1 格的点在滚动时读不出来）。
@@ -165,36 +186,92 @@ def _beats() -> list[float]:
 
 
 def chart() -> list[dict]:
-    """全曲谱面：`[{t, lane}]`，按时间排序。
+    """全曲谱面：`[{t, lane, kind, dur}]`，按时间排序。
 
-    规则（全部可复现）：
-      * 只在 `WINDOWS` 的两段里取点（学校段 2 键、学院段 3 键），中间的选择框窗口**没有音符**；
-      * 相邻两个音符至少隔 `GAP`（0.45 s）；
-      * 键道按一个**确定性的哈希**分配（`lane = (i*7 + int(t*100)) % n`），并避免与上一个同键；
-      * 每段的键数就是那一段的 `n`（2 或 3），不是"到某个时刻才解锁"。
+    **批 100 按音游的做法重做**（用户："音符你都是固定的，这不符合音游的要求，正常来讲音游应该是
+    根据音乐节奏等变化的，也分长按、短按"）。第一版是"在节拍网格上等间隔取点、全是最短单点"，
+    于是读起来像节拍器而不是谱面。现在的三条规则：
+
+    1. **基础密度跟 `kick` 走**：音符落在 **16 分网格**（一拍的四分之一，0.114 s）上，但
+       **是否出现**由那一拍的 `kick` 决定（`TAP_KICK`）——安静段落自然稀疏、鼓点密集处自然密。
+    2. **长按跟"持续的响"走**：`hold` 的出现要 `loud > 0.40`，长度由 `_hold_len` 从
+       `loud` 的**连续段**量出来（0.30–1.40 s）。长按期间不再生成其它音符，所以谱面不重叠。
+    3. **轻重区分**：`kind` 由 `loud` 给——`tap`（普通）与 `beat`（重音），判定相同、
+       **画法不同**（重音更亮更厚），读谱时看得出"这一下要用力"。
     """
     grid = _beats()
     if not grid:
         return []
+    try:
+        import tui_live as T
+        d = T.DATA[0]
+    except Exception:
+        d = None
+    if d is None:
+        return []
+    iv = sorted(b - a for a, b in zip(grid, grid[1:]))
+    beat = iv[len(iv) // 2] if iv else 0.458
+    step = max(0.10, beat / 4.0)          # 16 分网格，从节拍网格推出来（与 E3 的切点同源）
     out: list[dict] = []
-    i = 0
+
+    def tap_at(t: float, lane: str, kind: str) -> None:
+        out.append(dict(t=round(t, 4), lane=lane, kind=kind, dur=0.0))
+
+    def kick_need(loud: float) -> float:
+        """这一刻"多强才算一个音符"。**越响要求越低**——所以高潮段落会出现连打。
+
+        第一版对三档用了同一个阈值，结果 232/307 的间隔都是 0.458 s（等于只有 L2 那一档真的在出音符）：
+        `kick` 的强拍每两拍才来一次。响应度（`loud`）高的时候把门槛降下来，密度才真的分层。
+        """
+        if loud >= LOUD_HI:
+            return KICK_HI
+        if loud >= LOUD_LO:
+            return KICK_MID
+        return KICK_LO
+
     for at, end, n, lanes in WINDOWS:
-        last = -1e9
-        for bt in grid:
-            if bt < at or bt > end:
-                continue
-            if bt - last < GAP:
-                continue
-            k = (i * 7 + int(round(bt * 100))) % n
-            lane = lanes[k]
-            if out and lane == out[-1]["lane"] and n > 1:
-                lane = lanes[(k + 1) % n]
-            out.append(dict(t=round(bt, 4), lane=lane))
-            last = bt
-            i += 1
-            if len(out) >= MAX_NOTES:
-                return out
+        i = 0
+        t = at
+        while t <= end and len(out) < MAX_NOTES:
+            loud = d.feat(t, "loud")
+            kick = d.feat(t, "kick")
+            slot = int(round(t / step))
+            dens = 1 if loud >= LOUD_HI else (2 if loud >= LOUD_LO else 4)
+            if slot % dens == 0 and kick >= kick_need(loud):
+                h = (slot * 2654435761 + 7919) & 0xFFFF
+                lane = lanes[(i * 5 + (h >> 3)) % n]
+                if out and lane == out[-1]["lane"] and n > 1:
+                    lane = lanes[(lanes.index(lane) + 1) % n]
+                nxt = _next_gap(d, t, end, step, lanes, n)
+                if (h % 100) < (HOLD_PCT * 100) and loud >= HOLD_LOUD and nxt >= HOLD_GAP:
+                    # **长度取这一段空白的一半**，并限制在 0.35–1.20：太长会把下一拍压掉，
+                    # 而且第一版取 `nxt - step` 时所有长按都顶到上限（实测中位=最大=1.20，没有变化）。
+                    dur = min(HOLD_MAX, max(HOLD_MIN, 0.5 * nxt))
+                    out.append(dict(t=round(t, 4), lane=lane, kind="hold", dur=round(dur, 4)))
+                    i += 1
+                    t = t + dur                     # 长按期间不出别的音符
+                    continue
+                tap_at(t, lane, "beat" if loud >= BEAT_LOUD else "tap")
+                i += 1
+            t += step
     return out
+
+
+def _next_gap(d, t: float, end: float, step: float, lanes, n: int) -> float:
+    """从 `t` 往后，下一个"可能落音符"的时刻离它多远（秒）。
+
+    用它来决定长按能有多长：**长度是这一段留白的一半**，所以"按住多久"对应音乐里真实的空白。
+    只看密度分层与 `kick` 阈值，不递归调用 `chart`。
+    """
+    t2 = t + step
+    while t2 <= end:
+        loud = d.feat(t2, "loud")
+        dens = 1 if loud >= LOUD_HI else (2 if loud >= LOUD_LO else 4)
+        need = KICK_HI if loud >= LOUD_HI else (KICK_MID if loud >= LOUD_LO else KICK_LO)
+        if int(round(t2 / step)) % dens == 0 and d.feat(t2, "kick") >= need:
+            return t2 - t
+        t2 += step
+    return end - t
 
 
 # ---------------------------------------------------------------------- 状态
@@ -215,19 +292,48 @@ class Game:
         self.perfect = 0
         self.good = 0
         self.miss = 0
+        self.hp = 0                   # 长按尾巴**松早了**（丢了那 1 分）
+        self.htail = 0                # 长按尾巴**按住了**（拿到那 1 分）
         self.combo = 0
         self.best = 0
         self.flash: tuple[float, str, str] | None = None   # (时刻, 判定, 键道)
         self.last_t = 0.0
         self.phase = 0                # 现在在第几段（0/1），以及这一段的命中
         self.phase_hit = 0
+        self.held: dict[str, int] = {}   # 键道 -> 正在按着的长按下标
 
     # ---- 数值 ----------------------------------------------------------
     def score(self) -> int:
-        return 2 * self.perfect + self.good
+        """**一个音符最高 2 分**，但长按的 2 分是"头 1 + 尾 1"，而尾巴是**额外的记账项**。
+
+        | 事件 | 分 | 计入 |
+        |---|---|---|
+        | `tap`/`beat` 接住（PERFECT / GOOD） | 2 / 1 | `perfect` / `good` |
+        | `hold` 头接住（PERFECT / GOOD） | 2 / 1 | `perfect` / `good` |
+        | `hold` 尾巴按住 | +1 | `htail` |
+        | `hold` 尾巴松早了 | 0 | `hp` |
+
+        所以 `max_score = 2 × (tap+beat 数) + 2 × hold 头数 + 1 × hold 数`，**每个音符最多 2 分**。
+
+        这一段改了三次，每次都靠探针里的"准点自动玩家"抓到：第一版 `hp` 也当 2 分加
+        （长按全断 = **102.1%**）；第二版尾巴记在 `good` 里，而 `good` 与 `perfect` 是**互斥**的
+        两套记账，于是同一个长按变成"1 个音符位、2 分记账"（**101.2%**，`hit rate 401/385`）。
+        现在三个计数互不重叠，`_dev/rhythm_score_debug.py` 会逐条印出每一分来自哪个事件。
+        """
+        return 2 * self.perfect + self.good + self.htail
+
+    def hits(self) -> int:
+        """**接住过**的音符个数（头那一分拿到了）。用于 `hit rate` 那一行。
+
+        不能把"松早了的长按"算进来（它们头接住了、尾巴没有），那会让 `hit rate` 报出
+        401/385（比音符总数还多）。所以这里只数 `perfect + good` 覆盖到的音符。
+        """
+        return min(self.total, self.perfect + self.good)
 
     def max_score(self) -> int:
-        return max(1, 2 * self.total)
+        """满分：每个音符 2 分，长按的尾巴再多 1 分（所以 hold 一共 3 分）。"""
+        holds = sum(1 for n in self.notes if n.get("kind") == "hold")
+        return max(1, 2 * self.total + holds)
 
     def pct(self) -> float:
         return 100.0 * self.score() / self.max_score()
@@ -250,7 +356,7 @@ class Game:
 
     # ---- 判定 ----------------------------------------------------------
     def tick(self, t: float) -> None:
-        """把已经过去、没人按的音符结算成 `MISS`。每帧调用。"""
+        """每帧调用：结算过期的音符，并检查正在按着的长按有没有被松早了。"""
         ph = self.phase_of(t)
         if ph != self.phase and ph >= 0:
             # 换段：连击归零（中间隔了十六秒的选择框），但分数累计
@@ -259,7 +365,14 @@ class Game:
         if t < self.last_t - 0.5:                 # 回退/跳转：不追判，直接对齐
             self.used = sum(1 for n in self.notes if n["t"] < t - GOOD)
             self.combo = 0
+            self.held.clear()
         self.last_t = t
+        # **长按的尾巴**：按着不放，一直走到 `t + dur` 才算完整；松开由 `key` 处理（松早了）。
+        # "按够了"也要结算一次（把尾巴那 1 分给上），走的是同一个 `release`，所以它自带去重。
+        for lane, idx in list(self.held.items()):
+            note = self.notes[idx]
+            if t >= note["t"] + note["dur"]:
+                self.release(lane, note["t"] + note["dur"])
         while self.used < self.total and self.notes[self.used]["t"] < t - GOOD:
             note = self.notes[self.used]
             self.used += 1
@@ -270,11 +383,17 @@ class Game:
             self.flash = (t, "MISS", note["lane"])
 
     def key(self, ch: str, t: float) -> bool:
-        """吃下 `d`/`j`/`s` 吗？只有面板在舞台上、而且那个键道是活的才吃。"""
+        """吃下 `d`/`j`/`s` 吗？只有面板在舞台上、而且那个键道**这一刻是活的**才吃。
+
+        **校验必须问 `lanes_at(t)`，不能问 `LANES`**（批 100 的 bug）：`LANES` 是学校段那两道
+        `("d","j")`，学院段多出来的 `s` 被 `k not in LANES` 挡在外面——表现是"s 道的音符
+        （tap/beat/hold 都算）一个都不计分"，那个键按下去只有"空按"。
+        `_dev/rhythm_s_lane_debug.py` 是把这一条钉出来的工具。
+        """
         if not live(t):
             return False
         k = ch.lower()
-        if k not in LANES or not self.lane_is_live(k, t):
+        if k not in lanes_at(t):
             return False
         best_i, best_d = -1, 1e9
         # 只在"还没结算 + 在窗口内"的音符里找最近的，且键道要对得上
@@ -304,7 +423,42 @@ class Game:
             self.flash = (t, "GOOD", k)
         self.combo += 1
         self.best = max(self.best, self.combo)
+        # **长按**：按下就算拿到头（分数已给），尾巴归 `release` / `tick` 管
+        if note.get("kind") == "hold":
+            self.held[k] = best_i
+            self.flash = (t, "HOLD", k)
         # `used` 只在 `tick` 里推进（它管的是"过期结算"），所以这里不移动它
+        return True
+
+    def release(self, ch: str, t: float) -> bool:
+        """松键。**只有长按需要它**：松早了扣掉半分并断连击；正常松手什么都不用做。"""
+        k = ch.lower()
+        idx = self.held.get(k)
+        if idx is None:
+            return False
+        # **先摘掉**：`release` 会被调用两次（自动重复的松开、`tick` 的"按够了"），
+        # 摘除必须在去重检查**之前**，否则第二次提前 return 时这一项永远留在 `held` 里，
+        # 于是每一帧都重复结算（实测"准点"779→786，G 9→16）。
+        del self.held[k]
+        note = self.notes[idx]
+        end = note["t"] + note["dur"]
+        # **尾巴只结算一次**（`rel` 标记）。没有它，同一次长按会被记两遍——
+        # 实测"准点"跑出 102.1%、hit rate 401/385（比音符数还多）。
+        if note.get("rel"):
+            return True
+        note["rel"] = True
+        if t < end - HOLD_RELEASE:
+            # **松早了**：头那一分已经给了（在 `key` 里），尾巴这一分没有。
+            self.hp += 1
+            self.combo = 0
+            self.flash = (t, "断", k)
+        else:
+            # 按到了尾巴：那 1 分记在 `htail`（**不能记进 `good`**——`good` 与 `perfect` 是互斥的
+            # 两套记账，记进去就等于同一个长按拿了两份"音符分"，满分会爆）
+            self.htail += 1
+            self.combo += 1
+            self.best = max(self.best, self.combo)
+            self.flash = (t, "OK", k)
         return True
 
 
@@ -372,21 +526,35 @@ def draw(s, x0: int, y0: int, x1: int, y1: int, t: float, g: Game,
         if ln not in lane_y:
             continue
         x = lane_x1 - int(round(span * dt / look))
-        if not (lane_x0 <= x <= lane_x1):
-            continue
         yy0 = lane_y[ln]
         near = 1.0 - _clamp(abs(dt) / GOOD, 0.0, 1.0)
         #: 颜色：远 = 主题蓝 ×1.2（亮蓝），近 = 暖白。第一版从 `mix(me_text, 0.5)` 起，
         #: 实测最暗格 (58,71,121) 比正文还暗。
         far = tuple(min(255, int(v * 1.2)) for v in me_text)
-        col = _grad(far, (255, 246, 190), near) if not note.get("done") else ui(0.30)
-        ch = "\u2588" if not note.get("done") else "\u2591"
+        done = bool(note.get("done"))
+        kind = note.get("kind", "tap")
+        bright = (255, 246, 190) if kind == "beat" else (214, 235, 255)
+        col = _grad(far, bright, near) if not done else ui(0.30)
+        ch = "\u2588" if not done else "\u2591"
+        # **长按 = 头 + 条**（批 100）：头是 3 格厚块，条沿"来向"（右边）铺到 `t + dur` 的位置。
+        # 条用 `▄`（U+2584，半块）——**`glyph_probe` 抓到过 `▬`（U+25AC）在这个渲染器里是缺字方框**，
+        # 半块是已经证明能画的那一类；读谱时"要按住多久"就是这条有多长。
+        if kind == "hold" and not done and note.get("dur"):
+            xe = lane_x1 - int(round(span * (dt + note["dur"]) / look))
+            for xx in range(max(lane_x0, xe), min(lane_x1, x + 3) + 1):
+                for r in range(nrow):
+                    yy = yy0 + r
+                    if yy >= judge_y:
+                        break
+                    s.set_cell(xx, yy, "\u2584", _grad(far, (150, 190, 255), near), bg)
+                    drawn += 1
+        thick = 3 if kind != "beat" else 4       # 重音更厚，读谱时看得出"这一下要用力"
         for r in range(nrow):
             yy = yy0 + r
             if yy >= judge_y:
                 break
-            for k in range(3):
-                if x + k <= lane_x1:
+            for k in range(thick):
+                if lane_x0 <= x + k <= lane_x1:
                     s.set_cell(x + k, yy, ch, col, bg)
                     drawn += 1
     # --- 面板上方（框内最后一行留给判定线，所以反馈写在键道与判定线之间那段空行的左侧）
@@ -410,7 +578,10 @@ def draw_final(s, x0: int, y0: int, x1: int, y1: int, t: float, g: Game,
     """
     w = s.cols if getattr(s, "cols", 0) else (x1 - x0 + 1)
     line, sub = g.verdict()
-    big = f"{g.score()} / {g.max_score()}   {g.pct():.1f}%"
+    # **两个数字各自带单位**（批 100）：用户看到 `PERFECT+GOOD+MISS ≪ 720` 时合理地怀疑数字错了——
+    # 720 是**分数**（每个音符 2 分），102+129+129=360 是**音符个数**。所以总分与命中率分行写，
+    # 下面那行才是逐项计数，并且写明"每音符 2 分"。
+    big = f"score {g.score()} / {g.max_score()}   ({g.pct():.1f}%)   each note = 2"
     cx = w // 2
     # **画在"在铸剑吗？"那一句下面**：`draw_black` 把那个问题打在屏幕下部的输入框里
     # （`py = y0 + h - 4`），光标与 token 号在它下面两行。总分放在问题**上方**两行，
@@ -419,10 +590,12 @@ def draw_final(s, x0: int, y0: int, x1: int, y1: int, t: float, g: Game,
     # **只用字体真的有的字符**：`—`（U+2014）在渲染器里是缺字方框，换成 ASCII 的 `-`。
     rows = [(cy, "WORLD.EXECUTE(ME) - complete", ui(0.8)),
             (cy + 1, big, (255, 246, 190)),
-            (cy + 2, f"PERFECT {g.perfect}   GOOD {g.good}   MISS {g.miss}   "
-                     f"best combo {g.best}", mix(me_text, 0.9)),
-            (cy + 3, line, (180, 255, 200)),
-            (cy + 4, sub, ui(0.62))]
+            (cy + 2, f"hit rate {g.hits()} / {g.total}   ({100.0*g.hits()/max(1,g.total):.1f}%)",
+             mix(me_text, 0.85)),
+            (cy + 3, f"PERFECT {g.perfect}   GOOD {g.good}   MISS {g.miss}   "
+                     f"hold broken {g.hp}   best combo {g.best}", mix(me_text, 0.9)),
+            (cy + 4, line, (180, 255, 200)),
+            (cy + 5, sub, ui(0.62))]
     for yy, text, col in rows:
         if not (0 <= yy < getattr(s, "rows", 10 ** 6)):
             continue

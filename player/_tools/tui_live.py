@@ -5635,6 +5635,8 @@ def main() -> None:
     # a report of "q does not quit" is not worth arguing with. A flag is checkable, cannot be swallowed
     # by an unrelated `except`, and reads as what it is.
     quitting = False
+    #: 音游当前按下的键（批 100，长按需要"按下/松开"两个事件；见键盘循环里的说明）。
+    _rh_down: set[str] = set()
     try:
         while not quitting:
             now = time.perf_counter()
@@ -5660,10 +5662,15 @@ def main() -> None:
                     import school_rhythm as _RHY
                     if RHYTHM[0] is None:
                         RHYTHM[0] = _RHY.Game()          # 每首歌建一次；谱面确定，重建也一致
-                        print(f"music panel: {RHYTHM[0].total} notes  "
-                              f"windows=" + " ".join(
-                                  f"{a:g}-{b:g}({k}keys,{''.join(x.upper() for x in l)})"
-                                  for a, b, k, l in _RHY.WINDOWS),
+                        _r = RHYTHM[0]
+                        _kd: dict = {}
+                        for _n in _r.notes:
+                            _kd[_n["kind"]] = _kd.get(_n["kind"], 0) + 1
+                        print(f"music panel: {_r.total} notes "
+                              f"({', '.join(f'{k} {v}' for k, v in sorted(_kd.items()))})  "
+                              f"max score {_r.max_score()}  windows=" + " ".join(
+                                  f"{a:g}-{b:g}({''.join(x.upper() for x in l)})"
+                                  for a, b, _k, l in _RHY.WINDOWS),
                               file=sys.stderr, flush=True)
                     elif t < 1.0 < RHYTHM[0].last_t:
                         RHYTHM[0] = _RHY.Game()          # Home 回到开头：重新开一局
@@ -5712,8 +5719,21 @@ def main() -> None:
                     continue
                 # 音游面板在它自己的舞台上吃 `d`/`j`/`s`（批 98）。所有权规则与 gate 相同：
                 # **只在面板真的在舞台上时才吃键**，其余时间 `D`/`J`/`S` 与播放器无关（没人用）。
-                if RHYTHM[0] is not None and RHYTHM[0].key(ch, t):
-                    continue
+                #
+                # **批 100：要分"按下"与"松开"**，因为有了长按。Windows 的 `kbhit/getwch` 在按住
+                # 不放时会**反复送回同一个字符**（键盘自动重复），所以用一个按下集合去重：
+                # 第一次看到 = 按下，这是"松开"（集合里有但现在没读到），不重复触发按下。
+                _rk = ch.lower()
+                if RHYTHM[0] is not None:
+                    if _rk in ("d", "j", "s"):
+                        if _rk not in _rh_down:
+                            _rh_down.add(_rk)
+                            if RHYTHM[0].key(ch, t):
+                                continue
+                    elif _rh_down:
+                        for _k in [k for k in _rh_down if k != _rk]:
+                            RHYTHM[0].release(_k, t)
+                        _rh_down.clear()
                 if ch in ("q", "Q", "\x1b"):
                     quitting = True
                     break
