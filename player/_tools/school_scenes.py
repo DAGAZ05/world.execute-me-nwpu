@@ -1935,6 +1935,51 @@ def _ex_phyllo(k, t: float, u: float) -> None:
     _M.phyllotaxis(k, t, titles=False)
 
 
+def pane_yolo(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
+    """YOLO + 打标：一个检测框跟着目标走，标签写着满意程度。
+
+    清单第 35 条："歌词 be your only satisfaction 处动画改为 yolo 模型 + 打标
+    （标签含 satisfaction 等满意程度）的动画图示，GPU 像素动画挪到后面"。
+    `Be your only satisfaction` 在 **64.29 s**（原来那一行是 `pane_motif_pixelsort`，
+    像素排序动画按用户要求**挪到后面**——见 128.42 那一处）。
+
+    画的是目标检测那一套：一个**虚线框**随目标移动、框上挂标签 `satisfaction 0.xx`，
+    下面再排几行其它标签（置信度随 `t` 抖动）。
+    """
+    import school_courses as _C
+    k = _kit(s, x0, y0, x1, y1, 0, "YOLO \u00b7 \u6253\u6807")
+    if k is None or k.bh < 6 or k.bw < 34:
+        return
+    # 目标在框里走一条 8 字形的路
+    px = 0.5 + 0.32 * math.sin(t * 0.9)
+    py = 0.5 + 0.28 * math.sin(t * 1.7)
+    bw_ = max(14, k.bw // 3)
+    bh_ = max(4, min(9, k.bh // 3))
+    bx = k.bx0 + int((k.bw - bw_ - 2) * min(1.0, max(0.0, px)))
+    by = k.by0 + int((k.bh - bh_ - 2) * min(1.0, max(0.0, py)))
+    # 虚线框
+    for x in range(bx, bx + bw_ + 1):
+        k.put(x, by, "\u2504" if (x - bx) % 2 else "\u2500", _mix(_C.GREEN, 0.85))
+        k.put(x, by + bh_, "\u2504" if (x - bx) % 2 else "\u2500", _mix(_C.GREEN, 0.85))
+    for y in range(by + 1, by + bh_):
+        k.put(bx, y, "\u2506" if (y - by) % 2 else "\u2502", _mix(_C.GREEN, 0.85))
+        k.put(bx + bw_, y, "\u2506" if (y - by) % 2 else "\u2502", _mix(_C.GREEN, 0.85))
+    # 目标本体（框里那个"东西"）
+    gx, gy = bx + bw_ // 2, by + bh_ // 2
+    for dy, rowv in enumerate(("\u25cb", "\u256d\u2500\u256e", "\u2570\u2500\u256f")):
+        k.put(gx - 1, gy - 1 + dy, rowv, _mix(_C.AMBER, 0.9))
+    # 标签：贴着框的左上角，置信度随 t 抖
+    conf = 0.90 + 0.09 * (0.5 + 0.5 * math.sin(t * 3.1))
+    lab = f"satisfaction {conf:.2f}"
+    k.put(bx, by - 1, lab, _mix(_C.AMBER, 0.95))
+    # 其它候选标签，越往下置信度越低
+    others = (("satisfaction 0.94", _C.AMBER), ("happiness 0.71", _C.BLUE),
+              ("simulation 0.43", _C.VIOLET), ("satisfied 0.28", _C.GREEN))
+    yy = k.by1 - len(others)
+    for i, (txt, tone) in enumerate(others):
+        k.put(k.bx0, yy + i, txt, _mix(tone, 0.80 - 0.12 * i))
+
+
 def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
     """互换: four things that are the same thing twice, on the lines about switching roles.
 
@@ -2545,6 +2590,11 @@ def _ai(name: str):
 
 
 PANE_BY_NAME.update({
+    # **`pane_yolo` 必须在这里登记**（批 124）：它在文件后半定义，而 `PANE_BY_NAME` 的字典
+    # 字面量在前面——写进那个字面量会 `NameError`，而 `draw_pane` 用的是 `PANE_BY_NAME.get(name)`，
+    # 查不到就**静静回落**到别的东西（实测 64.29 那一屏画出了 `/memory/you/` 的目录树，
+    # 那是上游的 dsh 窗口在画，不是报错）。
+    "pane_yolo": pane_yolo,
     "pane_landmark_dialogue": pane_landmark_dialogue,
     "pane_landmark_sword": pane_landmark_sword,
     "pane_landmark_hezun": pane_landmark_hezun,

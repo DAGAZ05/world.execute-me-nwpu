@@ -45,6 +45,12 @@ LIMIT = 6.0
 LONG_OK: dict[str, str] = {
     "pane_landmark_sword": "the accusation runs from 'Challenging your God' to the college gate, and the "
                            "question panel covers this column for the last five seconds of the row",
+    # **暂时条目**（批 124）：这一行是铸剑那一行的尾巴（125.33 切开），本来只该到
+    # `Illegal arguments`（130.74）为止 2.32 s；再往后的 6.16 s 是因为**清单第 52 条**
+    # 要在 130.74 换成 IEEE-754 的演出、那个 pane 还没落地——中间不能留空洞（整段没有排期行
+    # ⇒ 右栏空着）。等它落地就把这一行切两段，这条理由一并删掉。
+    "pane_motif_pixelsort": "tail of the sword row while the IEEE-754 pane (checklist #52) is pending; "
+                            "the sweep it draws is a loop, so it reads at any length",
     "pane_landmark_crest": "the words end at 02:13.5 (see the row's own times) and the film holds a "
                            "single 12 s shot there; this is the closing plate",
 }

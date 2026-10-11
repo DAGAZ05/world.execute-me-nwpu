@@ -1099,7 +1099,18 @@ def galaxy(k, t: float) -> None:
                 k.put(x, y, "\u00b7" if i % 3 else "\u2022",
                       _mix((120, 180, 255) if arm == 0 else ((255, 200, 120) if arm == 1
                                                              else (140, 240, 200)), lv))
-    k.put(cx - 2, cy, "\u25cf", _mix(_C.AMBER, 0.95))
+    # **中心是笑脸**（批 124，清单第 37 条："动画三旋臂中心的点改为笑脸纹样（和歌词
+    # if I can make you happy 对应）"）。原来只有一颗 `●`。
+    # 3x3 的小脸：`• •` 是眼睛、`‿` 是嘴——落在三条臂的交点上，
+    # 所以读起来是"三条臂从一张笑脸转出来"。
+    # 嘴用 `‿`（U+203F）在渲染字体里**没有**（`_dev/glyph_probe.py` 抓到、被画成备用方框），
+    # 换成 `_`。
+    face = (("(", "\u2022", "\u2022", ")"),
+            ("(", " ", "_", ")"))
+    for dy, rowv in enumerate(face):
+        for dx, ch in enumerate(rowv):
+            if ch != " ":
+                k.put(cx - 2 + dx, cy - 1 + dy, ch, _mix(_C.AMBER, 0.95))
     # the labels sit *outside* the round galaxy, in the room the wide band leaves
     k.put(k.bx0 + 2 * rx + 4, cy - 2, "\u822a\u7a7a \u00b7 \u822a\u5929 \u00b7 \u822a\u6d77", _ui(0.7))
     k.put(k.bx0 + 2 * rx + 4, cy - 1, "r = a\u00b7e^{b\u03b8}\uff1a\u81c2\u4e0d\u662f\u76f4\u7684", _ui(0.5))

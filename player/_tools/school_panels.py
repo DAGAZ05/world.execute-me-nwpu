@@ -430,6 +430,26 @@ LANDMARK_ROWS: list[dict] = [
     dict(at=52.99, name="pane_exchange", lyric="To AD, to BC",
          ops=["BC 202", "AD 618", "\u4eca"], mascot=False, args=dict(panel="timeline"),
          sub="\u540c\u4e00\u5757\u5730\u65b9\uff0c\u6362\u4e86\u4e09\u4e2a\u540d\u5b57\uff1a\u6c49\u957f\u5b89 \u2192 \u5510\u957f\u5b89 \u2192 \u897f\u5b89"),
+    # **`If I can, if I can`（58.65）起放双星旋进**（批 124，清单第 33 条："歌词第一次
+    # if I can, if I can 开始就放双星旋进动画"）。
+    # **这个 pane 本来就有**：`pane_motif_binary`（`school_motifs.binary`，抬头就是"双星旋进"），
+    # 它原来排在 60.57（`Give you all the simulations`）——只是**晚了一句歌词**。
+    # 我第一版另造了一个 `pane_binary_star` 插在 58.65，那是重复造轮子（已撤）。
+    # 现在把 `pane_landmark_dialogue` 那一行截到 58.65，双星从这一句起、一路连到 64.29。
+    dict(at=58.65, name="pane_motif_binary", lyric="If I can, if I can",
+         ops=["GRAV", "MERGE"], mascot=False, sub="\u8f68\u9053\u8d8a\u8f6c\u8d8a\u8fd1"),
+    # **GPU 像素排序挪到 `You have made some`（128.42）**（批 124，清单第 35 条：
+    # "GPU 像素动画挪到后面"）。它原来在 64.29（`Be your only satisfaction`），
+    # 那个位置现在给了 YOLO 打标。
+    #
+    # **一行 8.5 s（128.42-136.90）是这一行故意的**，`_dev/row_probe.py` 会把它列进"长行"：
+    # 这一行从 125.33 的铸剑雕塑切开，后面的 `Illegal arguments`（130.74）在下一批要换成
+    # IEEE-754 的演出（清单第 52 条）；在那之前**不能留空洞**（整段没有排期行 ⇒ 右栏空着，
+    # 那是比长行更糟的东西）。排序扫描本身是个循环，任何长度都读得下去。
+    # 等 IEEE-754 那个 pane 落地，这里就切成两行。
+    dict(at=128.42, name="pane_motif_pixelsort", lyric="You have made some",
+         ops=["PIXELSORT", "\u6392\u5e8f"], mascot=False, end=136.90,
+         sub="\u6742\u8272\u6309\u4eae\u5ea6\u6392\u6210\u4e00\u5217"),
     # Acts 1 and 2 only (`max_phase=1`): `unite` shows the hands approaching and `deeply` the star
     # between them. **Act 3 - the star alone - is its own row at 84.60**, on the lyric `02b §3.3` pins
     # it to; it used to be the tail of this row, which put "只剩那颗星" under `If I can, if I can` at
@@ -454,8 +474,12 @@ LANDMARK_ROWS: list[dict] = [
     # below); here the hands carry "Then I can / satisfaction" and the conditional device carries
     # "If I can make you happy / I will run the execution", which is an `If ... then ...` like all the
     # others the device is for.
-    dict(at=64.29, name="pane_motif_pixelsort", lyric="Be your only satisfaction",
-         ops=["PIXELSORT", "排序"], mascot=False, sub="杂色按亮度排成一列"),
+    # **`Be your only satisfaction`（64.29）→ YOLO + 打标**（批 124，清单第 35 条：
+    # "动画改为 yolo 模型 + 打标（标签含 satisfaction 等满意程度）的动画图示，
+    # GPU 像素动画挪到后面"）。原来这一行是 `pane_motif_pixelsort`（GPU 像素排序），
+    # 按用户要求挪到后面——`You have made some`（128.42）那一处。
+    dict(at=64.29, name="pane_yolo", lyric="Be your only satisfaction",
+         ops=["YOLO", "satisfaction"], mascot=False, sub="\u4e00\u4e2a\u68c0\u6d4b\u6846 \u00b7 \u4e00\u4e2a\u6807\u7b7e"),
     dict(at=66.17, name="pane_motif_galaxy", lyric="If I can make you happy",
          ops=["GALAXY", "星系"], mascot=False, sub="星星按引力排队，旋成三条臂"),
     dict(at=70.02, name="pane_motif_en_limit", lyric="Though we are trapped",
