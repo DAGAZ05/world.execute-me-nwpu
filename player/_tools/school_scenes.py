@@ -1752,18 +1752,69 @@ ACDC_FROM, ACDC_TO = 45.52, 47.27
 
 
 def _ex_acdc(k, t: float, u: float) -> None:
-    """交流 → 直流：全波整流 + 电容滤波。
+    """交流 → 直流：**左右两个坐标系**，中间写着做了哪两步。
 
-    用现成的 `school_motifs.rectifier`（`|sin|` 进去、带纹波的平线出来），**抬头换成
-    `交流 → 直流`**——用户点名的是"抬头写的是超椭圆"这件事，而 `rectifier` 自己会写
-    `全波整流 |sin| · RC 滤波`，所以画完再把抬头改回这一屏的说法。
+    用户批 120："to ac to dc 的动画中看到正弦波，没看出来，没看到滤波"。
 
-    **不要碰 `PANE_SUB`**：那是调用方的值（排期行的 `sub`，`_dev/pane_probe.py` 会把它的标记串
-    放进去再在画面上找）。我在批 114 已经踩过一次这个坑，这次不再犯。
+    原来这里用 `school_motifs.rectifier`：`|sin|`（`·`）和电容保持的平线（`─`）**叠在同一片
+    格子**上，两条曲线互相盖住、而且**没有坐标轴**——所以既看不出进去的是正弦、也看不出出来的
+    是直流、更看不出滤波把纹波压掉了。
+
+    现在：
+
+    * **左 AC**：一条正弦**跨过零轴**（`▬` 上半周、`◄` 下半周），标"有正有负"；
+    * **中间**：`→ 整流 滤波 →`；
+    * **右 DC**：**整流后的鼓包**（`◠` 型的点线，只留一半高度）画在**下面**、
+      **滤波后的平线**（`▄`）画在**上面**——上下之间那段就是被电容削掉的部分，
+      "滤波"因此看得见；两条线各自成行，不再互相盖。
     """
-    import school_motifs as _M
-    _M.rectifier(k, t)
-    k.section(k.by0, "\u4ea4\u6d41 \u2192 \u76f4\u6d41", 0.25)
+    import school_courses as _C
+    w = k.bw
+    if w < 34 or k.bh < 6:
+        return
+    gap = 13
+    lw = max(12, int((w - gap) * 0.45))
+    rw_ = max(12, w - gap - lw)
+    lx0, rx0 = k.bx0 + 1, k.bx0 + lw + gap
+    hi, lo = k.by0 + 1, k.by1 - 1
+    if lo - hi < 5:
+        return
+    span = lo - hi
+    axis_y = hi + span // 2
+    amp = max(2, span // 2 - 1)
+    ph = t * 1.5
+    # ---- 左：AC 跨零轴
+    k.vline(lx0, axis_y - amp, axis_y + amp, "\u2502", _ui(0.35))
+    k.hline(lx0, axis_y, lx0 + lw - 1, "\u00b7", _ui(0.30))
+    for x in range(lx0 + 1, lx0 + lw):
+        f = (x - lx0 - 1) / max(1, lw - 2)
+        v = math.sin(2 * math.pi * (f * 2.0 + ph))
+        y = axis_y - int(round(amp * v))
+        # **用字体里真的有的字形**：`▬`（U+25AC）与 `◄`（U+25C4）在渲染字体里没有、
+        # 会被画成备用方框（`_dev/glyph_probe.py` 抓到这 2 个）。`●` / `○` 是实心与空心圆，
+        # 在这个字体里有，而且"实心=正半周、空心=负半周"一样好读。
+        k.put(x, max(hi, min(lo, y)), "\u25cf" if v >= 0 else "\u25cb", _mix(_C.RED, 0.95))
+    k.put(lx0, hi, "AC \u4ea4\u6d41", _mix(_C.RED, 0.9))
+    k.put(lx0, lo, "\u6709\u6b63\u6709\u8d1f", _ui(0.55))
+    # ---- 右：DC —— 上面平线（滤波后）、下面鼓包（整流后未滤波）
+    flat_y = axis_y - max(2, amp * 2 // 3)          # 直流电平
+    k.vline(rx0, flat_y, axis_y, "\u2502", _ui(0.35))
+    k.hline(rx0, axis_y, rx0 + rw_ - 1, "\u00b7", _ui(0.30))
+    for x in range(rx0 + 1, rx0 + rw_):
+        f = (x - rx0 - 1) / max(1, rw_ - 2)
+        k.put(x, flat_y, "\u2584", _mix(_C.GREEN, 0.95))        # 滤波后：平
+        b = abs(math.sin(2 * math.pi * (f * 3.0 + ph)))
+        yb = axis_y - int(round((axis_y - flat_y - 1) * b))
+        if yb > flat_y:                                          # 整流后：鼓包（在平线之下）
+            k.put(x, min(axis_y, yb), "\u00b7", _ui(0.40))
+    k.put(rx0, hi, "DC \u76f4\u6d41", _mix(_C.GREEN, 0.9))
+    k.put(rx0, lo, "\u53ea\u6709\u4e00\u4e2a\u65b9\u5411", _ui(0.55))
+    # ---- 中间：两步的名字
+    mid = k.bx0 + lw + 2
+    k.put(mid, axis_y - 2, "\u2192", _mix(_C.AMBER, 0.9))
+    k.put(mid, axis_y - 1, "\u6574\u6d41", _mix(_C.AMBER, 0.85))
+    k.put(mid, axis_y + 1, "\u6ee4\u6ce2", _mix(_C.AMBER, 0.85))
+    k.put(mid, axis_y + 2, "\u2192", _mix(_C.AMBER, 0.9))
 
 
 def _ex_phyllo(k, t: float, u: float) -> None:

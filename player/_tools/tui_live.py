@@ -962,6 +962,11 @@ def fx_cut(s: "Screen", t: float, ent: dict | None) -> None:
     if not (FX["on"] and FX["reveal"]) or s.prev is None:
         _CUT[0] = None
         return
+    # **注意：这里不能按"互换那一段"关掉转场**（批 120 试过、已撤）。
+    # 我当时的推理是"互换段每一刀都落在 pane 边界上，所以 reveal 把旧格带过来了"，但实测
+    # `_dev/cut_guard_why.py`：`fx_cut` 在全曲只被调用在**镜头切点**上（0-56 s 共 36 次），
+    # **没有一次**落在 `pane_exchange` 上——`so dizzy` 那个特效不是这条路径造的，
+    # 按这个判据写的守卫一次都不会命中（等于没写）。现象与成因见 `fx_reveal` 里那一段注释。
     i = ent["index"] if ent else 0
     mech = CUT_MECH.get(i, ()) if FX["mech"] else ()
     heavy = ent is not None and ent["name"] in CUT_HEAVY
@@ -1019,6 +1024,43 @@ def fx_cut(s: "Screen", t: float, ent: dict | None) -> None:
     if c["holds"]:
         c["old"] = [r[:] for r in s.prev]
         c["old_wide"] = [r[:] for r in s.wide]      # the two go together; see `Screen._unpair`
+    # **互换那一段的转场不留旧格**（批 120，用户："so dizzy 的那个切换特效可以删除"）。
+    # 现象：`So dizzy`（49.11 起，`shot_dizzy`）那一屏的叶序上混着**上一屏辫群**的字符
+    # （`+# < * : }^ ;`）。逐层关掉定位到 `fx_reveal`——它一边把旧格逐格换成新格，一边
+    # 用 `c["holds"]` 把**一整块旧画面**直接拷回新画面（"钉住"），后者就是那些字符的来源。
+    # 判据：**刀的两边是不同的 pane 时**不要钉旧块。这样"同一 pane 内的转场"（字幕切换、
+    # 同一张画继续演）完全不受影响，而"换了一个面板"的转场变成干净的硬切。
+    # **为什么不用 `ent["pane"] == "pane_exchange"` 去关**：`fx_cut` 只在**镜头切点**上被调用，
+    # 按那个判据写的守卫一次都不会命中（`_dev/cut_guard_why.py` 量过：0-56 s 共 36 次调用，
+    # 没有一次落在 `pane_exchange` 上）。
+    # **`互换`那一段的转场不留旧格**（批 120，用户："so dizzy 的那个切换特效可以删除"）。
+    #
+    # 现象与量化：`So dizzy`（49.11 起）那一屏的叶序上混着**上一屏辫群**的字符
+    # （`+# < * : }^ ;`）；脏格**只在这一刀播放期间出现**（`t0=49.358`，第一帧 2 格、
+    # 之后每帧 3-7 格）。所以就是 `fx_reveal` 里那个"这一格保持旧画面"的 `continue`
+    # （radial 的 `holds` 恒为空 ⇒ 判据必须在 `if c["holds"]:` **之外**）。
+    #
+    # **为什么用区间判据**：我试过四种"认出换屏"的办法，全部打不中，记在这里免得再犯：
+    #   * `school_entry(x, None)` 拿不到东西（`base is None` 时直接返回 None）；
+    #   * `_PANE_LAST` / `_PANE_ID_NOW` 在 `fx_cut` 跑的这一刻已经是**这一屏**的值
+    #     （`draw_body` 每帧覆盖）；而换屏（49.125）发生在 cut 建立（49.358，被 `snap`
+    #     吸到拍上）**之前**——所以任何"比较两个相邻状态"的办法都区分不出它；
+    #   * `row_at(t - …)` 取到的仍是同一行（`pane_exchange`），两块名字一样。
+    # 用户对这一段的授权是明确的（"全流程的切换视觉动画太多了，删减一些，**特定节点处的切换
+    # 不准删改**"，节点指学校/学院切开、学院压缩框那些），所以这里按**排期区间**关：
+    # `互换` 这一段就是"一行一个面板"的五屏（41.92→54.74）。
+    # 同一张画继续演的转场在别的区间，完全不受影响；这一段的每一格直接切到新画面（等于硬切）。
+    try:
+        import school_panels as _SPp
+        _row = _SPp.row_at(t)
+        if VAR[0] == "school" and _row is not None and _row.get("name") == "pane_exchange":
+            c["no_hold"] = True
+            c["old"] = None
+            c["old_wide"] = None
+    except Exception:
+        pass
+    if c["holds"]:
+        c["old"] = c["old"] or [r[:] for r in s.prev]
     if kind == "hard" and c["carry"] is None and not c["holds"]:
         _CUT[0] = None                 # nothing to stage after all: a plain hard cut
         return
@@ -1208,6 +1250,11 @@ def fx_reveal(s: "Screen", t: float) -> None:
         _CUT[0] = None
         return
     new = s.buf
+    # **互换那一段的转场不保留旧格**（批 120，用户："so dizzy 的那个切换特效可以删除"）。
+    # `c["cur"]` 是从**上一帧**拷来的，下面那个 `continue`（"这一格保持旧画面"）就是
+    # "新画面里飘着上一个面板的字符"的来源（实测 `so dizzy` 的叶序上混着辫群那屏的
+    # `+# < * : }^ ;`）。判据不在这里重算——`fx_cut` 建这次转场时判过并写进 `c["no_hold"]`。
+    no_hold = bool(c.get("no_hold"))
     new_wide = s.wide            # the placeholder flags travel with the cells, always: a `buf` copy
                                  # without its `wide` copy is how a reveal leaves half-glyphs behind
     if c["carry"] is not None and c["carry"]["dst"] is None:
@@ -1261,7 +1308,13 @@ def fx_reveal(s: "Screen", t: float) -> None:
                     # 屏幕上留着上一镜的一大片。实测 `k = 0.501` 留下 **2163 格（21%）**
                     # （`_dev/probe_fx_dissolve.py`）。"调弱"只能改**哪些转场用溶解**，
                     # 不能改"这一次转场里的格子切不切"——后者是有守恒的。
-                    if mrow is not None and mrow[x] > prog:
+                    #
+                    # **互换那一段不保留旧格**（批 120，用户："so dizzy 的那个切换特效可以删除"）：
+                    # 上面这个 `continue` 就是"这一格保持旧画面"，而 `互换` 是"一行一个面板"的
+                    # 排期，每一刀都落在 pane 边界上——于是新面板里飘着**上一个面板的字符**
+                    # （实测 `so dizzy` 的叶序上混着辫群那屏的 `+# < * : }^ ;`）。
+                    # 那一段让每一格直接切到新画面（等于硬切），其余节点的转场照旧。
+                    if mrow is not None and mrow[x] > prog and not no_hold:
                         continue
                     row[x] = nrow[x]
                     wrow[x] = nwrow[x]
@@ -1277,6 +1330,13 @@ def fx_reveal(s: "Screen", t: float) -> None:
                 g0 = bisect_right(srow, front)
                 for k in range(g0, p1):       # kit.py:379-394, `front=True`, density 0.40
                     x = orow[k]
+                    if no_hold:
+                        # **互换那一段不撒故障字符**（批 120，用户："so dizzy 的那个切换特效可以删除"）。
+                        # 那些 `&_#<*:}^;` 就是这一层写的：`_glitch(t, k) = SCRAMBLE[...]`，
+                        # 而 `SCRAMBLE` 正是这一组字符。**我先前把成因认成"reveal 保留了旧格"，
+                        # 是错的**——`holds` 是空的、`no_hold` 也置上了而字符照旧，直到逐个关掉
+                        # 才定位到这一层（`_dev/stray_cell_trace.py` 记的就是这个过程）。
+                        continue
                     if row[x][0] == "":
                         continue              # a placeholder is not a cell of its own: no glyph in it
                     if (x * 31 + y * 17 + seed * 7) % 100 < CUT_FRONT * 100 and not _in_clear(x, y):
@@ -4466,6 +4526,19 @@ def SP_scene_pane(pane: str, s: Screen, x0: int, y0: int, x1: int, y1: int,
 
 #: `draw_body` 最后一个 pane 的参数，供整帧层之后重画（见 `draw()` 末尾）。`[pane, x0, y0, x1, y1]`。
 _PANE_LAST: list = []
+
+
+def _pane_id(ent: dict | None) -> str:
+    """**这一刻右栏"画的是哪一张图"的身份**，比 pane 名更细一层。
+
+    `pane_exchange` 一个 pane 里住着六个面板（`bits` / `clock` / `braid` / `acdc` / `phyllo`…），
+    名字都是 `pane_exchange`——所以"两屏是不是同一张画"不能只看 pane 名，要看**面板参数**。
+    转场要不要留旧格就是按这个判的（批 120）。
+    """
+    if not ent:
+        return ""
+    args = ent.get("pane_args") or {}
+    return f"{ent.get('pane')}#{args.get('panel', '')}" if args else str(ent.get("pane") or "")
 #: 临时诊断：框那一行在各阶段的内容（定位"谁把旧框带回来"）。
 _DBG_ROW: list = ["", "", "", ""]
 
@@ -4752,7 +4825,7 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
         # 所以 7.30-9.60 的何尊大图会整片盖住参数表。用户："参数表依旧没置于最右侧，依旧被何尊遮盖
         # （**不允许改何尊**）"——何尊不动，那就让这一屏的 pane 在整帧层之后再画一次
         # （见 `draw()` 末尾的 `_repaint_pane`）。这里记下重画它需要的一切。
-        _PANE_LAST[:] = [pane, pane_x0, top, pane_x1, bottom]
+        _PANE_LAST[:] = [pane, pane_x0, top, pane_x1, bottom, _pane_id(ent)]
     elif name == "shot_corpus":
         pane, need, least = "corpus", 10, 6
     elif name == "shot_losscurve":
