@@ -879,7 +879,10 @@ def sine(k, t: float) -> None:
         return
     k.section(k.by0, "sin x \u4e0e\u5207\u7ebf\u5305\u7edc", 0.28)
     n = max(20, k.bw - 6)
-    hi, lo = k.by0 + 2, k.by1 - 3
+    # **图占满可用高度**（批 114）：原来 `hi = by0 + 2`（让开小标题）、`lo = by1 - 3`
+    # （给最下面两行说明留位）。现在小标题仍留一行，但**最下面那两行说明去掉了**
+    # （用户："去掉最下方的文字说明"），所以下半部整个给曲线。
+    hi, lo = k.by0 + 2, k.by1
     if lo - hi < 4:
         return
     mid = (hi + lo) // 2
@@ -909,8 +912,6 @@ def sine(k, t: float) -> None:
             k.put(k.bx0 + i, y, "\u2500", _mix(_C.AMBER, 0.55))
     y0 = mid - int(amp * math.sin(ph0))
     k.put(k.bx0 + i0, max(hi, min(lo, y0)), "\u25cf", _mix(_C.RED, 0.95))
-    k.put(k.bx0, k.by1, "\u66f2\u7ebf\u78b0\u5230\u7684\u4e24\u6761\u76f4\u7ebf\uff0c\u5c31\u662f\u5b83\u7684"
-                        "\u5305\u7edc", _ui(0.5))
 
 
 def _sine_over_x(k, t: float) -> None:
@@ -922,7 +923,10 @@ def _sine_over_x(k, t: float) -> None:
     """
     k.section(k.by0, "sin x / x", 0.28)
     n = max(20, k.bw - 8)
-    hi, lo = k.by0 + 2, k.by1 - 3
+    # **图占满可用高度**（批 114，用户："sin x 和 sin x / x 的图像有点小了"）：原来
+    # `lo = by1 - 3` 是给最下面两行说明（`lim …` 与"这不是洛必达"）留位；那两行去掉后
+    # 整个下半部归曲线。
+    hi, lo = k.by0 + 2, k.by1
     if lo - hi < 4:
         return
     mid = (hi + lo) // 2
@@ -946,8 +950,11 @@ def _sine_over_x(k, t: float) -> None:
             yy = mid - int(amp * sgn * e)
             if hi <= yy <= lo:
                 k.put(x0_ax + i, yy, "\u00b7", _mix(_C.GREEN, 0.42))
-    k.put(k.bx0, k.by1 - 1, "lim x->\u221e  sin x / x = 0", _mix(_C.AMBER, 0.95))
-    k.put(k.bx0, k.by1, "\uff08\u8fd9\u4e0d\u662f\u6d1b\u5fc5\u8fbe\uff01\uff09", _ui(0.55))
+    # **只留一条关键说明**（批 114，用户："去掉最下方的文字说明"）：原来最下面两行是
+    # `lim x->∞ sin x / x = 0` 与`（这不是洛必达！）`。`lim` 这一条是用户点名要的
+    # （"在框内进行文字说明：lim x->∞ sin x / x = 0"），所以**保留它、去掉 `（这不是洛必达！）`**
+    # 那一行——它只是个口头注解，占掉的一行归曲线。
+    k.put(k.bx0, k.by1, "lim x->\u221e  sin x / x = 0", _mix(_C.AMBER, 0.95))
 
 
 def chladni(k, t: float) -> None:

@@ -4535,7 +4535,13 @@ def _draw_ifthen_frame(s: Screen, t: float) -> bool:
         if x1 - x0 < 16 or y1 - _y0 < 16:
             return False
         top = max(_y0 + 1, _SC.IFTHEN_TOP_ROW)
-        return bool(_SC._ifthen_frame(s, x0, top, x1, y1, t, 0.0, 1.0, 0.0))
+        # 说明（这一行歌词）挂在框的右格余量里 —— 框就是这一屏的抬头
+        try:
+            sub = _SC._lyric_at(t)[1]
+        except Exception:
+            sub = ""
+        return bool(_SC._ifthen_frame(s, x0, top, x1, y1, t, 0.0, 1.0, 0.0, sub=sub,
+                                      record=True))
     except Exception as exc:
         print(f"warning: the IF/THEN frame failed ({exc})", file=sys.stderr, flush=True)
         return False

@@ -740,33 +740,57 @@ IFTHEN_ROWS = 3
 #: **框的最低起点**（批 111）：右栏顶部是 feature bands（1 个抬头行 + 7 条频带，到第 8 行），
 #: 框原来从 `PANE_BOX[1] + 2` 起画，正好压在频带上（用户："当前你把它覆盖到 feature bands
 #: panel 上了"）。
-#: **批 113 下调 1 行**（用户："if then 框略偏上了点，稍微下调"）：9 -> 10。
-IFTHEN_TOP_ROW = 10
-#: pane 内容要让开的总行数 = **`_Kit` 的抬头 2 行 + 框自身 3 行**。
+#: 批 113 下调到 10；**批 114 又提回 9**（用户："动画框抬头位置可以再往上提一行"）。
+IFTHEN_TOP_ROW = 9
+#: pane 内容要让开的总行数 = **框自身 3 行**（框占 `TOP_ROW .. TOP_ROW+2`，而 `draw_pane` 拿到的
+#: `y0` 本来就是框之下那一行）。
 #:
-#: **这里我犯过一次大错**：曾经写成 `IFTHEN_TOP_ROW - 1 + IFTHEN_ROWS` = 11 行——那是"框的位置
-#: （从 pane 顶算） + 框高"，但 pane 的 `y0` 本来就是**抬头之下**的起点，两个数不能相加。
-#: 结果内容被推下去 11 行，而这个 pane 的内容总共才 11 行高，于是 **动画整个不见了**
-#: （用户："你把动画调的太靠下了，像 sin 包络、番茄红素动画直接就不见了"）。
-#: 正确的让位就是抬头那两行加框那三行。
-IFTHEN_RESERVE = 2 + IFTHEN_ROWS
+#: **这里我连错两次，记清楚**：
+#:   1. 批 111 写成 `IFTHEN_TOP_ROW - 1 + IFTHEN_ROWS` = 11 行，把"绝对行号"与"框高"相加，
+#:      内容被推下 11 行 ⇒ **整个动画出画面**（用户："sin 包络、番茄红素动画直接就不见了"）；
+#:   2. 批 113 改成"抬头 2 + 框 3" = 5 行，但在框之上**再画一次抬头**，等于把图又压掉两行
+#:      （用户批 114："sin x 和 sin x / x 的图像有点小了"）。
+#: 现在：`draw_pane` 里框出现时**不再另画抬头**（那两行还给图，抬头信息仍在框里写着 If/Then
+#: 两格内容），所以让位只剩框那 3 行。
+IFTHEN_RESERVE = IFTHEN_ROWS
 
 
 #: 上一帧画过框的行区间 `[x0, x1, y0, y1]`，供"这一帧不该有框时把它擦掉"（见 `_ifthen_frame`）。
 _IFTHEN_DRAWN: list = []
+#: 当前这一屏框上要写的说明（由 `draw_pane` 按 pane 与时间发布；空则用调用方给的 `sub`）。
+_IFTHEN_SUB: list = [""]
 
 
 def _ifthen_erase(s, x0, x1) -> None:
-    """把**上一帧**画过框的那几行擦掉。
+    """擦掉框所在那条**固定的行带**（不依赖任何记录）。
 
     为什么需要：这一帧不该有框时，如果不擦，**上一帧的框会留在画面上**——右栏并不是每帧都
     整体重绘的（谁画那一栏、画多少格由上游镜头决定），所以没人覆盖那三行。
     实测：`Switch my current` 从 44.04 起不该有框，而 44.08 的帧里第 10 行仍是
-    `│ IF I approach infinity   THEN you can be my limitations │`（探针 SCOPE FAIL 抓到的）。
+    `│ IF I approach infinity   THEN you can be my limitations │`。
+
+    **为什么不用"上一帧记下的区间"**：框有两个调用点（`school_panels.draw_scene_pane` 给
+    `pane_probe` 的兜底路径用 `y0+2`，`tui_live.draw` 的主路径用 `IFTHEN_TOP_ROW`），
+    两个区间不同、互相覆盖同一份记录，于是"真正在屏幕上的那份墨"失去记录、永远擦不掉
+    （我为此连着两批都没修好）。擦固定行带就没有这个耦合：主路径的行带是常量，
+    擦它是幂等的，多擦几次也只是把已经空白的格子再写一次空格。
     """
-    if not _IFTHEN_DRAWN:
-        return
-    ax0, ax1, ay0, ay1 = _IFTHEN_DRAWN[0]
+    for y in range(IFTHEN_TOP_ROW, IFTHEN_TOP_ROW + IFTHEN_ROWS):
+        for x in range(x0, x1 + 1):
+            if 0 <= y < s.rows and 0 <= x < s.cols:
+                s.set_cell(x, y, " ", (0, 0, 0), (0, 0, 0))
+    _IFTHEN_DRAWN[:] = []
+
+
+def _ifthen_forget(s, ax0: int, ax1: int, ay0: int, ay1: int) -> None:
+    """擦掉**指定区间**的框、并清掉记录。
+
+    **把"擦"和"记"拆开是有原因的**：`_ifthen_frame` 有两个调用点（`school_panels` 的探针兜底
+    路径与 `tui_live.draw` 的主路径），它们用的行区间不同（`y0+2` 与 `IFTHEN_TOP_ROW`）。
+    曾经两边都写记录，于是后一次调用把 `_IFTHEN_DRAWN` 覆盖成**另一个区间**，
+    而真正在屏幕上的那份墨就**再也没人擦**——实测 44.08 那一帧"记录空了、墨还在"，
+    探针连报了两批。现在只有主路径写记录，擦用记录里的区间。
+    """
     for y in range(ay0, ay1 + 1):
         for x in range(ax0, ax1 + 1):
             if 0 <= y < s.rows and 0 <= x < s.cols:
@@ -774,7 +798,8 @@ def _ifthen_erase(s, x0, x1) -> None:
     _IFTHEN_DRAWN[:] = []
 
 
-def _ifthen_frame(s, x0, y0, x1, y1, t, lt, dur, u) -> int:
+def _ifthen_frame(s, x0, y0, x1, y1, t, lt, dur, u, sub: str = "",
+                  record: bool = False) -> int:
     """`If … -> Then …` 两格框，**对整首歌里每一对 If/Then 都画**（批 108）。
 
     用户："scene13 动画框点集上部有一个 IF THEN 的框，但动画中只演出了 IF 的内容，
@@ -830,8 +855,19 @@ def _ifthen_frame(s, x0, y0, x1, y1, t, lt, dur, u) -> int:
     if cons:
         s.put(x0 + half + 7, y0 + 1, cons[5:][:rw] if cons.startswith("Then ") else cons[:rw],
               _mix(_C.GREEN, 0.9))
+        # **这一行的说明挂在右格余量里**（批 114）：它不另占行，但必须在画面上
+        # （`_dev/pane_probe.py` 的 `NO HEADER SUB` 查的就是"这一行的句子有没有出现"）。
+        _tail = half + 7 + (len(cons[5:]) if cons.startswith("Then ") else len(cons))
+        use = sub or _IFTHEN_SUB[0]
+        if use and _tail + 3 < w:
+            s.put(x0 + _tail + 3, y0 + 1, "\u00b7 " + use[:max(0, w - _tail - 5)], _ui(0.6))
+    _IFTHEN_SUB[0] = ""
     s.put(x0, y0 + 2, "\u2514" + "\u2500" * (w - 2) + "\u2518", _mix(ME_TEXT, 0.7))
-    _IFTHEN_DRAWN[:] = [(x0, x1, y0, y0 + 2)]   # 记住位置，供下一帧不该有时擦掉
+    # **只有主路径写记录**（`tui_live.draw` 的调用点用 `record=True`）。
+    # 探针兜底那条路径（`school_panels.draw_scene_pane`）画的区间不同，它写记录会把主路径的
+    # 记录覆盖掉、那份墨就擦不掉了（`_ifthen_forget` 的注释里有完整的现场）。
+    if record:
+        _IFTHEN_DRAWN[:] = [(x0, x1, y0, y0 + 2)]
     return 3
 
 
@@ -2363,27 +2399,82 @@ def draw_pane(name: str, s, x0: int, y0: int, x1: int, y1: int, t: float,
     # shape every other pane uses (`_Kit` draws `▏ title · sub` and the rule), and the drawing is given
     # the body rect under it. Two rows of their own drawings is the cost, and it is the same two rows
     # every framed pane in the film gives up.
-    if name in HEADERLESS:
+    # **框在时不再另画抬头**（批 114）：框本身就写着 `If … / Then …` 两格内容，等于这一屏的抬头；
+    # 再画一条 `▏标题 · 说明` 会白吃掉两行纵向空间，而用户要的是**图更大**
+    # （"sin x 和 sin x / x 的图像有点小了"）。抬头信息没有丢——IF/THEN 框上写着。
+    # **框在时不再另画抬头，而是把这一行的说明挂到框的内容行上**（批 114）。
+    # 三个要求同时成立：
+    #   * 用户要**图更大** —— 另画一条 `▏标题 · 说明` 要占两行，图就小两行；
+    #   * 说明**不能丢** —— `_dev/pane_probe.py` 的 `NO HEADER SUB` 查的就是"这一行的句子
+    #     有没有出现在画面上"（它给 `sub` 传一个标记串，然后在整屏里找）；
+    #   * 判据必须是**"说明在不在"**，不能是"现在是不是 If/Then 句"——探针用 `t=100.0`
+    #     调这个函数（那一刻不是条件句、框不画），按时间判会把抬头也一起省掉、说明就没了
+    #     （实测 `pane_motif_sine 118x11: NO HEADER SUB`）。
+    import school_courses as _CS
+    _framed = bool(_ifthen_wanted(t)) and bool(_CS.PANE_SUB[0])
+    if name in HEADERLESS and not _framed:
         import school_courses as _C
         if _C.PANE_SUB[0]:
             k = _C._Kit(s, x0, y0, x1, y1, HEADERLESS[name], 0, 0, u)
             if k.bh < 3 or k.bw < 8:
                 return True                 # no room for the drawing: the header is the pane
             x0, y0, x1, y1 = k.bx0, k.by0, k.bx1, k.by1
-    # **给 IF/THEN 框让出 5 行**（抬头 2 + 框 3，批 113 修正）。放在 `args` 之前，
+    # **抬头说明**（批 114，用户："sin 包络的副标题写错成 sinx/x 了"）。
+    # `pane_motif_sine` 这一行跨两段、两段是两张图（sin x 与切线包络 / sin x / x），而排期只写了
+    # 一条 `sub`。**不能改写 `PANE_SUB[0]`**：那个值属于排期/调用方——`_dev/pane_probe.py` 正是
+    # 把它的标记串放进 `sub=` 再在画面上找，我上一版拿时间覆盖了它，于是 `118x11: NO HEADER SUB`
+    # （探针是对的）。这里改成**给框一个说明**（框是这一屏的抬头），画面上因此两段各说各的，
+    # 而发布出去的那个值原样不动。
+    _frame_sub = ""
+    if name == "pane_motif_sine":
+        try:
+            import school_motifs as _M
+            _frame_sub = ("lim x \u2192 \u221e  sin x / x = 0"
+                          if t >= _M.APPROACH_INFINITY_AT
+                          else "sin x \u4e0e\u5b83\u7684\u5207\u7ebf\u5305\u7edc")
+        except Exception:
+            _frame_sub = ""
+    # **给 IF/THEN 框让出 3 行**（框自身，批 114）。放在 `args` 之前，
     # 否则带注解的 pane（矩阵、正弦…恰好都是 If/Then 那几句）会被两层 `return` 绕过。
-    if _ifthen_wanted(t):
+    if _framed:
+        # 说明随 `PANE_SUB` 一起交给框（见 `_ifthen_frame(sub=…)`），不另占行；
+        # `_frame_sub` 是这一屏自己的说法（两段各一张图），框优先用它。
         y0 = min(y0 + IFTHEN_RESERVE, max(y0, y1 - 3))
+        _IFTHEN_SUB[0] = _frame_sub
     if args:
         try:
             fn(s, x0, y0, x1, y1, t, lt, dur, u, **args)
+            _fallback_sub(s, name, x0, y0, x1, y1, u)
             return True
         except TypeError:
             # a pane that does not accept the keyword is not an error: the schedule's annotations are
             # optional metadata and every pane must remain drawable without them
             pass
     fn(s, x0, y0, x1, y1, t, lt, dur, u)
+    _fallback_sub(s, name, x0, y0, x1, y1, u)
     return True
+
+
+def _fallback_sub(s, name: str, x0: int, y0: int, x1: int, y1: int, u: float) -> None:
+    """**兜底**：`motif` 类 pane 的抬头由它们自己的 `k.section` 画，而那一句可能**提前 return
+    就跳过**（例如 `sine` 在 `lo - hi < 4` 时直接返回）——于是这一行的说明一个字都没画。
+    `_dev/pane_probe.py` 的 `NO HEADER SUB` 抓到的就是这条（`pane_motif_sine 118x11`，
+    那个尺寸下 `sine` 正是提前返回的）。
+
+    只在"这一行的说明确实没出现"时补一行，所以不会覆盖任何东西。
+    """
+    import school_courses as _C
+    sub = _C.PANE_SUB[0]
+    if not sub:
+        return
+    joined = "".join(s.buf[y][x][0] or "" for y in range(max(0, y0 - 2), min(s.rows, y1 + 1))
+                     for x in range(max(0, x0), min(s.cols, x1 + 1)))
+    if sub[:6] in joined:
+        return
+    try:
+        s.put(x0, y0, sub[:max(0, x1 - x0)], _ui(0.6))
+    except Exception:
+        pass
 
 
 # The motif bands are **gone** (batch 32). `MOTIF_IN` / `MOTIF_ALSO` / `MOTIF_SHARE` and the band

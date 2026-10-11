@@ -955,6 +955,12 @@ def draw_scene_pane(pane: str, s, x0: int, y0: int, x1: int, y1: int,
         # 自己画、这个函数根本不会被调用，于是 162-175 s 那几句 `If I can, if I have you back`
         # 上没有框（探针 SCOPE FAIL）。挂在"整帧画完之后"就与"谁画的右栏"无关——
         # 与 `fx_school_wipe` 同一个理由、同一处位置。
+        # **这里不再画框**（批 114）：`_dev/pane_probe.py` 直接调这个函数（不走 `draw()`），
+        # 需要框来做它的 `NO HEADER SUB` 判断，于是我在这里又画了一次——但这一份用的是
+        # `y0+2`（与主路径的 `IFTHEN_TOP_ROW` 不同行），**而且从不擦**，于是主路径擦干净之后
+        # 屏幕上还留着一份、`ifthen_scope_probe` 在 44.08 一直报"该无框却有框"。
+        # 探针要的东西改由**探针自己**准备（它在 `draw_pane` 之外单独调 `_ifthen_frame`），
+        # 生产路径只有一个画框的地方，擦与画就不会再错位。
         _CO.PANE_SUB[0] = ""
     return drawn
 
