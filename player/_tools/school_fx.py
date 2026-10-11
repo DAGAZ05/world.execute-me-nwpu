@@ -2228,8 +2228,13 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     #     it is behind them by construction rather than by a redraw afterwards. It is a keyed cut-out, so
     #     the cells where the photograph has no ink stay transparent and the dialogue is only covered
     #     where the building actually is.
-    (193.50, 197.50, flash, dict(name="library", fill=0.62, x=0.0, y=0.78, behind=True, dim=0.62,
-                                 contrast=1.1)),
+    #     `behind` **取消**（批 106，用户："学院部分图书馆动画被 stdout panel 遮盖了一点，
+    #     应置于最上图层"）。`behind=True` 的语义是"垫在台词下面"，于是它在左列最下与 stdout 栏
+    #     重叠的那几行会被栏子自己的清屏盖掉（台词、ops、exec 都画在那之后）。这一处用户要的是
+    #     **插画**而不是底纹，所以走第二趟（`behind` 为假 ⇒ 与 crest / stand 同批，画在台词之后），
+    #     并且保留 `dim=0.62` 的压暗——它仍然是一张夜景照片，不该抢字的对比。
+    (193.50, 197.50, flash, dict(name="library", fill=0.62, x=0.0, y=0.78, behind=False,
+                                 dim=0.62, contrast=1.1)),
     # --- the whole body, once, on the last line of the song: he has been a face in the window for three
     #     and a half minutes and this is the only place the film shows that he has legs. He stands on the
     #     **right**, which is the chat window's side after the 02:16.9 swap - the user asked for the left

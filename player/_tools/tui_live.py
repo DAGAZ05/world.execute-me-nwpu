@@ -5636,6 +5636,41 @@ def main() -> None:
             (audio.play if playing else audio.seek)(nt)
         return nt
 
+    def _seek_back(nt: float) -> float:
+        """跳到更早的位置，并把"已经走过的状态"一起退回去（批 106）。
+
+        用户报的两个 bug 都出在这里：
+
+        * **"按了 Home 之后 music panel 没有恢复初始状态"** —— 原先的"回到开头就重开一局"靠
+          `t < 1.0 < RHYTHM[0].last_t` 判断，而 `last_t` 在往回跳之后**自己就变小了**，
+          那个条件正是它要检测的东西 ⇒ 永远不成立。所以这里**直接换一个新 `Game()`**，
+          不猜。
+        * **"按了 Home 之后学院选择框都没了"** —— `gate.assume()` 会把 gate 永久结成"答过"，
+          而 Home 原来无条件调它（见键盘处理里的长注释）。往回跳要的是 `gate.reset()`：
+          问题重新变成"没答过"，走到 02:11.9 时选择框照样出来。
+        """
+        back = nt < t - 1e-6
+        nt = seek_to(nt)
+        # **gate：目标在它之前就"重新可答"，在它之后才"视为已答"**。
+        # `reached(nt)` 就是 `nt >= GATE_UNTIL`（见它的文档），所以这一条同时覆盖
+        # "Home 回开头"（重新可答 ⇒ 选择框会再出来）与"往回跳到 gate 之后"（必须 assume，
+        # 否则 `tick` 会以为还在等答案，脚本卡在那一屏）。
+        if gate is not None and hasattr(gate, "reset"):
+            gate.reset()
+            if gate.reached(nt):
+                gate.assume()
+        elif gate is not None and gate.reached(nt):
+            gate.assume()
+        if back:
+            _rh_down.clear()
+            if VAR[0] == "school" and RHYTHM_ON[0]:
+                try:
+                    import school_rhythm as _RHY3
+                    RHYTHM[0] = _RHY3.Game()      # 新一局：分数/连击/判定全部归零
+                except Exception:
+                    pass
+        return nt
+
     out.write("\x1b[?1049h\x1b[?25l\x1b[2J")     # alt screen, hide cursor
     # 荧光余晖（批 81）。它自己的相位与成本见 `school_phosphor` 的模块文档。
     # **对象在这里建、档位在 `_fx_level_apply` 里落**：余晖与底噪都要终端尺寸才能建，
@@ -5763,6 +5798,12 @@ def main() -> None:
                         audio.pause()
             while msvcrt.kbhit():
                 ch = msvcrt.getwch()
+                # **暂停时只认空格**（批 106，用户："在按了 space 暂停后，应禁止 space 以外的按键
+                # （比如不能 Home）"）。暂停是一个"停在这里看这一帧"的状态，任何会移动播放头或改
+                # 状态键都不该在它里面生效；空格本身必须留，否则就再也恢复不了了
+                # （`elif ch == " "` 那一支本来就在下面，问题只是别的键没有被挡住）。
+                if not playing and ch != " ":
+                    continue
                 # the gate reads the keyboard first, but **only while its question is on screen**: a key
                 # outside that window belongs to the player (`school_gate.key` explains the 2:16 of
                 # swallowed space / `[` / `]` / `x` / `q` this fixes - the user's "完全没用")
@@ -5833,9 +5874,7 @@ def main() -> None:
                 elif ch in ("=", "+", "]"):
                     audio.set_volume(audio.volume + 100)
                 elif ch in (",", "<"):
-                    t = seek_to(t - 1)
-                    if gate is not None and gate.reached(t):
-                        gate.assume()
+                    t = _seek_back(t - 1)
                 elif ch in (".", ">"):
                     t = seek_to(t + 1)
                     if gate is not None and gate.reached(t):
@@ -5843,7 +5882,7 @@ def main() -> None:
                 elif ch in ("\x00", "\xe0"):        # a key with a second code: `Home`, and nothing else
                     code = msvcrt.getwch()
                     if code == "G":                 # home: back to the top
-                        t = seek_to(0.0)
+                        t = _seek_back(0.0)
                     # **`←`/`→` are gone** (batch 80, the user: "如果和机器有关，那我测自己机子上的偏差就
                     # 完全没意义了…那直接全局删掉快进快退吧"). They were the one transport action that had to
                     # restart MCI's decoder, and how long that takes - and therefore how far the sound ends up
@@ -5854,8 +5893,14 @@ def main() -> None:
                     #
                     # `End` went in batch 72 for a different reason: it jumped to the last frame and read as
                     # a hang, and `q` is the way out.
-                    if gate is not None and gate.reached(t):
-                        gate.assume()
+                    #
+                    # **这里原来是 `if gate.reached(t): gate.assume()`，那是"Home 之后学院选择框没了"
+                    # 的根因**（批 106，用户："按了 Home 键之后再到学校部分结束时学院选择框都没了"）：
+                    # Home 把播放头拉回 0，而 `reached(0)` 对"还没作答"的 gate 是**真**（它问的是
+                    # "还没答过吗"），于是 Home 顺手把 gate 结成了 `assumed` —— 再走到 02:11.9 时
+                    # 它已经是"答过的"状态，选择框永远不出来了。
+                    # 现在改由 `_seek_back` 统一处理：**往回**只 reset（让问题重新可答），
+                    # **往前**才可能 assume（往后越过 gate 时那才是"拖动进度条没答"的意思）。
             ncols, nrows = term_size()
             if (ncols, nrows) != (s.cols, s.rows):
                 cols, rows = ncols, nrows
