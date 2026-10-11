@@ -774,11 +774,17 @@ def _ifthen_erase(s, x0, x1) -> None:
     两个区间不同、互相覆盖同一份记录，于是"真正在屏幕上的那份墨"失去记录、永远擦不掉
     （我为此连着两批都没修好）。擦固定行带就没有这个耦合：主路径的行带是常量，
     擦它是幂等的，多擦几次也只是把已经空白的格子再写一次空格。
+
+    **底色必须用屏幕自己的空白格**（批 117）：原来写 `(0, 0, 0)`，而 `Screen.blank` 是
+    `(' ', UI, BG)` = `(' ', (200,214,234), (4,7,15))`。于是擦过的地方成了**实心黑**——
+    差异渲染器把黑当成"这一格改了"、照样打印出来，屏幕上就是一条**深色横带**
+    （用户批 117 的截图：4.4 s 频谱下面那一条）。用屏幕的空白格擦，擦完的结果与
+    "从来没画过"完全一致。
     """
     for y in range(IFTHEN_TOP_ROW, IFTHEN_TOP_ROW + IFTHEN_ROWS):
         for x in range(x0, x1 + 1):
             if 0 <= y < s.rows and 0 <= x < s.cols:
-                s.set_cell(x, y, " ", (0, 0, 0), (0, 0, 0))
+                s.set_cell(x, y, " ", s.blank[1], s.blank[2])
     _IFTHEN_DRAWN[:] = []
 
 
@@ -794,7 +800,7 @@ def _ifthen_forget(s, ax0: int, ax1: int, ay0: int, ay1: int) -> None:
     for y in range(ay0, ay1 + 1):
         for x in range(ax0, ax1 + 1):
             if 0 <= y < s.rows and 0 <= x < s.cols:
-                s.set_cell(x, y, " ", (0, 0, 0), (0, 0, 0))
+                s.set_cell(x, y, " ", s.blank[1], s.blank[2])   # 同 `_ifthen_erase`：用屏幕的空白格
     _IFTHEN_DRAWN[:] = []
 
 
