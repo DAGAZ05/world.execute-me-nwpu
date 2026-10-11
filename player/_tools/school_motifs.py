@@ -310,6 +310,23 @@ def _row_window(name: str) -> tuple[float, float]:
     return 0.0, 1.0
 
 
+def _row_here(name: str, t: float) -> tuple[float, float]:
+    """**包含 `t` 的那一行**的 `(at, end)`；没有就回落到整段并集（`_row_window`）。
+
+    批 134：用户："双星旋进的动画也要改，其在 simulations 歌词时停止"。双星排成两行
+    （58.65-60.57 / 60.57-62.41），要的是**第二行开头就是并合**——所以相位必须按"当前
+    这一行"算，不能按并集（并集 58.65-62.41 会把并合推到 62.41，那正是要改掉的旧行为）。
+    """
+    try:
+        import school_panels as _SP
+        for r in _SP.shot_rows():
+            if r.get("name") == name and float(r["at"]) <= t < float(r["end"]):
+                return float(r["at"]), float(r["end"])
+    except Exception:
+        pass
+    return _row_window(name)
+
+
 @lru_cache(maxsize=None)
 def _row_span(name: str) -> tuple[float, float]:
     """`(start, end)` of the row the schedule gives `name`, read out of `school_panels`.
@@ -1465,21 +1482,20 @@ def binary(k, t: float) -> None:
     for. The quarter-power law is kept: widening it early and rushing at the end is the physics the
     caption names.
     """
+    # **并合钉在"最后一个同名行的起点"**（批 134）：双星排成 58.65-60.57 与 60.57-62.41 两行，
+    # 用户要的是"在 simulations 歌词时停止"——那就是 **60.57**（第二行的起点）。
+    # 所以相位从并集窗口的起点算，但**总时长只到 60.57**，之后 `ph` 恒为 1（并合后的残骸）。
+    # 我第一版用 `_row_here`（当前这一行），于是第二行从头重新起相位、61.5 还在转（实测 ph=0.345）。
     at, end = _row_window("pane_motif_binary")
-    k.section(k.by0, "\u53cc\u661f\u65cb\u8fd1 a \u221d (t_c\u2212t)^\u00bc", 0.28)
-    # the row's first ~0.45 s is its transition, which moves the whole column; timing the merger to the
-    # *visible* part keeps the inspiral out from under a page turn.
-    # **窗口的起点各排期行都要让一次**（批 125）：两行之间那次换行也有转场，第一行的转场在
-    # `at`，第二行的转场在 60.57——两处都要跳过，否则第二行开头会把第一行末尾的画面重复一遍。
     try:
-        import school_panels as _SPw
-        _cuts = [float(r["at"]) for r in _SPw.shot_rows()
-                 if r.get("name") == "pane_motif_binary"]
+        import school_panels as _SPb
+        _ats = [float(r["at"]) for r in _SPb.shot_rows()
+                if r.get("name") == "pane_motif_binary"]
+        merge_at = max(_ats) if _ats else end
     except Exception:
-        _cuts = [at]
-    span = max(0.8, end - at)
-    # 只让掉**一次**转场（窗口开头那一次）；两行交界处那次换行由 `fx_reveal` 自己处理，
-    # 若按切点数各让一次，窗口开头会静止 0.9 s（用户要的是"一直在转"）。
+        merge_at = end
+    k.section(k.by0, "\u53cc\u661f\u65cb\u8fd1 a \u221d (t_c\u2212t)^\u00bc", 0.28)
+    span = max(0.8, merge_at - at)
     vis = max(0.5, span - 0.45)
     ph = max(0.0, min(1.0, (t - at - 0.45) / vis))
     cx = k.bx0 + min(30, k.bw // 2)
@@ -1490,6 +1506,29 @@ def binary(k, t: float) -> None:
     a = max(1.0, rmax * min(1.0, max(0.0, 1.0 - ph)) ** 0.25)
     turns = 1.0 * ph + 1.6 * ph ** 3                          # orbits seen, accelerating toward merger
     ang = 2 * math.pi * turns
+    # ---- **并合之后**（批 134，用户："双星旋进的动画也要改，其在 simulations 歌词时停止"）。
+    # `ph` 到 1 就是在 `Give you all the simulations` 上——两颗星合成一颗，**转就不再转了**
+    # （用户要的"停止"），但**不是定格**：残骸随拍一涨一缩，外面有一圈正在扩散的并合环。
+    # 一个完全静止的画面正是用户上次抱怨过的"基本就停了"，所以这里留住"还在响"的那一点动。
+    if ph >= 1.0:
+        # **这个模块里没有 `_beat`**（那是 `school_scenes` 的）：用同一屏别处（第 844 行）
+        # 已经在用的自足式脉动，免得为一个亮度去引一层依赖。
+        beat = 0.62 + 0.38 * abs(math.sin(t * 1.9))
+        r0 = max(4, min(14, rmax))
+        for i in range(72):
+            th = 2 * math.pi * i / 72
+            rr = r0 * (0.55 + 0.45 * ((t * 0.55) % 1.0))
+            x = int(cx + rr * math.cos(th))
+            y = int(cy + max(2, ry * 0.55) * (rr / max(1, r0)) * math.sin(th))
+            if k.bx0 <= x <= k.bx1 and k.by0 <= y <= k.by1:
+                k.put(x, y, "\u00b7", _mix(_C.BLUE, 0.30 + 0.35 * (1.0 - (t * 0.55) % 1.0)))
+        k.put(cx, cy, "\u25cf", _mix(_C.AMBER, 0.75 + 0.25 * beat))
+        for dx, dy in ((0, -1), (0, 1), (-1, 0), (1, 0)):
+            k.put(cx + dx, cy + dy, "\u00b7", _mix(_C.AMBER, 0.55 + 0.40 * beat))
+        if k.bh >= 6:
+            k.put(k.bx0, k.by1, "\u5df2\u5e76\u5408\uff1a\u4e24\u9897\u661f\u53ea\u5269\u4e00\u9897 \u00b7 \u73af\u5728\u6269\u6563",
+                  _mix(_C.GREEN, 0.75))
+        return
     # ---- the orbit itself: without a drawn ellipse two dots are two dots
     steps = 96
     for i in range(steps):

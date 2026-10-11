@@ -1999,10 +1999,13 @@ def pane_yolo(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         k.put(fx, fy, face, _mix(tone, 0.92))
         k.put(fx + len(face) + 1, fy, lab, _mix(tone, 0.70))
     # ---- 三拍（**按这一行的绝对秒数**，不按比例）
-    # 比例分拍不行：这一行 64.29-66.17 的头 0.9 s 是 `fx_reveal` 的转场（上一屏像素排序的
-    # 字符还在），按比例的话"搜寻"整段被转场吃掉、看不到框在动。实测转场到 65.2 才干净。
+    # 比例分拍不行：行的头 0.9 s 是 `fx_reveal` 的转场（上一屏的字符还在），按比例的话
+    # "搜寻"整段被转场吃掉、看不到框在动。
+    # **批 134 重新配时**：这一行从 1.88 s（64.29-66.17）变成 **3.76 s**（62.41-66.17），
+    # 因为它现在要跨 `Then I can, then I can` 与 `Be your only satisfaction` 两句歌词。
+    # 三拍按比例拉长，锁定那一段从 0.43 s 变成 0.66 s——"百分数到最高"那一下看得更清楚。
     lt0 = lt if lt is not None else 0.0
-    T_SEARCH, T_APPROACH, T_LOCK = 0.45, 0.95, 1.45
+    T_SEARCH, T_APPROACH, T_LOCK = 0.45, 2.20, 3.10
     star_i = next(i for i, p in enumerate(pos) if p[5])
     if lt0 < T_SEARCH:
         pick, conf = None, 0.0                  # 还没开始检测：只摆着四个颜文字

@@ -469,8 +469,13 @@ LANDMARK_ROWS: list[dict] = [
     # (`input/lyrics.lrc`) everywhere in this table, and the first draft of this row used 64.00, which is
     # in the middle of "Then I can, then I can" and therefore a boundary the song does not have. 64.29 is
     # where "Be your only satisfaction" begins, which is also the line `pane_motif_pixelsort` now names.
+    # **双星在 `simulations` 这一句合体、然后停住**（批 134，用户："双星旋进的动画也要改，
+    # 其在 simulations 歌词时停止"）。原来这两行都叫 `pane_motif_binary`、一路连到 64.29，
+    # 并合被推到很后面；现在**第二行只到 62.41**，`binary` 按"这一行自己的跨度"算相位
+    # （`school_motifs._row_here`），所以并合正好落在 60.57——`Give you all the simulations`
+    # 这一句上，之后画的是并合后的残骸（一颗亮星 + 一圈扩散的环，随拍脉动）。
     dict(at=60.57, name="pane_motif_binary", lyric="Give you all the simulations",
-         ops=["0101", "模拟"], mascot=False, sub="两颗星越绕越近，直到并合"),
+         ops=["0101", "模拟"], mascot=False, end=62.41, sub="两颗星越绕越近，直到并合"),
     # 62.00-70.00 was the cat, held for eight seconds across five different lines - including "I will run
     # the execution", which is not a cat. The cat belongs on the two lines that *are* a cat (80.93,
     # below); here the hands carry "Then I can / satisfaction" and the conditional device carries
@@ -480,8 +485,14 @@ LANDMARK_ROWS: list[dict] = [
     # "动画改为 yolo 模型 + 打标（标签含 satisfaction 等满意程度）的动画图示，
     # GPU 像素动画挪到后面"）。原来这一行是 `pane_motif_pixelsort`（GPU 像素排序），
     # 按用户要求挪到后面——`You have made some`（128.42）那一处。
-    dict(at=64.29, name="pane_yolo", lyric="Be your only satisfaction",
-         ops=["YOLO", "satisfaction"], mascot=False, sub="\u4e00\u4e2a\u68c0\u6d4b\u6846 \u00b7 \u4e00\u4e2a\u6807\u7b7e"),
+    # **YOLO 改成对应 `Then I can, then I can` + `Be your only satisfaction`**（批 134）：
+    # 用户："yolo动画改为与歌词 then I can, then I can, be your only satisfaction 对应"。
+    # `Then I can, then I can` 在 **62.41**，`Be your only satisfaction` 在 64.29、下一句
+    # `If I can make you happy` 在 66.17——所以这一行从 64.29 **提前到 62.41**、**跨两句歌词**，
+    # 到 66.17 为止（3.76 s，比原来的 1.88 s 宽裕，三拍因此重新配时）。
+    dict(at=62.41, name="pane_yolo", lyric="Then I can, then I can",
+         ops=["YOLO", "satisfaction"], mascot=False, end=66.17,
+         sub="\u4e00\u4e2a\u68c0\u6d4b\u6846 \u00b7 \u4e00\u4e2a\u6807\u7b7e"),
     dict(at=66.17, name="pane_motif_galaxy", lyric="If I can make you happy",
          ops=["GALAXY", "星系"], mascot=False, sub="星星按引力排队，旋成三条臂"),
     dict(at=70.02, name="pane_motif_en_limit", lyric="Though we are trapped",
