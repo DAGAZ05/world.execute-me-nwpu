@@ -5213,6 +5213,44 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
 
 # --------------------------------------------------------------------------- io
 
+def _key_down(vk: int) -> bool:
+    """Windows 的物理按键状态：这一刻按着没有。`GetAsyncKeyState` 的最高位 = 当前按下。
+
+    为什么必须要它（批 102）：`kbhit/getwch` 只在**按下**时产生事件，松手不产生事件——
+    单键按住时永远读不到"松开"，长按因此全部逾期成 MISS（用户："敲击 SDJ 全都是 MISS"）。
+    用物理状态轮询就把"按下/松开"两件事都拿回来了。
+    """
+    if os.name != "nt":
+        return False
+    try:
+        return bool(ctypes.windll.user32.GetAsyncKeyState(vk) & 0x8000)
+    except Exception:
+        return False
+
+
+#: 音游那三个键的虚拟键码。
+_RHY_VK = {"d": 0x44, "j": 0x4A, "s": 0x53}
+
+
+def _rhythm_poll(rhythm, down: set, t: float) -> None:
+    """每帧对一次物理键状态：新按下的补一次 `key()`，松开的报 `release()`。
+
+    `down` 是**物理状态**的镜像（不是"读到过哪些字符"）。轻点（按下与松开落在同一帧里）
+    由 `_rh_down` 那个字符循环先记下来（`vk_now` 仍然为真时不会重复触发按下）。
+    """
+    for k, vk in _RHY_VK.items():
+        now = _key_down(vk)
+        was = k in down
+        if now and not was:
+            down.add(k)
+            if rhythm is not None:
+                rhythm.key(k, t)
+        elif not now and was:
+            down.discard(k)
+            if rhythm is not None:
+                rhythm.release(k, t)
+
+
 def enable_vt() -> None:
     if os.name != "nt":
         return
@@ -5720,21 +5758,19 @@ def main() -> None:
                 # 音游面板在它自己的舞台上吃 `d`/`j`/`s`（批 98）。所有权规则与 gate 相同：
                 # **只在面板真的在舞台上时才吃键**，其余时间 `D`/`J`/`S` 与播放器无关（没人用）。
                 #
-                # **批 100：要分"按下"与"松开"**，因为有了长按。Windows 的 `kbhit/getwch` 在按住
-                # 不放时会**反复送回同一个字符**（键盘自动重复），所以用一个按下集合去重：
-                # 第一次看到 = 按下，这是"松开"（集合里有但现在没读到），不重复触发按下。
+                # **按下与松开分开处理，并且问物理按键状态**（批 102）。这一段我犯过一次错，
+                # 记在这里：`kbhit/getwch` **只在按下时产生事件**，松手不产生任何事件——
+                # 所以"读到别的字符就当上一个松开了"是错的（按 D 之后按 J，那一次 J 的到达会被
+                # 当成"D 松开"），单键按住时更是**永远没有松开事件**，于是长按全部逾期。
+                # 用户的报告："敲击 SDJ 全都是 MISS"。
+                # 现在改成每帧轮询 `GetAsyncKeyState`（真正的物理状态，见 `_key_down`），
+                # 立刻为真实按下的事件补一次 `key()`（保证轻点也不丢），松开由轮询发现。
                 _rk = ch.lower()
-                if RHYTHM[0] is not None:
-                    if _rk in ("d", "j", "s"):
-                        if _rk not in _rh_down:
-                            _rh_down.add(_rk)
-                            if RHYTHM[0].key(ch, t):
-                                continue
-                    elif _rh_down:
-                        for _k in [k for k in _rh_down if k != _rk]:
-                            RHYTHM[0].release(_k, t)
-                        _rh_down.clear()
-                if ch in ("q", "Q", "\x1b"):
+                if RHYTHM[0] is not None and _rk in ("d", "j", "s"):
+                    if _rk not in _rh_down:
+                        _rh_down.add(_rk)
+                        RHYTHM[0].key(ch, t)
+                elif ch in ("q", "Q", "\x1b"):
                     quitting = True
                     break
                 elif ch == " ":
@@ -5821,6 +5857,11 @@ def main() -> None:
             # which meant a key pressed at 03:00 would still have been read as the college answer.
             if gate is not None:
                 t = gate.tick(t)
+            # **音游的物理键轮询**（批 102）：每帧对一次 `D`/`J`/`S` 的真实按下状态。
+            # 放在 `draw` 之前——`draw` 里会 `tick()`，所以这一帧的按下/松开先被记下来。
+            # 只在面板可能出现的时段里轮询（省掉无关时段的自己调用）。
+            if RHYTHM_ON[0] and VAR[0] == "school" and RHYTHM[0] is not None:
+                _rhythm_poll(RHYTHM[0], _rh_down, t)
             # ...and the sprites were decoded before the music started (see the note in the interactive
             # set-up above). This used to be here, which is what put three seconds of black screen after
             # the first note and three seconds of song into the first frame drawn.
