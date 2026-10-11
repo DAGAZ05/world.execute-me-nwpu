@@ -2017,6 +2017,108 @@ def pane_yolo(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         k.put(k.bx0, k.by1, "\u68c0\u6d4b\u4e2d\u2026", _ui(0.5))
 
 
+def pane_ieee754(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
+    """IEEE-754：精度丢失 → Infinity → NaN。
+
+    清单第 52 条："illegal arguments 歌词处动画框内改为：IEEE-754 精度丢失 → Infinity → NaN
+    的动画演出"。`Illegal arguments` 在 **130.74 s**。
+
+    三段，用一个**32 位字**走完：
+
+    1. **精度丢失**：`符号 | 指数 | 尾数` 三段并排，**尾数从右往左一格一格掉**（那是"舍入"
+       这件事本身），指数同时一格一格往上长；
+    2. **Infinity**：指数**全 1**、尾数**全 0** ⇒ `+∞`。屏幕上打出 `INFINITY`；
+    3. **NaN**：指数全 1、尾数**不全 0** ⇒ `NaN`（一个"不是数"的位型）。屏幕上打出 `NAN`。
+
+    位型用 `█` 与 `·` 画（1 / 0），三段各自的边界用 `|` 标出来；每一段配一行说明与一个
+    大写的字（`INFINITY` / `NAN` 用 5x5 的方块字，见 `_BLOCK5`）。
+    """
+    import school_courses as _C
+    k = _kit(s, x0, y0, x1, y1, 0, "IEEE-754")
+    if k is None or k.bh < 9 or k.bw < 44:
+        return
+    span = max(0.8, dur or 6.16)
+    # **`lt` 是"这一行已经演了多久（秒）"**，不是行的起点——`tui_live.draw` 里
+    # `lt = ent["u"] * dur`。我第一版写成 `(t - lt) / span`，那个式子恒等于
+    # `ent["start"] / span`（因为 `t - lt == ent["start"]`），所以 `q` 一直是 1.0、
+    # 三段永远停在 NaN（实测 20/20 帧都是 `q=1.000`）。
+    q = min(1.0, max(0.0, (lt if lt is not None else 0.0) / span))
+    # 三段的边界（按这一行的比例；转场那 0.45 s 由 `_kit` 的 u 表现，这里不额外让位）
+    if q < 0.45:
+        stage, bits_exp, bits_man = 0, None, None
+    elif q < 0.75:
+        stage = 1
+    else:
+        stage = 2
+    # 位串：符号 1 位、指数 8 位、尾数 23 位（合计 32）
+    sign = "0"
+    if stage == 0:
+        # 精度丢失：尾数掉位（用 q 的比例决定掉了多少，从右往左），指数往上长
+        lost = int(round((q / 0.45) * 23))
+        man = "1" * (23 - lost) + "0" * lost
+        exp = bin(int(round((q / 0.45) * 12)))[2:].rjust(4, "0") + "0000"
+    elif stage == 1:
+        exp, man = "1" * 8, "0" * 23                     # +Inf
+    else:
+        exp, man = "1" * 8, "1" + "0" * 22               # NaN（尾数不全 0）
+    bits = sign + exp + man
+    # ---- 位串：32 位排成一行，`|` 是 S / 指数 / 尾数 的分界。
+    # **列号要显式排**（批 127）：第一版用 `i + (1 if i>=1 else 0) + (1 if i>=9 else 0)` 算列号，
+    # 第 1 位与第 9 位的分界**落在同一个列**，于是尾数那 23 位被 `|` 盖掉、整行只剩 `███`。
+    y_bits = k.by0 + 2
+    cols = [k.bx0 + 1]                                   # S 在第 1 列
+    cols += [k.bx0 + 3 + j for j in range(8)]            # 指数：4..11（第 2 列留给 `|`）
+    cols += [k.bx0 + 13 + j for j in range(23)]          # 尾数：14..36（第 12 列留给 `|`）
+    k.put(k.bx0 + 2, y_bits, "\u2502", _ui(0.5))
+    k.put(k.bx0 + 12, y_bits, "\u2502", _ui(0.5))
+    for i, b in enumerate(bits):
+        if i < len(cols):
+            k.put(cols[i], y_bits, "\u2588" if b == "1" else "\u00b7",
+                  _mix(_C.RED if b == "1" else _C.BLUE, 0.95 if b == "1" else 0.45))
+    k.put(k.bx0 + 1, y_bits - 1, "S", _ui(0.55))
+    k.put(k.bx0 + 4, y_bits - 1, "\u6307\u6570 8 \u4f4d", _ui(0.55))
+    k.put(k.bx0 + 14, y_bits - 1, "\u5c3e\u6570 23 \u4f4d", _ui(0.55))
+    # ---- 三段各自的说明
+    notes = ("\u7cbe\u5ea6\u4e22\u5931\uff1a\u5c3e\u6570\u4ece\u53f3\u5f80\u5de6\u4e00\u683c\u4e00\u683c\u6389",
+             "\u6307\u6570\u5168 1 \u00b7 \u5c3e\u6570\u5168 0  \u21d2  +Infinity",
+             "\u6307\u6570\u5168 1 \u00b7 \u5c3e\u6570\u4e0d\u5168 0  \u21d2  NaN\uff08\u4e0d\u662f\u6570\uff09")
+    k.put(k.bx0, k.by0 + 4, notes[stage], _mix(_C.AMBER, 0.92))
+    # ---- 大字：INFINITY / NAN
+    word = ("", "INFINITY", "NAN")[stage]
+    if word:
+        _block_word(k, k.bx0, k.by0 + 6, word, _mix(_C.RED if stage == 2 else _C.GREEN, 0.95))
+    else:
+        k.put(k.bx0, k.by0 + 6, "3.4028235e38 \u00d7 2 \u2192 \u221e", _ui(0.6))
+        k.put(k.bx0, k.by0 + 7, "\u518d\u4e58\u4e0b\u53bb\u5c31\u6ea2\u51fa\u4e86", _ui(0.5))
+
+
+#: 5x5 的方块字（只写这一屏要用的那几个：`INFINITY` 与 `NAN`）。
+#: `#` = 实心格。用文本字形而不是让窗口画字，是因为这一屏的字要**和位串一样是格子**。
+_BLOCK5 = {
+    "I": (".###.", "..#..", "..#..", "..#..", ".###."),
+    "N": ("#...#", "##..#", "#.#.#", "#..##", "#...#"),
+    "F": ("#####", "#....", "####.", "#....", "#...."),
+    "A": (".###.", "#...#", "#####", "#...#", "#...#"),
+    "T": ("#####", "..#..", "..#..", "..#..", "..#.."),
+    "Y": ("#...#", ".#.#.", "..#..", "..#..", "..#.."),
+}
+
+
+def _block_word(k, x: int, y: int, word: str, colour) -> None:
+    """把 `word` 用 `_BLOCK5` 拼成方块字写出去（字距 1 格）。"""
+    cx = x
+    for ch in word:
+        glyph = _BLOCK5.get(ch)
+        if glyph is None:
+            cx += 2
+            continue
+        for ry, line in enumerate(glyph):
+            for rx, c in enumerate(line):
+                if c == "#":
+                    k.put(cx + rx, y + ry, "\u2588", colour)
+        cx += len(glyph[0]) + 1
+
+
 def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
     """互换: four things that are the same thing twice, on the lines about switching roles.
 
@@ -2632,6 +2734,8 @@ PANE_BY_NAME.update({
     # 查不到就**静静回落**到别的东西（实测 64.29 那一屏画出了 `/memory/you/` 的目录树，
     # 那是上游的 dsh 窗口在画，不是报错）。
     "pane_yolo": pane_yolo,
+    # 清单第 52 条：`Illegal arguments` 的 IEEE-754 演出
+    "pane_ieee754": pane_ieee754,
     "pane_landmark_dialogue": pane_landmark_dialogue,
     "pane_landmark_sword": pane_landmark_sword,
     "pane_landmark_hezun": pane_landmark_hezun,

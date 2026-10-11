@@ -441,15 +441,17 @@ LANDMARK_ROWS: list[dict] = [
     # **GPU 像素排序挪到 `You have made some`（128.42）**（批 124，清单第 35 条：
     # "GPU 像素动画挪到后面"）。它原来在 64.29（`Be your only satisfaction`），
     # 那个位置现在给了 YOLO 打标。
-    #
-    # **一行 8.5 s（128.42-136.90）是这一行故意的**，`_dev/row_probe.py` 会把它列进"长行"：
-    # 这一行从 125.33 的铸剑雕塑切开，后面的 `Illegal arguments`（130.74）在下一批要换成
-    # IEEE-754 的演出（清单第 52 条）；在那之前**不能留空洞**（整段没有排期行 ⇒ 右栏空着，
-    # 那是比长行更糟的东西）。排序扫描本身是个循环，任何长度都读得下去。
-    # 等 IEEE-754 那个 pane 落地，这里就切成两行。
     dict(at=128.42, name="pane_motif_pixelsort", lyric="You have made some",
-         ops=["PIXELSORT", "\u6392\u5e8f"], mascot=False, end=136.90,
+         ops=["PIXELSORT", "\u6392\u5e8f"], mascot=False, end=130.74,
          sub="\u6742\u8272\u6309\u4eae\u5ea6\u6392\u6210\u4e00\u5217"),
+    # **`Illegal arguments`（130.74）→ IEEE-754**（批 127，清单第 52 条："illegal arguments
+    # 歌词处动画框内改为：IEEE-754 精度丢失 → Infinity → NaN 的动画演出"）。
+    # 到 136.90（学院闸门）为止；批 124 为了不留空洞临时让像素排序顶到 136.90，
+    # 并在 `_dev/row_probe.py` 的 `LONG_OK` 里留了一条写"暂时"的理由——**现在切开了，
+    # 那条理由要删掉**。
+    dict(at=130.74, name="pane_ieee754", lyric="Illegal arguments",
+         ops=["IEEE-754", "Inf", "NaN"], mascot=False, end=136.90,
+         sub="\u7cbe\u5ea6\u4e22\u5931 \u2192 Infinity \u2192 NaN"),
     # Acts 1 and 2 only (`max_phase=1`): `unite` shows the hands approaching and `deeply` the star
     # between them. **Act 3 - the star alone - is its own row at 84.60**, on the lyric `02b §3.3` pins
     # it to; it used to be the tail of this row, which put "只剩那颗星" under `If I can, if I can` at
