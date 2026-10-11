@@ -1752,69 +1752,115 @@ ACDC_FROM, ACDC_TO = 45.52, 47.27
 
 
 def _ex_gate(k, t: float, u: float) -> None:
-    """逻辑门 / 晶体管：**一个"开关"控制电流通不通**，三个门轮着来。
+    """**晶体管构成的逻辑门**（CMOS），按用户给的参考图 `参考及想法/逻辑门.png` 画。
 
-    用户批 121（清单第 23 条）："歌词 switch my current 处改为逻辑门开关示例（晶体管构成）"。
-    原来这一处是 `bits`（F→M 三位取反）——那件事对应的歌词是后面的 `To F, to M`（它自己
-    那一行还在，没动）。
+    用户批 122："switch my current 我让你画的是晶体管构成的逻辑门（参考及想法/逻辑门.png）"。
+    上一版我画的是"一个 NMOS + 真值表"——那是**一个开关的剖面**，不是参考图里的东西。
+    参考图是 CMOS 的**晶体管级电路**：`VDD` 在顶、`GND` 在底，**PMOS 在上 / NMOS 在下**
+    串在中间，输入 `A`（与门/或门还有 `B`）接栅极，**输出 `Y` 从两个管子的中间接出来**；
+    右边配一个**门的符号**和一个**真值表**。
 
-    "switch my current" 的字面就是**开关 + 电流**，所以这里画：
+    终端里画不了参考图那种曲线走线，所以取它的**结构**：上下电源轨、管子符号
+    （`┼┴┼` 横杠那三笔 = 栅、`│` = 沟道）、栅极连线、体二极管的三条输入支路、
+    以及输入/输出方框 `[0]` / `(1)`。
 
-    * 左边一个 **NMOS 晶体管**：`G`（栅）是一根**受逻辑电平控制的竖线**——它**画成虚线**时
-      表示"关断"；漏 `D` 与源 `S` 之间那一格随之从 `─` 变成 `╳`；
-    * 右边该门的**真值表**，满足的那一行用当前门的颜色高亮——高亮行随 `t` **一行一行走**，
-      所以这一屏一直在动（`_dev/clock_probe.py` 就是查这个的）；
-    * 顶部三个门名 `AND / OR / NOT`，**当前那一个亮**，每 2.6 s 换一个：`switch` 本来
-      就含"切换"的意思，光画一个门反而少了这层。
-
-    `A` / `B` 两个输入也在闪，与真值表那一行同源——所以"输入 → 门 → 通不通"是一条链在动，
-    不是三张静态图。
+    三个门轮着演（每 2.6 s 换）：`NOT` 一个输入、`AND` / `OR` 两个输入。
     """
     import school_courses as _C
     w, h = k.bw, k.bh
-    if w < 30 or h < 7:
+    if w < 34 or h < 10:
         return
-    # **每一行都要是"一行"**：`NOT` 的表原来写成 `(1, 0)`——那是两个整数、不是两行，
-    # `table[ai][-1]` 立刻 `TypeError`，异常被 `draw_pane` 吞掉、回落到四格布局
-    # （实测：抬头上写着"逻辑门"，正文还是 F→M / 12小时 / 辫群 / 超椭圆那四格旧画）。
-    gates = (("AND", ((0, 0, 0), (0, 1, 0), (1, 0, 0), (1, 1, 1)), _C.GREEN),
-             ("OR", ((0, 0, 0), (0, 1, 1), (1, 0, 1), (1, 1, 1)), _C.AMBER),
-             ("NOT", ((0, 1), (1, 0)), _C.VIOLET))
+
+    def box(x: int, y: int, v: int, col) -> None:
+        """输入/输出的小方框（参考图里的 `[0]` / `(1)`）。"""
+        k.put(x, y, "[" if v == 0 else "(", col)
+        k.put(x + 1, y, str(v), col)
+        k.put(x + 2, y, "]" if v == 0 else ")", col)
+
+    def mos(x: int, y: int, kind: str, col) -> None:
+        """一个 MOSFET（竖着放）：`y` 是沟道**顶**那一行，沟道占 4 行。
+
+        ```
+         ▷│        ← x-1 是体二极管，x 是沟道
+        ──┤        ← 栅极的三笔横杠（x-1 到 x-2）
+          │
+        ──┤
+        ```
+        """
+        for i in range(4):
+            k.put(x, y + i, "\u2502", col)
+        for off in (1, 3):                       # 栅极两笔横杠（错开一行，不糊在一起）
+            k.hline(x - 3, y + off, x - 1, "\u2500", col)
+            k.put(x - 1, y + off, "\u2524", col)
+        k.vline(x - 3, y + 1, y + 3, "\u2502", col)
+        k.put(x - 3, y + 2, "G", _ui(0.45))
+        k.put(x + 1, y, "D", col)                # 漏，在上
+        k.put(x + 1, y + 3, "S", col)            # 源，在下
+        k.put(x + 1, y + 1, kind, col)           # P / N
+        # 体二极管（参考图上每只管子都画了）：P 朝输出、N 朝输出，方向相反
+        k.put(x - 1, y + 2, "\u25bd" if kind == "P" else "\u25b3", col)
+
+    gates = (("NOT", 1), ("AND", 2), ("OR", 2))
     gi = int(t / 2.6) % len(gates)
-    name, table, col = gates[gi]
-    # ---- 顶部：三个门名，当前那个亮
-    for i, (nm, _tb, c) in enumerate(gates):
-        k.put(k.bx0 + 1 + i * 7, k.by0, nm, _mix(c, 0.95) if i == gi else _ui(0.30))
-    # ---- 左：晶体管（栅 G 控制 D-S 通不通）
-    tx = k.bx0 + 3
-    ty = k.by0 + 3
-    ai = int(t * 2.0) % len(table)                # 真值表走到第几行（同时也决定 D-S 通不通）
-    on = bool(table[ai][-1])
-    k.vline(tx + 1, ty, ty + 3, "\u2502", _ui(0.45))            # D 到 S 的沟道
-    k.put(tx + 1, ty - 1, "D", _mix(_C.BLUE, 0.85))
-    k.put(tx + 1, ty + 4, "S", _mix(_C.BLUE, 0.85))
-    k.put(tx - 2, ty + 2, "G", _mix(_C.RED, 0.85))
-    k.hline(tx - 1, ty + 2, tx + 0, "\u2500", _mix(_C.RED, 0.85))   # 栅
-    k.put(tx + 1, ty + 2, "\u2500" if on else "\u2573", _mix(col, 0.95))
-    # 栅是虚线 = 关断，实线 = 导通（这就是"开关"本身）
-    for i in range(4):
-        k.put(tx + 0, ty + 1 + i, "\u2506" if not on else "\u2502",
-              _mix(_C.RED, 0.75 if on else 0.40))
-    # ---- 右：真值表，当前行高亮
-    bx = tx + 9
-    hdr = ("A B | Y",) if name != "NOT" else ("A | Y",)
-    k.put(bx, ty - 1, hdr[0], _ui(0.55))
-    for i, rowv in enumerate(table):
-        lit = i == ai
-        if name == "NOT":
-            s_ = f"{rowv[0]} | {rowv[1]}"
-        else:
-            s_ = f"{rowv[0]} {rowv[1]} | {rowv[2]}"
-        k.put(bx, ty + i, s_, _mix(col, 0.95) if lit else _ui(0.42))
-        if lit:
-            # **`U+25B8`（`▸`）不在渲染字体里**（`_dev/glyph_probe.py` 抓到），换成 `>`。
-            k.put(bx - 1, ty + i, ">", _mix(col, 0.95))
-    k.put(k.bx0 + 1, k.by1, f"{name} \u00b7 switch my current", _ui(0.5))
+    name, nin = gates[gi]
+    col = _mix(_C.GREEN, 0.88)
+    # ---- 最左一列：三个门名，当前那个亮（**不要和输入标签挤在一起**：它们现在分列在
+    # `k.bx0` 与 `k.bx0+9`，上一版把 A/B 也放在 `k.bx0`，被门名盖住了）
+    for i, (nm, _n) in enumerate(gates):
+        k.put(k.bx0, k.by0 + i, nm, col if i == gi else _ui(0.30))
+    # ---- 电路本体：VDD / PMOS / 出 Y / NMOS / GND 竖着叠
+    cx = k.bx0 + 20
+    y_vdd = k.by0 + 1
+    k.hline(cx - 7, y_vdd, cx + 7, "\u2500", _ui(0.28))
+    k.put(cx, y_vdd, "\u25b3", col)                       # 电源（参考图顶上的三角）
+    k.vline(cx, y_vdd + 1, y_vdd + 2, "\u2502", _ui(0.45))
+    yp = y_vdd + 3
+    mos(cx, yp, "P", col)                                 # PMOS 在上
+    y_out = yp + 4                                        # PMOS 的源 = 输出节点
+    yn = y_out + 1
+    mos(cx, yn, "N", col)                                 # NMOS 在下
+    y_gnd = yn + 4
+    k.vline(cx, y_gnd, y_gnd + 1, "\u2502", _ui(0.45))
+    k.hline(cx - 3, y_gnd + 2, cx + 3, "\u2500", _ui(0.30))
+    k.put(cx, y_gnd + 2, "\u2534", col)                   # 地
+    # ---- 输出 Y：从两个管子的中间接出来
+    k.hline(cx + 1, y_out, cx + 9, "\u2500", _ui(0.45))
+    k.put(cx + 11, y_out, "Y", _mix(_C.AMBER, 0.95))
+    box(cx + 13, y_out, 1 if name != "AND" else 0, _mix(_C.AMBER, 0.9))
+    # ---- 输入：A（与/或还有 B）接到两只管子的栅极
+    gx = cx - 3
+    ax = k.bx0 + 7
+    ya = yp + 2
+    box(ax, ya, 1, col)
+    k.put(ax - 2, ya, "A", _ui(0.45))
+    k.hline(ax + 3, ya, gx - 1, "\u2500", _ui(0.40))
+    k.vline(gx, ya, yp + 3, "\u2502", _ui(0.40))
+    k.hline(gx, ya, cx - 4, "\u2500", _ui(0.40))
+    if nin == 2:
+        yb = yn + 1
+        box(ax, yb, 0, col)
+        k.put(ax - 2, yb, "B", _ui(0.45))
+        k.hline(ax + 3, yb, gx - 2, "\u2500", _ui(0.40))
+        k.vline(gx - 1, yb, yn + 3, "\u2502", _ui(0.40))
+        k.hline(gx - 1, yb, cx - 4, "\u2500", _ui(0.40))
+    # ---- 右侧：门符号 + 真值表
+    sx = k.bx0 + 42
+    if sx + 12 < k.bx0 + w:
+        k.put(sx, k.by0 + 1, {"NOT": "A >o> Y", "AND": "A,B >=D Y", "OR": "A,B >=) Y"}[name],
+              _mix(_C.VIOLET, 0.9))
+        table = {"NOT": ((0, 1), (1, 0)),
+                 "AND": ((0, 0, 0), (0, 1, 0), (1, 0, 0), (1, 1, 1)),
+                 "OR": ((0, 0, 0), (0, 1, 1), (1, 0, 1), (1, 1, 1))}[name]
+        ai = int(t * 2.0) % len(table)
+        k.put(sx, k.by0 + 3, "A B | Y" if nin == 2 else "A | Y", _ui(0.55))
+        for i, rowv in enumerate(table):
+            lit = i == ai
+            s_ = (" ".join(str(v) for v in rowv[:-1]) + " | " + str(rowv[-1])) if nin == 2 \
+                else f"{rowv[0]} | {rowv[1]}"
+            k.put(sx, k.by0 + 4 + i, s_, col if lit else _ui(0.42))
+            if lit:
+                k.put(sx - 2, k.by0 + 4 + i, ">", col)
+        k.put(sx, k.by0 + 9, "PMOS \u4e0a \u00b7 NMOS \u4e0b", _ui(0.45))
 
 
 def _ex_acdc(k, t: float, u: float) -> None:
@@ -1993,46 +2039,56 @@ TRAVEL_SCHOOL_AT, TRAVEL_XIAN_AT = 50.95, 52.99
 
 
 def _ex_timeline(k, t: float, u: float) -> None:
-    """时间线：前段是**西工大校史**，`To AD, to BC`（52.99）起换成**西安的公元前后**。
+    """时间线：前段**西工大校史**，`To AD, to BC`（52.99）起换成**西安的公元前后**。
 
     清单第 29 条。原来这一处钉的是 `hyper`（超椭圆），与歌词无关。
 
-    两段共用同一条轴和同一个"游标"：
-    * **校史**（50.95 起）：`1938 国立西北工学院` → `1957 西安航空学院` → `1970 西北工业大学`
-      → `2026 四个数字：24 个专业学院 / 72 个本科专业 / 四万余人`（这四个数字是这一屏上文
-      已经在说的话，时间线把它接到轴上）；
-    * **西安**（52.99 起）：`BC 202 汉长安` → `AD 618 唐长安` → `今 西安`，
-      并在轴上加一句"同一块地方，换了三个名字"。
-    游标按 `t` 沿线走，走过的节点亮起来——所以它是一条**在演的时间线**，不是一张年表。
+    批 122 用户两条修改：
+
+    * **"西安时间线内容太少，可以 web search 一下增加节点"** —— 从"汉长安 / 唐长安 / 西安"
+      三个扩到八个（半坡 → 丰镐 → 咸阳 → 长安 → 大兴 → 长安 → 西安府 → 今天），
+      覆盖西安的整条建城史。年份取自维基百科《西安历史》与西安地方志的年表口径：
+      半坡约前 4000、西周丰镐前 1046、秦咸阳前 221、汉长安城前 202、隋大兴城 582、
+      唐长安城 618、明西安府 1370；
+    * **"不要最下方的小字"** —— 删掉原来那句"同一块地方，换了三个名字 / 一条路走到今天"；
+    * **"按照歌词节点应该从后往前亮"** —— 游标**从右往左**走、结点**从晚到早**依次亮。
+      这与 `To AD, to BC`（往公元前后回望）同向，`we can travel` 那一段也照此，
+      免得两屏方向不一致。
     """
     import school_courses as _C
     w = k.bw
     if w < 30 or k.bh < 6:
         return
     xian = t >= TRAVEL_XIAN_AT
-    title = "\u897f\u5b89\u5e02 \u00b7 \u516c\u5143\u524d\u540e" if xian else "\u897f\u5de5\u5927 \u00b7 \u6821\u53f2"
-    nodes = (("BC 202", "\u6c49\u957f\u5b89"), ("AD 618", "\u5510\u957f\u5b89"), ("\u4eca\u5929", "\u897f\u5b89")) if xian \
-        else (("1938", "\u56fd\u7acb\u897f\u5317\u5de5\u5b66\u9662"), ("1957", "\u897f\u5b89\u822a\u7a7a\u5b66\u9662"),
-              ("1970", "\u897f\u5317\u5de5\u4e1a\u5927\u5b66"), ("2026", "24 \u9662 \u00b7 72 \u4e13\u4e1a"))
+    title = ("\u897f\u5b89 \u00b7 \u516c\u5143\u524d\u540e" if xian else "\u897f\u5de5\u5927 \u00b7 \u6821\u53f2")
+    # **7 个节点**：8 个时年份标签会互相撞（`BC 1046` 与 `1370` 叠在一起，实测）。
+    # 年份写短（`BC 1046` 缩成 `1046BC` 太拗口，改成把"公元前"放到标题里），名字截 4 字。
+    nodes = (
+        (("4000BC", "\u534a\u5761"), ("1046BC", "\u4e30\u9549"), ("221BC", "\u79e6\u54b8\u9633"),
+         ("202BC", "\u6c49\u957f\u5b89"), ("618", "\u5510\u957f\u5b89"), ("1370", "\u660e\u897f\u5b89"),
+         ("\u4eca\u5929", "\u897f\u5b89")) if xian else
+        (("1938", "\u56fd\u7acb\u897f\u5de5"), ("1957", "\u897f\u5b89\u822a\u9662"),
+         ("1970", "\u897f\u5de5\u5927"), ("2026", "24 \u9662 72 \u4e13\u4e1a")))
     y_axis = k.by0 + max(2, k.bh // 2)
     k.put(k.bx0, k.by0, title, _mix(_C.AMBER, 0.9))
     k.hline(k.bx0, y_axis, k.bx0 + w - 1, "\u2500", _ui(0.35))
     span = max(1, w - 4)
     n = len(nodes)
-    prog = (t - (TRAVEL_XIAN_AT if xian else TRAVEL_SCHOOL_AT)) * 0.9   # 游标沿轴走
+    # **从后往前亮**：`prog` 0→1 时，亮的结点从最右（最晚）推到最左（最早）。
+    prog = (t - (TRAVEL_XIAN_AT if xian else TRAVEL_SCHOOL_AT)) * 0.9
+    y_lab = y_axis + 1
     for i, (year, name) in enumerate(nodes):
         x = k.bx0 + 2 + int(span * (i + 0.5) / n)
-        lit = prog >= (i + 0.5) / n
+        # 第 i 个结点距右端有多远（最右是 0）——它就按这个先后亮
+        lit = prog >= (n - 1 - i + 0.5) / n
         col = _mix(_C.GREEN if lit else _C.BLUE, 0.95 if lit else 0.40)
         k.put(x, y_axis, "\u25cf" if lit else "\u25cb", col)
         k.put(x, y_axis - 1, "|", col)
         k.put(x - len(year) // 2, y_axis - 2, year, col)
-        k.put(x - len(name) // 2, y_axis + 1, name[:10], _mix(_C.AMBER, 0.85) if lit else _ui(0.40))
-    # 游标：走到哪一格，那一格加个亮度
-    curx = k.bx0 + 2 + int(span * min(1.0, max(0.0, prog)))
-    k.put(curx, y_axis + 2, "\u25b2", _mix(_C.RED, 0.9))
-    k.put(k.bx0, k.by1, ("\u540c\u4e00\u5757\u5730\u65b9\uff0c\u6362\u4e86\u4e09\u4e2a\u540d\u5b57" if xian
-                         else "\u4e00\u6761\u8def\u8d70\u5230\u4eca\u5929"), _ui(0.5))
+        k.put(x - min(len(name), 4) // 2, y_lab, name[:4], _mix(_C.AMBER, 0.85) if lit else _ui(0.40))
+    # 游标：从右端出发往左走（与"从后往前亮"同向）
+    curx = k.bx0 + 2 + int(span * (1.0 - min(1.0, max(0.0, prog))))
+    k.put(curx, y_lab + 2, "\u25b2", _mix(_C.RED, 0.9))
 
 
 def _ex_hyper(k, t: float, u: float) -> None:

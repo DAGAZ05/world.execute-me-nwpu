@@ -625,6 +625,9 @@ LANDMARK_ROWS: list[dict] = [
 # carries the same pair per pane (`draw_body`'s `need`/`least`); a pane that cannot get `least` rows
 # hands them back to the ops ticker rather than appearing as an empty box.
 PANE_MIN = {
+    # **`互换`这一屏要高一点**（批 122）：`gate` 面板现在画的是 CMOS 晶体管级电路
+    # （VDD / PMOS / NMOS / GND 竖着叠），`_ex_gate` 在 `bh < 10` 时直接返回、一屏全空。
+    "pane_exchange": (14, 8),
     "pane_power_on": (12, 5),
     "pane_protection": (10, 4),
     "pane_pieces": (10, 4),
@@ -785,7 +788,7 @@ THEME_PINS: list[tuple[float, str, str, str]] = [
     # （晶体管构成）"。原来这一处钉的是 `bits`（F→M 三位取反），而"三位取反"那件事对应的歌词是
     # 后面的 `To F, to M`（**清单第 21 条**：'F->M 三位取反应放在后面歌词 to f to m（实际上
     # 已经有了）'）——所以 `bits` 不该留在这里，它的行在 89.91，那里才是它的位置。
-    (41.92, "pane_exchange", "gate", "逻辑门：一个开关控制电流通不通"),
+    (41.92, "pane_exchange", "gate", "PMOS 在上 · NMOS 在下 · 中间出 Y"),
     # AC/DC：电流的两个名字 —— **内容改成交流/直流示意**（批 119，清单第 25 条："scene18 歌词
     # to ac to dc，但动画框抬头你写的是超椭圆，动画框内展出应当是直流、交流电示意，请修改抬头
     # 及内容"）。原来钉的是 `hyper`（超椭圆），与歌词无关；现在换成 `acdc`
