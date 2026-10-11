@@ -1521,6 +1521,30 @@ def pane_landmark_cat(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         ax = max(k.bx0, k.bx0 + (k.bw - w) // 2)
         top = k.by0 + 2
         shown = int(len(lines) * min(1.0, u * 1.8)) or 1
+        # **薛定谔的黑箱**（批 132，清单第 39 条："scene28 猫学长动画在猫的字符画外加框（表示
+        # 薛定谔的黑箱）"）。框**包住全部三个可能状态**（本尊 + 两侧 ±4 的叠加副本），
+        # 并在上边沿写标签——"要打开才知道"这句话才有着落：猫在**箱子里**。
+        # 框先画，猫画在框内，所以猫仍是最亮的那一个。
+        box_x0 = max(k.bx0, ax - 6)
+        box_x1 = min(k.bx1, ax + w + 5)
+        box_y0 = max(k.by0 + 1, top - 1)
+        box_y1 = min(k.by1 - 3, top + shown)          # 底下两行留给那两句说明
+        if box_x1 - box_x0 >= 12 and box_y1 - box_y0 >= 4:
+            edge = _mix(_C.VIOLET, 0.75)
+            for x in range(box_x0, box_x1 + 1):
+                k.put(x, box_y0, "\u2500", edge)
+                k.put(x, box_y1, "\u2500", edge)
+            for y in range(box_y0, box_y1 + 1):
+                k.put(box_x0, y, "\u2502", edge)
+                k.put(box_x1, y, "\u2502", edge)
+            k.put(box_x0, box_y0, "\u250c", edge)
+            k.put(box_x1, box_y0, "\u2510", edge)
+            k.put(box_x0, box_y1, "\u2514", edge)
+            k.put(box_x1, box_y1, "\u2518", edge)
+            # 标签嵌在上边沿里（把那一小段 `─` 换成字），像箱子上贴的封条
+            label = " \u859b\u5b9a\u8c14\u7684\u9ed1\u7bb1 \u00b7 \u672a\u6253\u5f00 "
+            if box_x0 + 2 + _C._cells(label) <= box_x1 - 1:
+                k.put(box_x0 + 2, box_y0, label, _mix(_C.VIOLET, 0.95))
         # **The superposition, drawn.** The pane's own caption is `(|生> + |死>) / √2 — 叠加态不是不知道，
         # 是两个都在`, and the picture was one cat: the argument and the drawing disagreed. Two ghost
         # copies of the same art, either side of the real one and dim (batch 53, the user: "猫学长图像那里
