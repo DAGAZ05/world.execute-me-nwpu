@@ -2212,6 +2212,81 @@ def pane_spinoza(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
               _mix(_C.GREEN, 0.98))
 
 
+def pane_supervisory(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
+    """`To S, to M`：**监察博弈**（supervisory game）的支付矩阵（清单第 31 条）。
+
+    用户："oh, switch my role, to s to m 歌词处改为博弈论监察博弈（supervisory game）的支付矩阵，
+    博弈中的两个角色（委托人 S，代理人 M）交替闪烁"。`To S, to M` 在 **97.32 s**。
+
+    两个角色、各两个策略：
+
+    * **委托人 S**（English 的 S 就是 supervisor）：**监督** / **不监督**（成本 `c`）
+    * **代理人 M**：**努力**（成本 `e`） / **偷懒**
+
+    支付记作 `(S 的收益, M 的收益)`，产出 `V`、工资 `w`：
+
+    ```
+                  M 努力          M 偷懒
+      S 监督      V-w-c , w-e     -w-c , 0      <- 偷懒被查出来，M 一无所获
+      S 不监督    V-w   , w-e     -w   , w
+    ```
+
+    这正是"监督博弈"那张表：**查得到就罚、查不到就白拿**，所以两边都没有纯策略均衡，
+    得混合——这一屏只演矩阵，均衡留给下一句。
+
+    **交替闪烁**：`lt` 每 1.2 s 换一次角色——轮到 S 时把"S 选的那一行"整体点亮，
+    轮到 M 时把"M 选的那一列"点亮，两个角色的名字一起变亮，让人看出是谁在动。
+    """
+    import school_courses as _C
+    k = _kit(s, x0, y0, x1, y1, 0, "\u76d1\u5bdf\u535a\u5f08 \u00b7 S / M")
+    if k is None or k.bh < 10 or k.bw < 46:
+        return
+    lt0 = lt if lt is not None else 0.0
+    turn = int(lt0 / 0.8) % 2                       # 0 = 轮到 S，1 = 轮到 M
+    # 当前"被选中的那一路"——两个角色都还没定，所以先各按奇数帧轮着走
+    row_pick = int(lt0 / 1.6) % 2                   # S 先试监督、再试不监督
+    col_pick = int(lt0 / 1.6 + 0.5) % 2             # M 同理
+    DIM, HOT = 0.55, 1.0
+    s_name = "\u59d4\u6258\u4eba S"                  # 委托人 S
+    m_name = "\u4ee3\u7406\u4eba M"                  # 代理人 M
+    # ---- 表头（两个角色名 + 策略名）
+    y_hdr = k.by0 + 2
+    x_lab, x_c0, x_c1 = k.bx0, k.bx0 + 14, k.bx0 + 42
+    k.put(x_lab, y_hdr, "S \\ M", _ui(0.6))
+    for j, name in enumerate(("\u52aa\u529b", "\u5077\u61d2")):
+        hot = (turn == 1 and j == col_pick)
+        k.put((x_c0, x_c1)[j], y_hdr, f"M {name}",
+              _mix(_C.GREEN if hot else _C.BLUE, HOT if hot else DIM))
+    # ---- 两条分隔线
+    for y in (y_hdr + 1, y_hdr + 3, y_hdr + 5):
+        for x in range(k.bx0, min(k.bx1, x_c1 + 18) + 1):
+            k.put(x, y, "\u2500", _ui(0.28))
+    # ---- 两行 + 四个支付格
+    rows = (("\u76d1\u7763", "V-w-c , w-e", "-w-c  , 0"),
+            ("\u4e0d\u76d1\u7763", "V-w   , w-e", "-w    , w"))
+    for i, (lab, c_work, c_shirk) in enumerate(rows):
+        y = y_hdr + 2 + i * 2
+        hot = (turn == 0 and i == row_pick)
+        k.put(x_lab, y, f"S {lab}",
+              _mix(_C.GREEN if hot else _C.BLUE, HOT if hot else DIM))
+        for j, cellv in enumerate((c_work, c_shirk)):
+            # 高亮：轮到 S 点亮整行、轮到 M 点亮整列；两者交叉的那一格最亮
+            lit = (turn == 0 and i == row_pick) or (turn == 1 and j == col_pick)
+            tone = _C.AMBER if lit else _C.BLUE
+            k.put((x_c0, x_c1)[j], y, cellv, _mix(tone, 0.95 if lit else 0.5))
+    # ---- 底部说明：轮次与均衡
+    y_note = y_hdr + 7
+    who = s_name if turn == 0 else m_name
+    what = ("\u884c\uff08\u76d1\u7763 / \u4e0d\u76d1\u7763\uff09" if turn == 0
+            else "\u5217\uff08\u52aa\u529b / \u5077\u61d2\uff09")
+    k.put(k.bx0, y_note, f"\u8f6e\u5230 {who}\uff1a\u4ed6\u9009 {what}", _mix(_C.GREEN, 0.92))
+    k.put(k.bx0, y_note + 2, "V \u4ea7\u51fa \u00b7 w \u5de5\u8d44 \u00b7 c \u76d1\u7763\u6210\u672c \u00b7 e \u52aa\u529b\u6210\u672c",
+          _ui(0.55))
+    k.put(k.bx0, y_note + 3,
+          "\u67e5\u5f97\u5230\u5c31\u7f5a\u3001\u67e5\u4e0d\u5230\u5c31\u767d\u62ff \u2014\u2014 \u4e24\u8fb9\u90fd\u6ca1\u6709\u7eaf\u7b56\u7565\u5747\u8861",
+          _ui(0.55))
+
+
 def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
     """互换: four things that are the same thing twice, on the lines about switching roles.
 
@@ -2874,6 +2949,8 @@ PANE_BY_NAME.update({
     "pane_ieee754": pane_ieee754,
     # 清单第 41 条：`If I'm the only God` 的斯宾诺莎证明
     "pane_spinoza": pane_spinoza,
+    # 清单第 31 条：`To S, to M` 的监察博弈支付矩阵
+    "pane_supervisory": pane_supervisory,
     "pane_landmark_dialogue": pane_landmark_dialogue,
     "pane_landmark_sword": pane_landmark_sword,
     "pane_landmark_hezun": pane_landmark_hezun,

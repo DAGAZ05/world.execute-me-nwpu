@@ -520,7 +520,15 @@ LANDMARK_ROWS: list[dict] = [
     dict(at=92.00, name="pane_motif_chladni", lyric="From AM to PM",
          ops=["CHLADNI", "节点"], mascot=False, sub="频率一换，节点就换一组"),
     dict(at=95.28, name="pane_motif_fork_bomb", lyric="Oh, switch my role",
-         ops=["FORK", "角色"], mascot=False, sub="换个角色就指数膨胀"),
+         ops=["FORK", "角色"], mascot=False, end=97.32, sub="换个角色就指数膨胀"),
+    # **`To S, to M`（97.32）→ 监察博弈**（清单第 31 条："oh, switch my role, to s to m 歌词处改为
+    # 博弈论监察博弈（supervisory game）的支付矩阵，博弈中的两个角色（委托人 S，代理人 M）交替闪烁"）。
+    # 原来这一处钉的是 `pane_exchange`/`letters`（"S 与 M：一个字的两个身份，来回翻"）——那是字形
+    # 互换、不是博弈；那条钉子已撤。**切开 95.28 那一行**（把它的 `end` 改成 97.32、这里新起一行），
+    # 不是新插一条同 `at` 的行（那会造出零长行）。
+    dict(at=97.32, name="pane_supervisory", lyric="To S, to M",
+         ops=["S", "M", "支付矩阵"], mascot=False,
+         sub="委托人 S 选行 · 代理人 M 选列"),
     dict(at=98.93, name="pane_motif_lattice", lyric="So we can enter",
          ops=["LATTICE", "TRANCE"], mascot=False, sub="向消失点收缩，入口在深处"),
     dict(at=101.13, name="pane_motif_moire", lyric="The trance, the trance",
@@ -841,8 +849,10 @@ THEME_PINS: list[tuple[float, str, str, str]] = [
     # `_ex_timeline` 按时刻自己切两段内容——**不合并成一行**（批 119 的教训：一行演两张画会叠）。
     (50.95, "pane_exchange", "timeline", "一条路走到今天：1938 → 1957 → 1970 → 2026"),
     (52.99, "pane_exchange", "timeline", "同一块地方，换了三个名字：汉长安 → 唐长安 → 西安"),
-    # 角色 S/M：字形互换 —— 与 F→M 是同一台机器上的另一次翻位
-    (97.32, "pane_exchange", "letters", "S 与 M：一个字的两个身份，来回翻"),
+    # 角色 S/M：字形互换 —— 与 F→M 是同一台机器上的另一次翻位。
+    # **批 133 撤掉了这条钉子**（清单第 31 条）：`To S, to M`(97.32) 改成**监察博弈支付矩阵**
+    # （新 pane `pane_supervisory`），不再是"一个字的两个身份"。钉子留着会把新 pane 顶掉。
+    # 字形互换那件事本身还在 `pane_exchange` 的 `letters` 面板里，只是不再占这一句歌词。
 ]
 # **注意：不要再给 47.27（辫群）加钉子**（批 119 我加过一次，立刻出错）：`pinned_row` 的匹配方式
 # 是"哪一行的 `at..end` 覆盖这个时刻"，而它取的是**排期表里那一行的跨度**；47.27 那一行**自己
