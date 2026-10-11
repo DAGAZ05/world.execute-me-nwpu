@@ -4525,13 +4525,15 @@ def _draw_ifthen_frame(s: Screen, t: float) -> bool:
         return False
     try:
         import school_scenes as _SC
-        # **先擦上一帧的框**（批 111）：这一帧不该有框时也必须擦，否则旧框会留在画面上
-        # （右栏不是整体重绘的）。所以擦的动作在 `_ifthen_wanted` 门前，不能放在门后——
-        # 第一版就放在门后，于是 `Switch my current`(44.04 起) 那一屏上旧框一直挂着。
-        _SC._ifthen_erase(s, 0, s.cols - 1)
+        x0, _y0, x1, y1 = PANE_BOX
+        # **擦的范围必须就是框自己那一段**（批 115）。**这一条是我上一批的直接错误**：
+        # 我写的是 `_ifthen_erase(s, 0, s.cols - 1)`——**整行**，而框只占 `PANE_BOX` 那一段。
+        # 于是每一帧都把整行（含画图栏之外的格子）擦成空白：9.4 s 那一屏的何尊大图横跨左右，
+        # 中间三行被我整行擦掉，屏幕上就是**三条黑带**（用户："中间几行直接全黑了"）。
+        # 擦把范围收进 pane 之内之后，pane 之外一个格子都不动。
+        _SC._ifthen_erase(s, x0, x1)
         if not _SC._ifthen_wanted(t):
             return False
-        x0, _y0, x1, y1 = PANE_BOX
         if x1 - x0 < 16 or y1 - _y0 < 16:
             return False
         top = max(_y0 + 1, _SC.IFTHEN_TOP_ROW)
