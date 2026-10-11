@@ -5439,6 +5439,15 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
         _repaint_pane(s, t)
     except Exception as exc:
         print(f"warning: the pane repaint failed ({exc})", file=sys.stderr, flush=True)
+    # **最顶那一趟**（批 130，清单第 56 条）：用户："学院部分图书馆动画被 stdout panel 遮盖了一点，
+    # 应置于最上图层"。标了 `topmost` 的整帧事件在这里跑——排在 `fx_apply` 的后期、IF/THEN 框、
+    # 99% 进度条、`_repaint_pane` 之后，也就是**整帧的最后一层**。
+    if SP is not None and VAR[0] == "school":
+        try:
+            import school_fx as _FXt
+            _FXt.draw_top(s, cols, rows, t)
+        except Exception as exc:
+            print(f"warning: the topmost layer failed ({exc})", file=sys.stderr, flush=True)
     s.normalise()
 
 

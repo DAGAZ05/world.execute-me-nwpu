@@ -2250,7 +2250,7 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     #     **插画**而不是底纹，所以走第二趟（`behind` 为假 ⇒ 与 crest / stand 同批，画在台词之后），
     #     并且保留 `dim=0.62` 的压暗——它仍然是一张夜景照片，不该抢字的对比。
     (193.50, 197.50, flash, dict(name="library", fill=0.62, x=0.0, y=0.78, behind=False,
-                                 dim=0.62, contrast=1.1)),
+                                 dim=0.62, contrast=1.1, topmost=True)),
     # --- the whole body, once, on the last line of the song: he has been a face in the window for three
     #     and a half minutes and this is the only place the film shows that he has legs. He stands on the
     #     **right**, which is the chat window's side after the 02:16.9 swap - the user asked for the left
@@ -2354,6 +2354,8 @@ def draw(s, cols: int, rows: int, t: float, words=None) -> int:
     n = 0
     behind = False
     for start, end, fn, kw in EVENTS:
+        if kw.get("topmost"):
+            continue                      # 走 `draw_top`（整帧最后那一趟）
         a, b = _snap(start, end) if _BEAT[0] else (start, end)
         if kw.get("behind") and a <= t < b:
             _run(s, cols, rows, t, a, b, fn, kw)
@@ -2362,11 +2364,37 @@ def draw(s, cols: int, rows: int, t: float, words=None) -> int:
     if behind and words is not None:
         words()
     for start, end, fn, kw in EVENTS:
+        if kw.get("topmost"):
+            continue
         a, b = _snap(start, end) if _BEAT[0] else (start, end)
         if not kw.get("behind") and a <= t < b:
             _run(s, cols, rows, t, a, b, fn, kw)
             n += 1
     # the character art is not on the event list: it is printed when its own pane is up
+    return n
+
+
+def draw_top(s, cols: int, rows: int, t: float) -> int:
+    """**最顶那一趟**：只跑标了 `topmost` 的事件，由 `tui_live.draw` 在整帧最后调用。
+
+    为什么另开一趟（清单第 56 条）：用户："学院部分图书馆动画被 stdout panel 遮盖了一点，
+    应置于最上图层"。图书馆（193.50-197.50）是 `fill=0.62, x=0.0, y=0.78` 的一张夜景照片，
+    它的矩形正盖在左下那个 `exec` 面板上；而 `exec` 面板的**框线**是 `_band_restore`
+    （`behind` 照片与其余事件之间那一趟）画出来的——照片压在它上面，暗处（被 `_key_out_paper`
+    抠掉的纸色）就把框线露出来，看起来就是"被 stdout panel 遮住一点"。
+
+    放在 `draw` 外面单独一趟，是因为它要排在**所有**层之后：`fx_apply` 的后期、IF/THEN 框、
+    卡在 99% 的进度条、以及 `_repaint_pane` 那些"该置顶的 pane"。`draw` 自己跑在
+    `draw_body` 之后但早于这几步，所以标 `topmost` 的事件不能留在 `draw` 里。
+    """
+    n = 0
+    for start, end, fn, kw in EVENTS:
+        if not kw.get("topmost"):
+            continue
+        a, b = _snap(start, end) if _BEAT[0] else (start, end)
+        if a <= t < b:
+            _run(s, cols, rows, t, a, b, fn, kw)
+            n += 1
     return n
 
 
@@ -2379,6 +2407,10 @@ def _run(s, cols: int, rows: int, t: float, start: float, end: float, fn, kw: di
     explain it. `_BROKEN` keeps it to one line per event rather than one per frame at 24 fps.
     """
     try:
+        # `topmost` 只是**路由键**（这一趟由 `draw_top` 跑），不是事件的参数——不剥掉的话
+        # `flash() got an unexpected keyword argument 'topmost'`，整幅照片就不画了（实测那一次
+        # `exec` 框完整露出来，等于图书馆没上屏）。
+        kw = {k: v for k, v in kw.items() if k != "topmost"}
         fn(s, cols, rows, t, (t - start) / max(1e-6, end - start), **kw)
     except Exception as exc:
         if fn not in _BROKEN:
