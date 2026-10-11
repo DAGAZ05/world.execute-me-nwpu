@@ -406,10 +406,20 @@ LANDMARK_ROWS: list[dict] = [
     # motif, on the line each belongs to rather than all four small at once for twelve seconds.
     dict(at=41.92, name="pane_exchange", lyric="Switch my current",
          ops=["XOR", "F\u2192M", "3 bits"], mascot=False, args=dict(panel="bits"), sub="三位取反：电流从 F 换向 M"),
+    # AC/DC：用户批 119（清单第 25 条）"动画框内展出应当是直流、交流电示意" ⇒ `panel="acdc"`。
     dict(at=45.52, name="pane_exchange", lyric="To AC, to DC",
-         ops=["12h", "AM/PM"], mascot=False, args=dict(panel="clock"), sub="12 小时钟面：AC 与 DC 各半圈"),
+         ops=["AC", "DC", "RECTIFY"], mascot=False, args=dict(panel="acdc"),
+         sub="\u4ea4\u6d41\u53d8\u76f4\u6d41\uff1a\u6574\u6d41 \u2192 \u6ee4\u6ce2"),
+    # 辫群（对应 `and then blind my vision`）。
     dict(at=47.27, name="pane_exchange", lyric="And then blind my vision",
-         ops=["\u03c31", "BRAID"], mascot=False, args=dict(panel="braid"), sub="两股线一交叉，视线就断了"),
+         ops=["\u03c31", "BRAID"], mascot=False, args=dict(panel="braid"),
+         sub="\u4e24\u80a1\u7ebf\u4e00\u4ea4\u53c9\uff0c\u89c6\u7ebf\u5c31\u65ad\u4e86"),
+    # **`so dizzy, so dizzy`（49.11）单独一行**（批 119，清单第 27 条）：它原来落在上面那一行里，
+    # 于是同一行要演"辫群"和"向日葵叶序"两张**不同的画**——pane 的格子不会自己清，两段笔迹会叠。
+    # 分成两行，各画各的。叶序**框内不留文字**（`phyllotaxis(titles=False)`）。
+    dict(at=49.11, name="pane_exchange", lyric="So dizzy, so dizzy",
+         ops=["PHYLLO", "137.5\u00b0"], mascot=False, args=dict(panel="phyllo"),
+         sub="\u5411\u65e5\u8475\u53f6\u5e8f"),
     dict(at=50.95, name="pane_exchange", lyric="Oh, we can travel",
          ops=["|x|^n", "SUPERELLIPSE"], mascot=False, args=dict(panel="hyper"), sub="换个 n，圆就走到更远"),
     # Acts 1 and 2 only (`max_phase=1`): `unite` shows the hands approaching and `deeply` the star
@@ -763,11 +773,20 @@ THEME_PINS: list[tuple[float, str, str, str]] = [
     (93.52, "pane_exchange", "clock", "12 小时钟面：一天被这半圈覆盖两次"),
     # F→M：三位取反的两个名字 —— 字面念出 F 与 M 的这一行
     (89.91, "pane_exchange", "bits", "F 与 M 只差三位：翻过去还能翻回来"),
-    # AC/DC：电流的两个名字 —— 保留在它原本的行上（用户只是说"没对应"，改成钟面反而是错的）
-    (45.52, "pane_exchange", "hyper", "AC 与 DC：同一股电流的两个名字"),
+    # AC/DC：电流的两个名字 —— **内容改成交流/直流示意**（批 119，清单第 25 条："scene18 歌词
+    # to ac to dc，但动画框抬头你写的是超椭圆，动画框内展出应当是直流、交流电示意，请修改抬头
+    # 及内容"）。原来钉的是 `hyper`（超椭圆），与歌词无关；现在换成 `acdc`
+    # （`school_scenes._ex_acdc` = 全波整流 + RC 滤波，抬头"交流 → 直流"）。
+    # 钟面（`clock`）仍然留在它自己那一行 93.52 `From AM to PM` 上——用户点名过那里要它。
+    (45.52, "pane_exchange", "acdc", "交流变直流：整流 → 滤波"),
     # 角色 S/M：字形互换 —— 与 F→M 是同一台机器上的另一次翻位
     (97.32, "pane_exchange", "letters", "S 与 M：一个字的两个身份，来回翻"),
 ]
+# **注意：不要再给 47.27（辫群）加钉子**（批 119 我加过一次，立刻出错）：`pinned_row` 的匹配方式
+# 是"哪一行的 `at..end` 覆盖这个时刻"，而它取的是**排期表里那一行的跨度**；47.27 那一行**自己
+# 已经写着 `args=dict(panel="braid")`**，再钉一次只会把 `49.11` 那条 `so dizzy` 行**盖掉**
+# （钉子记录的 `end` 是 47.27 那行的 end=49.11，于是 49.6 也落进钉子、`panel` 被改成 braid，
+# 叶序就画不出来）。钉子只用来**纠正歌词与面板不对应**，不需要纠正的行不要钉。
 
 
 _PINS: dict = {}

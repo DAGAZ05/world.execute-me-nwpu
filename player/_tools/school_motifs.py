@@ -139,19 +139,32 @@ def rectifier(k, t: float) -> None:
           _mix(_C.AMBER, 0.7))
 
 
-def phyllotaxis(k, t: float) -> None:
+def phyllotaxis(k, t: float, titles: bool = True) -> None:
     """Sunflower phyllotaxis: `r = c\u221an`, `\u03b8 = n \u00b7 137.508\u00b0`, and the spiral nobody
     programmed.
 
     The golden angle is why the seeds do not line up: it is the worst-approximable number, so each
     seed lands in the largest gap left. Drawn as dots by density, turning slowly, because a still
     phyllotaxis looks like a mistake and a turning one looks inevitable.
+
+    `titles=False` 时**不写任何文字**（只留花的纹样）。用户批 119 对 `so dizzy, so dizzy`
+    那一处的要求是"对应动画改为之前的向日葵叶序（**框内的文字去掉**）"，所以那里传 False。
+    默认 True，`MOTIFS` 里那个叶序 pane（第一处间奏）保持原样。
     """
-    k.section(k.by0, "\u5411\u65e5\u8475\u53f6\u5e8f \u03b8 = n \u00b7 137.508\u00b0", 0.28)
+    if titles:
+        k.section(k.by0, "\u5411\u65e5\u8475\u53f6\u5e8f \u03b8 = n \u00b7 137.508\u00b0", 0.28)
     cx = k.bx0 + min(20, k.bw // 2)
-    cy = (k.by0 + k.by1) // 2
-    rw = max(3, min(16, k.bw // 4))
-    rh = max(2, min(14, (k.by1 - k.by0) // 3))
+    # 竖直居中，并用 `rh` 把花放进可用高度里（原来 `cy = (by0+by1)//2` 之后靠 `rh` 自己夹，
+    # 但 `rh` 太大时点会落到上下边界外、被 `if k.bx0 <= x <= k.bx1` 那一条过滤掉一大半）
+    cy = (k.by0 + k.by1 + 1) // 2
+    # **半径要跟着这个 pane 自己的尺寸缩放**（批 119）。原来写 `min(16, bw // 4)` /
+    # `min(14, bh // 3)`——那是按"整宽 pane"估的，放到小矩形（`so dizzy` 那一处只有 118x17、
+    # 而且 `_Kit` 还占掉两行）里，`bh // 3` 只有 3，花的半径被压到 3 格，看上去"没画出来"。
+    # 现在取"可用尺寸的比例"，并留出右侧说明/不贴边。
+    avail_h = max(2, (k.by1 - k.by0) // 2)
+    avail_w = max(3, k.bw // 4)
+    rw = max(4, min(avail_w, avail_h * 2))
+    rh = max(3, min(avail_h, max(3, rw // 2)))
     if rh < 2:
         return
     ga = math.radians(137.507764)
@@ -165,6 +178,8 @@ def phyllotaxis(k, t: float) -> None:
         if k.bx0 <= x <= k.bx1 and k.by0 <= y <= k.by1:
             k.put(x, y, "\u00b7" if i % 3 else "\u2022",
                   _mix(_C.AMBER if i % 8 else _C.GREEN, 0.4 + 0.5 * (i / n)))
+    if not titles:
+        return          # 只留花的纹样（`so dizzy, so dizzy` 那一处的要求）
     k.put(k.bx0 + 2 * rw + 3, cy - 2, "137.508\u00b0 = 360\u00b0 \u00d7 (1 \u2212 1/\u03c6)", _ui(0.55))
     k.put(k.bx0 + 2 * rw + 3, cy - 1, "\u9ec4\u91d1\u89d2\uff1a\u6700\u96be\u8fd1\u4f3c\u7684\u65e0\u7406\u6570", _ui(0.5))
     k.put(k.bx0 + 2 * rw + 3, cy, "\u6240\u4ee5\u6bcf\u4e00\u7c92\u90fd\u843d\u5728", _ui(0.5))

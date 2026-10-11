@@ -1746,6 +1746,32 @@ _SIN_LIMIT_FROM = 40.36
 _SIN_LIMIT_TO = 44.04
 
 
+#: `To AC, to DC`（45.52）—— 用户批 119，清单第 25 条："scene18 歌词 to ac to dc，但动画框抬头
+#: 你写的是超椭圆，动画框内展出应当是直流、交流电示意，请修改抬头及内容"。
+ACDC_FROM, ACDC_TO = 45.52, 47.27
+
+
+def _ex_acdc(k, t: float, u: float) -> None:
+    """交流 → 直流：全波整流 + 电容滤波。
+
+    用现成的 `school_motifs.rectifier`（`|sin|` 进去、带纹波的平线出来），**抬头换成
+    `交流 → 直流`**——用户点名的是"抬头写的是超椭圆"这件事，而 `rectifier` 自己会写
+    `全波整流 |sin| · RC 滤波`，所以画完再把抬头改回这一屏的说法。
+
+    **不要碰 `PANE_SUB`**：那是调用方的值（排期行的 `sub`，`_dev/pane_probe.py` 会把它的标记串
+    放进去再在画面上找）。我在批 114 已经踩过一次这个坑，这次不再犯。
+    """
+    import school_motifs as _M
+    _M.rectifier(k, t)
+    k.section(k.by0, "\u4ea4\u6d41 \u2192 \u76f4\u6d41", 0.25)
+
+
+def _ex_phyllo(k, t: float, u: float) -> None:
+    """`so dizzy, so dizzy`：向日葵叶序，**框内不留文字**（清单第 27 条）。"""
+    import school_motifs as _M
+    _M.phyllotaxis(k, t, titles=False)
+
+
 def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
     """互换: four things that are the same thing twice, on the lines about switching roles.
 
@@ -1761,7 +1787,13 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
     # 这个 pane 的四个小面板说的是四件不同的事，抬头写死 "互换" 时，画着钟面的框上写的是"互换"。
     # 所以每个 `panel` 带自己的名字，`panel=""`（四格并排那一种）才用 "互换"。
     TITLE = {"bits": "F \u2192 M \u00b7 3 \u4f4d", "clock": "12 \u5c0f\u65f6 \u00b7 \u53cc\u91cd\u8986\u76d6",
-             "braid": "\u03c31 \u00b7 \u7f16\u7ec7", "hyper": "\u8d85\u692d\u5706",
+             # **`braid` 的抬头要写"辫群"**（批 119，清单第 27 条："动画框抬头没有写辫群，加上"）：
+             # 原来只有 `σ1 · 编织`，读者看不出这是辫群。`_ex_braid` 自己的 `k.section` 写的是
+             # `辫群 σ1 · 可逆`，两处说法不一致，这里统一成它那一个。
+             "braid": "\u8fab\u7fa4 \u03c31 \u00b7 \u53ef\u9006",
+             "hyper": "\u8d85\u692d\u5706",
+             "acdc": "\u4ea4\u6d41 \u2192 \u76f4\u6d41",
+             "phyllo": "\u5411\u65e5\u8475\u53f6\u5e8f",
              "letters": "S \u2192 M \u00b7 \u5b57\u5f62\u7ffb\u4f4d"}
     # **抬头要和里面画的东西一致**（批 98e 的规矩，批 111 又用到一次）：40.36-45.52 这一段
     # 里面画的是 `sin x / x`（见下），所以抬头这时不能还写 `F → M · 3 位`——那是 `panel="bits"`
@@ -1793,15 +1825,18 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
     # of them the line it belongs to: the bit flip on "Switch my current", the clock on "To AC, to DC",
     # the braid on "blind my vision", the superellipse on "we can travel".
     one = {"bits": _ex_bits, "clock": _ex_clock, "braid": _ex_braid, "hyper": _ex_hyper,
-           "letters": _ex_letters}.get(panel)
+           "acdc": _ex_acdc, "phyllo": _ex_phyllo, "letters": _ex_letters}.get(panel)
     if one is not None:
         # **先撒装饰、后画主体**（批 98f）。原来的顺序是反的（主体先、装饰后），而 `_motes` 的
         # 判据是 `_C.blank`——"这一格还是空的"。主体画完之后它照样认为别处是空的，于是那些
         # 字母/motes 会**落在主体上面**：实测 SM 点阵被 `S`/`M` 碎字盖住（出图 `pane_0097.32.png`）。
         # 装饰是烘托，不该压主体。
-        _motes(k, {"bits": "01", "clock": "o\u00b7", "braid": "/\\",
-                   "hyper": "o\u00b7\u00b7", "letters": "S M \u00b7"}.get(panel, "\u00b7"),
-               t, level=0.34, seed=13)
+        # **`phyllo` 一格完全不要装饰**（批 119，清单第 27 条："框内的文字去掉"）：叶序是点阵，
+        # 空白格很多，`_motes` 会把 `+# < * : }^ ;` 这类字符直接落在花上，那就是"框内有文字"。
+        if panel != "phyllo":
+            _motes(k, {"bits": "01", "clock": "o\u00b7", "braid": "/\\",
+                       "hyper": "o\u00b7\u00b7", "letters": "S M \u00b7"}.get(panel, "\u00b7"),
+                   t, level=0.34, seed=13)
         one(k, t, u)
         return
     # Four columns when the pane is wide enough for all of them, three when it is not, one when it is
