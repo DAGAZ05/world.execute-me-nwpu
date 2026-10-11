@@ -611,20 +611,34 @@ def draw(s, x0: int, y0: int, x1: int, y1: int, t: float, g: Game,
                 if lane_x0 <= x + k <= lane_x1:
                     s.set_cell(x + k, yy, ch, col, bg)
                     drawn += 1
-    # --- 面板上方（框内最后一行留给判定线，所以反馈写在键道与判定线之间那段空行的左侧）
+    # --- 反馈写在**左边**（批 104，用户："敲击状态的文字提示放在左边，不要像现在一样放在右边，
+    #     并且敲击提示中应包含具体哪个键位（明明之前是对的，你为什么越改越错了）"）。
+    #     批 103 我为了让变长的 `HOLD OK` 不撞音符，把它右对齐了——那是把"看得见"换成了"放得下"，
+    #     方向错了：提示的第一要求是能被看到，键名也必须带上（`MISS J` 比 `MISS` 有用得多）。
+    #     现在恢复左对齐（`x0 + 2`，第一行对齐键名那一列）并**一律附加键位**。
+    #     下面还有一条**长按进度条**，它才是"到底是过了还是没过"的实时答案。
     if g.flash is not None and t - g.flash[0] < 0.5:
         word, lane = g.flash[1], g.flash[2]
-        # 四个词一套色：`HOLD OK`（头接住、还按着）用金色，`OK`（长按送到底）用青绿，
-        # `HOLD 断` / `MISS` 用橙红，`PERFECT`/`GOOD` 用各自的淡出色。
         col = {"PERFECT": FADE_COL["PERFECT"], "GOOD": FADE_COL["GOOD"],
                "HOLD OK": (255, 214, 120), "OK": FADE_COL["GOOD"],
                "HOLD \u65ad": FADE_COL["MISS"]}.get(word, anom)
-        # **右对齐贴住判定线**（批 103）：`HOLD OK` / `HOLD 断` 比 `MISS` 长，
-        # 左对齐会伸进音符滚动的那一段；贴右边缘则始终落在判定线旁边那块空处。
         yy = min(y1 - 1, body_top + len(labels) * nrow - 1)
-        width = sum(2 if ord(c) > 0x2E80 else 1 for c in word)
-        s.put(max(x0 + 2, lane_x1 - width - 5), yy, word, col)
-        drawn += width + 4
+        s.put(x0 + 2, yy, f"{word} {LANE_LABEL.get(lane, lane).upper()}", col)
+        drawn += len(word) + 4
+    # --- **正在按着的长按**：画一条从按下处走到尾巴的进度（同一行、靠右，不覆盖左边的词）
+    for ln, idx in list(getattr(g, "held", {}).items()):
+        if ln not in lane_y:
+            continue
+        note = g.notes[idx]
+        done_k = _clamp((t - note["t"]) / max(1e-6, note["dur"]), 0.0, 1.0)
+        yy = min(y1 - 1, body_top + len(labels) * nrow - 1)
+        bx = x0 + 22
+        bw = max(6, lane_x1 - bx - 2)
+        s.put(bx, yy, "HOLD " + LANE_LABEL.get(ln, ln).upper(),
+              (255, 214, 120))
+        s.put(bx + 7, yy, "\u2500" * bw, ui(0.25))
+        s.put(bx + 7, yy, "\u2588" * int(round(bw * done_k)), (255, 214, 120))
+        drawn += bw + 8
     return drawn
 
 
