@@ -351,8 +351,13 @@ SHOT_ROWS: list[dict] = [
     # pane's own third stage already was.
     dict(at=33.01, name="pane_polyhedra", lyric="If I'm a circle",
          ops=["n \u2192 \u221e", "2\u03c0r", "CIRCLE"], mascot=False, sub="圆是 n→∞ 的超椭圆"),
+    # **抬头与 ops 跟着画面改**（批 107）：这一行跨两条歌词——
+    # `If I'm a sine wave`（36.77-40.36）与 **`If I approach infinity`（40.36-41.92）**。
+    # 后半段画的是 `sin x / x`（用户："请改为函数 sin x / x…并在框内进行文字说明"），
+    # 所以抬头不能再写"波与它的全部切线"，ops 也不能再写 ENVELOPE。
     dict(at=36.77, name="pane_motif_sine", lyric="If I'm a sine wave",
-         ops=["正弦", "ENVELOPE"], mascot=False, sub="波与它的全部切线，都给你"),
+         ops=["正弦", "sin x / x", "趋近 0"], mascot=False,
+         sub="sin x / x：振荡在衰减，极限是 0"),
     # The overlay stops at the end of P1 and the film's own 97-shot table takes the column back from
     # here to the end of the song. That is not a gap left by accident: a school pane only exists where
     # the school content exists, and the alternative - holding the last pane on screen for 166 seconds

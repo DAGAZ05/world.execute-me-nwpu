@@ -249,9 +249,12 @@ def pane_class(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
 def pane_parameters(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     """`Fill in my data parameters` (7.19 s): a real parameter table, filled a cell at a time.
 
-    The right-hand column carries the *source* of each value, and that is the point of the shot: the
-    film's own panels are all measured, and this variant keeps that promise. Every figure here is
-    from `02_叙事设计.md` §9, which quotes the school's own site, data as of 2026-08-05.
+    **右侧不再有"校史/官网"那一列**（批 107，用户："动画框（此时是参数表）被遮盖，需要将动画框内
+    展示内容右移，完整露出内容，去掉动画框内右侧的'校史''官网'字样"）。那一列原来贴右边缘
+    （`x1 - len(src) - 1`），而右下角还摆着何尊的浮雕（见下面那段），两者在同一块地盘上——
+    表被压着、字也读不全。删掉来源列之后，值那一列可以往左收一点（`x0 + 12` → `x0 + 13`），
+    整个表就完整露出来了。每个数字仍然来自 `02_叙事设计.md` §9（引用学校官网，数据截至 2026-08-05），
+    只是不再逐行标出处。
     """
     # The user's own four years (batch 34). `\u2605` is the major's spine - the courses this variant
     # treats as the software college - and every other line is a course that runs beside them; the footer
@@ -271,22 +274,24 @@ def pane_parameters(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         at = 0.04 + 0.86 * (i / max(1, n - 1))
         if u < at:
             continue
-        k, v, src = rows[i]
+        k, v, _src = rows[i]
         s.put(x0 + 1, y0 + i, f"{k:<10}"[: max(0, w - 4)], _ui(0.7))
         if w >= 16:
-            s.put(x0 + 12, y0 + i, v[: max(0, w - 16)], _mix(ME_TEXT, 0.9))
-        if w >= 24:
-            s.put(x1 - len(src) - 1, y0 + i, src, _ui(0.4))
+            s.put(x0 + 13, y0 + i, v[: max(0, w - 17)], _mix(ME_TEXT, 0.9))
     # the table is being filled: a cursor walks its rows on the song clock (see `pane_class`)
     if n:
         s.put(x0, y0 + int(t * 2.0) % n, ">", _mix(ANOM, 0.7))
-    # the source of the oldest value in the table, drawn beside it: 何尊 is where "中国" is first
-    # written down, so it annotates the table rather than replacing it (see `LANDMARK_ROWS`)
-    if w >= 34 and h >= 8:
+    # 何尊浮雕：**缩小并挪到右上角**（批 107）。原来它是 `(x0+w-18, y0+h-8, x1-1, y1-1)`，
+    # 在这块 97 宽的 pane 里最后一个参数是 `max(0, h-8)` = 第 8 行、18 列宽——而 pane 只有 11 行高，
+    # 于是这块 18×8 的图正好压在参数表右边那一半上（用户："动画框（此时是参数表）被遮盖，
+    # 需要将动画框内展示内容右移，完整露出内容"）。现在：**右上角、16 列 × 7 行**，
+    # 参数表七行全部露出来。
+    if w >= 44 and h >= 9:
         try:
             from PIL import Image as _I  # noqa: F401
             import school_sculpture as SC
-            box = (x0 + w - 18, y0 + max(0, h - 8), x1 - 1, y1 - 1)
+            bw, bh = 16, 7
+            box = (x0 + w - bw - 1, y0, x1 - 1, y0 + bh)
             if SC.has("he_zun") and box[2] - box[0] >= 8 and box[3] - box[1] >= 3:
                 got = SC.glyph_cells("he_zun", box[2] - box[0] + 1, box[3] - box[1] + 1)
                 if got:
@@ -294,15 +299,15 @@ def pane_parameters(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
                     # ...and only if there is ink in it: at the 18x8 box this leaves, the carried 何尊
                     # measured 0 of 144 cells - a picture that is not there, drawn anyway
                     inked = sum(1 for r in range(ch) for c in range(cw) if cells[r][c] is not None)
-                    if inked < max(8, cw * ch // 20):
-                        return
-                    for r in range(ch):
-                        for c in range(cw):
-                            cell = cells[r][c]
-                            if cell is None:
-                                continue
-                            ch_, lv = cell
-                            s.put(box[0] + c, box[1] + r, ch_, _mix(ME_TEXT, 0.30 + 0.45 * (lv / 255)))
+                    if inked >= max(8, cw * ch // 20):
+                        for r in range(ch):
+                            for c in range(cw):
+                                cell = cells[r][c]
+                                if cell is None:
+                                    continue
+                                ch_, lv = cell
+                                s.put(box[0] + c, box[1] + r, ch_,
+                                      _mix(ME_TEXT, 0.30 + 0.45 * (lv / 255)))
         except Exception:
             pass
 

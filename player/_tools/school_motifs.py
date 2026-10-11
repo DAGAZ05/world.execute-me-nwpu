@@ -483,16 +483,25 @@ def matrix(k, t: float) -> None:
     share**, on the line that introduces the film's maths ("If I'm a set of points": a matrix is what you
     do to a set of points, row by row).
 
-    What is on screen is the definition rather than a picture of one: `A` is a 5x5 matrix of real integers
-    and `x = (1, 2, 3, 4, 5)`, so `b_i = sum_j a_ij x_j` is arithmetic a reader can check, and the
+    What is on screen is the definition rather than a picture of one: `A` is a 4x4 matrix of integers and
+    `x = (1, 2, 3, 4)`, so `b_i = sum_j a_ij x_j` is arithmetic a reader can check, and the
     highlight walks down the rows one cell per step - one row of `A` against the column `x`, which is the
     one operation every one of those four courses opens with (a linear system, an elimination step, a
     relation matrix, a dense layer).
+
+    **结果向量定成 `[1, 9, 3, 8]`**（批 107，用户："矩阵动画改一下矩阵、向量具体数值，使得结果向量值为
+    [1,9,3,8]"）。`A` 与 `x` 是**反过来解的**：先定 x=(1,2,3,4) 与 b=(1,9,3,8)，再逐行找一个绝对值最小、
+    零最多的整数解（`_dev/matrix_solve.py` 就是这一步，它顺手断言 A·x 真的等于目标）。四行都是
+    三两个小整数相加，读者能自己验：
+        -2 + 2 - 3 + 4 = 1      1 - 2 + 6 + 4 = 9      -2 - 2 + 3 + 4 = 3      -1 + 2 + 3 + 4 = 8
     """
     k.section(k.by0, "\u77e9\u9635 \u00b7 A\u00b7x = b\uff1a\u4e00\u884c\u70b9\u4e00\u5217", 0.28)
-    n = 5
-    a = [[(i * 7 + j * 3 + 1) % 9 - 4 for j in range(n)] for i in range(n)]
-    x = [i + 1 for i in range(n)]
+    n = 4
+    a = [[-2, 1, -1, 1],
+         [1, -1, 2, 1],
+         [-2, -1, 1, 1],
+         [-1, 1, 1, 1]]
+    x = [i + 1 for i in range(n)]                 # (1, 2, 3, 4)
     b = [sum(a[i][j] * x[j] for j in range(n)) for i in range(n)]
     at, end = _row_span("pane_motif_matrix")
     span = max(0.6, end - at)
@@ -818,48 +827,49 @@ def fork_bomb(k, t: float) -> None:
 
 
 def sine(k, t: float) -> None:
-    """`sin x` and its tangent envelope, drawn.
+    """`sin x / x` —— 一条**衰减振荡**，是"趋近无穷"这一句的字面图像（批 107）。
 
-    The user's note for this batch: "动图部分以视觉效果优先，比如优先画 sin(x) 的函数图像而不是写表达式
-    f=sin(x)". This is that note taken literally - the motif *is* the plot, and the only text on it is
-    the axis. `想法.md` asks for "sin θ 与切线包络" in the 定义 section, so the envelope is drawn too:
-    the two lines y=±1 that the curve touches, and the tangent at the point that is moving, which is
-    where the word "envelope" comes from.
+    用户："歌词 if I approach infinity，你在动画框中仍然使用的是正弦函数，请改为函数
+    sin x / x（动态效果展示，坐标轴原点向左移，即展示的 x 越来越大），并在框内进行文字说明：
+    lim x->∞ sin x / x = 0（这不是洛必达！）"。
+
+    三条都照做：
+
+    * 画的是 **y = sin x / x**（`x` 从 1 起，避开 x=0 那个可去奇点），x 轴**原点在左侧**
+      所以右侧展示的 x 越来越大、振幅按 1/x 收窄——这就是"approach infinity"的画面；
+    * 一条包络 ±1/x（把它夹到 0 的那两条线），比 ±1 更能说明"为什么趋于 0"；
+    * 框内写 `lim x->inf sin x / x = 0` 与 `（这不是洛必达！）`。
+
+    `x` 轴用 `→` 收尾，让"越往右 x 越大"这件事不用解释也看得见。
     """
-    k.section(k.by0, "sin x \u4e0e\u5207\u7ebf\u5305\u7edc", 0.28)
-    n = max(20, k.bw - 6)
+    k.section(k.by0, "sin x / x", 0.28)
+    n = max(20, k.bw - 8)
     hi, lo = k.by0 + 2, k.by1 - 3
     if lo - hi < 4:
         return
     mid = (hi + lo) // 2
     amp = max(2, (lo - hi) // 2 - 1)
-    k.hline(k.bx0, mid, k.bx0 + n - 1, BOX_H, _ui(0.18))
-    for i in range(n):                                   # the curve
-        x = k.bx0 + i
-        ph = (i / max(1, n - 1)) * 4 * math.pi + t * 0.9
-        y = mid - int(amp * math.sin(ph))
-        k.put(x, max(hi, min(lo, y)), "\u2022", _mix(_C.BLUE, 0.9))
-    k.hline(k.bx0, mid - amp, k.bx0 + n - 1, "\u00b7", _mix(_C.GREEN, 0.45))
-    k.hline(k.bx0, mid + amp, k.bx0 + n - 1, "\u00b7", _mix(_C.GREEN, 0.45))
-    k.put(k.bx0 + n - 10 if k.bw > 30 else k.bx0, mid - amp, "y = \u00b11", _mix(_C.GREEN, 0.8))
-    # the tangent at the moving point: the tangent to sin at p is y = cos(p)(x-p) + sin(p)
-    p = (t * 0.9) % (4 * math.pi)
-    i0 = int((p / (4 * math.pi)) * (n - 1))
-    # **The curve's own phase at that column**, not `p`: the curve is `sin(ph)` with
-    # `ph = i/(n-1)*4pi + t*0.9`, so evaluating the dot (and the tangent) at `p` puts the time term in
-    # twice and the red dot sits off the curve - which is what the user reported in batch 34
-    # ("sin 曲线红点的位置没有沿在曲线上").
-    ph0 = (i0 / max(1, n - 1)) * 4 * math.pi + t * 0.9
-    for i in range(n):                                   # only the stretch that is on screen
-        dx = i - i0
-        yy = math.sin(ph0) + math.cos(ph0) * (dx * (4 * math.pi / max(1, n - 1)))
-        y = mid - int(amp * yy)
-        if hi <= y <= lo:
-            k.put(k.bx0 + i, y, "\u2500", _mix(_C.AMBER, 0.55))
-    y0 = mid - int(amp * math.sin(ph0))
-    k.put(k.bx0 + i0, max(hi, min(lo, y0)), "\u25cf", _mix(_C.RED, 0.95))
-    k.put(k.bx0, k.by1, "\u66f2\u7ebf\u78b0\u5230\u7684\u4e24\u6761\u76f4\u7ebf\uff0c\u5c31\u662f\u5b83\u7684"
-                        "\u5305\u7edc", _ui(0.5))
+    # **x 轴**：原点在左（`k.bx0 + 2`），右端一个箭头表示 x 增大
+    x0_ax = k.bx0 + 2
+    k.hline(x0_ax, mid, k.bx0 + n + 1, BOX_H, _ui(0.18))
+    k.put(k.bx0 + n + 2, mid, "\u2192", _ui(0.35))
+    k.put(x0_ax, mid + 1, "0", _ui(0.45))
+    # **x 从 1 起**：sin x / x 在 x=0 是 1（可去奇点），画出来会有一个假的尖峰
+    for i in range(n):
+        x = 1.0 + (i / max(1, n - 1)) * 24.0          # x 从 1 走到 25
+        y = math.sin(x * 1.15 + t * 0.9) / x
+        yy = mid - int(amp * y * 2.4)
+        k.put(x0_ax + i, max(hi, min(lo, yy)), "\u2022", _mix(_C.BLUE, 0.9))
+    # 包络 ±k/x：它才是"为什么趋于 0"的说明
+    for i in range(n):
+        x = 1.0 + (i / max(1, n - 1)) * 24.0
+        e = min(1.0, 2.4 / x)
+        for sgn in (-1, 1):
+            yy = mid - int(amp * sgn * e)
+            if hi <= yy <= lo:
+                k.put(x0_ax + i, yy, "\u00b7", _mix(_C.GREEN, 0.42))
+    k.put(k.bx0, k.by1 - 1, "lim x->\u221e  sin x / x = 0", _mix(_C.AMBER, 0.95))
+    k.put(k.bx0, k.by1, "\uff08\u8fd9\u4e0d\u662f\u6d1b\u5fc5\u8fbe\uff01\uff09", _ui(0.55))
 
 
 def chladni(k, t: float) -> None:
