@@ -453,10 +453,13 @@ class Game:
             self.flash = (t, "GOOD", k)
         self.combo += 1
         self.best = max(self.best, self.combo)
-        # **长按**：按下就算拿到头（分数已给），尾巴归 `release` / `tick` 管
+        # **长按**：按下就算拿到头（分数已给），尾巴归 `release` / `tick` 管。
+        # **反馈词要说明"过没过"**（批 103，用户："遇到长按键时，显示 HOLD，到底是过了还是没过"）：
+        # 点头接住只是"头过了"，所以这里写 `HOLD OK`（读作"头已接住，还按住"），
+        # 尾巴按时送到再写 `OK`，松早了写 `HOLD 断`。三个词各自对应一个真实状态。
         if note.get("kind") == "hold":
             self.held[k] = best_i
-            self.flash = (t, "HOLD", k)
+            self.flash = (t, "HOLD OK", k)
         # `used` 只在 `tick` 里推进（它管的是"过期结算"），所以这里不移动它
         return True
 
@@ -481,13 +484,15 @@ class Game:
             # **松早了**：头那一分已经给了（在 `key` 里），尾巴这一分没有。
             self.hp += 1
             self.combo = 0
-            self.flash = (t, "断", k)
+            # 反馈词明说结果：`HOLD 断`（头过、尾巴没送到）
+            self.flash = (t, "HOLD 断", k)
         else:
             # 按到了尾巴：那 1 分记在 `htail`（**不能记进 `good`**——`good` 与 `perfect` 是互斥的
             # 两套记账，记进去就等于同一个长按拿了两份"音符分"，满分会爆）
             self.htail += 1
             self.combo += 1
             self.best = max(self.best, self.combo)
+            # 反馈词：`OK`（这一段按住完整送到了）
             self.flash = (t, "OK", k)
         return True
 
@@ -609,46 +614,110 @@ def draw(s, x0: int, y0: int, x1: int, y1: int, t: float, g: Game,
     # --- 面板上方（框内最后一行留给判定线，所以反馈写在键道与判定线之间那段空行的左侧）
     if g.flash is not None and t - g.flash[0] < 0.5:
         word, lane = g.flash[1], g.flash[2]
-        col = {"PERFECT": (255, 246, 190), "GOOD": (180, 255, 200)}.get(word, anom)
-        # 反馈写在最后一个键道那一块的最下一行（键名左边有 4 格空位，正好够一个词）
+        # 四个词一套色：`HOLD OK`（头接住、还按着）用金色，`OK`（长按送到底）用青绿，
+        # `HOLD 断` / `MISS` 用橙红，`PERFECT`/`GOOD` 用各自的淡出色。
+        col = {"PERFECT": FADE_COL["PERFECT"], "GOOD": FADE_COL["GOOD"],
+               "HOLD OK": (255, 214, 120), "OK": FADE_COL["GOOD"],
+               "HOLD \u65ad": FADE_COL["MISS"]}.get(word, anom)
+        # **右对齐贴住判定线**（批 103）：`HOLD OK` / `HOLD 断` 比 `MISS` 长，
+        # 左对齐会伸进音符滚动的那一段；贴右边缘则始终落在判定线旁边那块空处。
         yy = min(y1 - 1, body_top + len(labels) * nrow - 1)
-        s.put(x0 + 2, yy, f"{word} {LANE_LABEL.get(lane, lane)}", col)
-        drawn += len(word) + 4
+        width = sum(2 if ord(c) > 0x2E80 else 1 for c in word)
+        s.put(max(x0 + 2, lane_x1 - width - 5), yy, word, col)
+        drawn += width + 4
+    return drawn
+
+
+# 7 段数码管的段名；`DIGIT_SEG` 是每个数字点亮哪几段（`h` = 中横）。
+#: **结束界面的大号“电子屏”数字**（批 103，用户："总得分字体放大（可以弄成类似电子显示屏的样式，
+#: 即在'8'字符的基础上涂色表示数字）"）。做法就是这句话的字面意思：
+#: 每个数字用 `8` 的段位表，**点亮的段用 `█`、没点亮的段用 `░`**——于是"8"看起来是满的、
+#: "1"右边两束是暗的，读起来就是一块 LED 面板。
+DIGIT_SEG: dict[str, str] = {
+    "0": "abcfed", "1": "bc", "2": "abged", "3": "abgcd", "4": "fgbc",
+    "5": "afgcd", "6": "afgecd", "7": "abc", "8": "abcfged", "9": "abfgcd",
+    " ": "",
+}
+_DW, _DH = 4, 5                      # 一个数字 4 格宽、5 行高
+
+
+def _digit_cells(ch: str) -> list[list[bool]]:
+    """一个字符展开成 `_DH × _DW` 的点亮表。"""
+    on = DIGIT_SEG.get(ch, "")
+    g = [[False] * _DW for _ in range(_DH)]
+    if "a" in on:
+        g[0][1] = g[0][2] = True
+    if "b" in on:
+        g[1][3] = g[2][3] = True
+    if "c" in on:
+        g[3][3] = g[4][3] = True
+    if "d" in on:
+        g[4][1] = g[4][2] = True
+    if "e" in on:
+        g[3][0] = g[4][0] = True
+    if "f" in on:
+        g[1][0] = g[2][0] = True
+    if "g" in on:
+        g[2][1] = g[2][2] = True
+    return g
+
+
+def draw_big_number(s, text: str, cy: int, cx: int, lit, dim, bg) -> int:
+    """把 `text` 用"8 段涂色"的画法写在以 `cx` 为中心、`cy` 为顶行的位置上。返回画了多少格。"""
+    total = len(text) * (_DW + 1) - 1
+    x0 = max(0, cx - total // 2)
+    drawn = 0
+    for i, ch in enumerate(text):
+        cells = _digit_cells(ch)
+        bx = x0 + i * (_DW + 1)
+        for r in range(_DH):
+            for c in range(_DW):
+                if ch == " " or ch == "/":
+                    continue
+                s.set_cell(bx + c, cy + r, "\u2588" if cells[r][c] else "\u2591",
+                           lit if cells[r][c] else dim, bg)
+                drawn += 1
+        if ch == "/":
+            for r in range(_DH):
+                s.set_cell(bx + 1, cy + r, "/", dim, bg)
+                drawn += 1
     return drawn
 
 
 def draw_final(s, x0: int, y0: int, x1: int, y1: int, t: float, g: Game,
                ui, mix, me_text, bg, anom) -> None:
-    """结束界面：中央给总分与评语（用户要求"最后结束界面中央显示总得分，并根据得分区间写一句评价"）。
+    """结束界面：**屏幕正中**给总分与评语（用户："最后结束界面中央显示总得分…"，
+    批 103 又明确了："结束界面的得分统计放在屏幕正中央（当前在最下方），总得分字体放大"）。
 
-    **居中是相对整块屏幕，不是相对这个框**：框只占左列（1..98），而用户要的是"中央"——
-    结尾那两分钟屏幕其余部分是空的，所以整屏中心 `s.cols // 2` 才是该对齐的地方。
-    （第一版按框居中，文字落在 x≈113 而不是 98，肉眼看就是偏右。）
+    * **总分用大号电子屏数字**（`draw_big_number`）：`score` 与 `max` 两段，中间一个 `/`；
+    * 百分比、命中率、逐项计数、评语依次排在它下面；
+    * 整块**垂直居中**（`cy = (rows - 块高) // 2`），水平按整屏中心 `s.cols // 2`。
+      `draw_black` 的"在铸剑吗？"打在屏幕下部（`y1 - 4`），居中之后两者不再抢位置。
     """
     w = s.cols if getattr(s, "cols", 0) else (x1 - x0 + 1)
+    rows_n = s.rows if getattr(s, "rows", 0) else (y1 - y0 + 1)
     line, sub = g.verdict()
-    # **两个数字各自带单位**（批 100）：用户看到 `PERFECT+GOOD+MISS ≪ 720` 时合理地怀疑数字错了——
-    # 720 是**分数**（每个音符 2 分），102+129+129=360 是**音符个数**。所以总分与命中率分行写，
-    # 下面那行才是逐项计数，并且写明"每音符 2 分"。
-    big = f"score {g.score()} / {g.max_score()}   ({g.pct():.1f}%)   each note = 2"
     cx = w // 2
-    # **画在"在铸剑吗？"那一句下面**：`draw_black` 把那个问题打在屏幕下部的输入框里
-    # （`py = y0 + h - 4`），光标与 token 号在它下面两行。总分放在问题**上方**两行，
-    # 谁也不盖谁——第一版放在屏幕正中，用户说"总得分显示位置错误"。
-    cy = max(2, y1 - 9)
-    # **只用字体真的有的字符**：`—`（U+2014）在渲染器里是缺字方框，换成 ASCII 的 `-`。
-    rows = [(cy, "WORLD.EXECUTE(ME) - complete", ui(0.8)),
-            (cy + 1, big, (255, 246, 190)),
-            (cy + 2, f"hit rate {g.hits()} / {g.total}   ({100.0*g.hits()/max(1,g.total):.1f}%)",
-             mix(me_text, 0.85)),
-            (cy + 3, f"PERFECT {g.perfect}   GOOD {g.good}   MISS {g.miss}   "
-                     f"hold broken {g.hp}   best combo {g.best}", mix(me_text, 0.9)),
-            (cy + 4, line, (180, 255, 200)),
-            (cy + 5, sub, ui(0.62))]
+    # **按"内容区"居中，不是按整屏高**（批 103）：最下面 5 行是 footer（状态行 + 进度框），
+    # 任何内容都不该压到那里；所以可用高度是 `rows - 5`。
+    # 块高 = 大数字 5 + 百分比 2 + 逐项 1 + 评语 2 = 10 行。
+    avail = max(_DH + 6, rows_n - 5)
+    block_h = _DH + 5
+    cy = max(1, (avail - block_h) // 2 + 1)
+    lit, dim = (255, 246, 190), (120, 140, 190)
+    # --- 大号总分：`333 / 786`
+    draw_big_number(s, f"{g.score()}/{g.max_score()}", cy, cx, lit, dim, bg)
+    y = cy + _DH + 1
+    # --- 下面几行（间隔压紧为 1 行，块才真的居中）
+    rows = [(y, f"{g.pct():.1f}%   -   WORLD.EXECUTE(ME) complete", ui(0.8)),
+            (y + 1, f"hit rate {g.hits()} / {g.total}   "
+                    f"({100.0*g.hits()/max(1,g.total):.1f}%)", mix(me_text, 0.85)),
+            (y + 2, f"PERFECT {g.perfect}   GOOD {g.good}   MISS {g.miss}   "
+                    f"hold broken {g.hp}   best combo {g.best}", mix(me_text, 0.9)),
+            (y + 3, line, (180, 255, 200)),
+            (y + 4, sub, ui(0.62))]
     for yy, text, col in rows:
-        if not (0 <= yy < getattr(s, "rows", 10 ** 6)):
+        if not (0 <= yy < rows_n):
             continue
-        width = 0
-        for ch in text:
-            width += 2 if ord(ch) > 0x2E80 else 1
+        width = sum(2 if ord(c) > 0x2E80 else 1 for c in text)
         s.put(max(0, cx - width // 2), yy, text, col)

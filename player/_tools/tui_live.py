@@ -3858,32 +3858,42 @@ def draw_stuck_progress(s: Screen, x0: int, y0: int, x1: int, y1: int, t: float)
     finish. The fill is driven by the song's own clock rather than by the frame, so it is frame-rate
     independent and lands on the same number every run (`_dev/probe_stuckbar.py` asserts the plateau).
 
-    Its home is the stdout band, which is empty here on purpose: `Data.line_at` has nothing between
-    `Trapped in lo-o-ve`'s fade-out and the last `Execution`, so this fills a slot that the lyrics
-    deliberately leave open rather than covering anything.
+    **它的家在右栏抬头的空处，不在 stdout 栏**（批 103，用户："最后面有个 0%-99% 的进度条，
+    所在位置有些遮挡其他东西，挪到动画框抬头'西北工业大学'文字后"）。原来它画在 stdout 栏的最下面一行
+    （`s, 1, top, cols-2, bottom` 的 `y1-2`），而那一段的 stdout 栏不是空的——它压在鲸落/图书馆那些
+    画面上。抬头行的 `▏ 标题 · 说明` 之后到 `EXEC nn/nn` 标签之前是**真的空**（这一段
+    `pane_landmark_crest` 没有计数器），所以一行放得下 `099% ────  ✓ RUNNING`。
+    仍然由歌内时钟驱动，仍然是 99 就不动：`_dev/probe_stuckbar.py` 断言的就是这个平台。
     """
     w = x1 - x0 + 1
     if w < 24:
         return
-    bar_w = max(12, min(w - 10, 28))
-    bx = x0 + max(0, (w - bar_w - 6) // 2)
-    by = y1 - 2                                     # the box's own bottom row is y1: stay off it
-    if by <= y0:
-        return
     # the fill: 99% at 5 s into the fall, then flat. Never full.
     k = min(1.0, max(0.0, (t - WHALE_FALL_START) / SKILL_BAR_FILL))
-    filled = int(round(bar_w * 0.99 * k))
     # 变红的锚点是**最后那句 execution 自己的镜头**，不是任何章节号（见 LAST_EXEC_START 的说明）
     red = t >= LAST_EXEC_START
     colour = mix(RED if red else ME_TEXT, 1.0)
-    s.put(bx, by, "%03d%%" % int(round(99 * k)), colour)
-    s.put(bx + 5, by, "\u2500" * bar_w, ui(0.25))
+    pct = "%03d%%" % int(round(99 * k))
+    label = "EXECUTION" if red else ("RUNNING" if k >= 1.0 else "loading")
+    # **一行内右对齐**：`099% ──────── RUNNING`（标签最右，条在中间，百分比在前）。
+    bar_w = max(6, min(20, w - len(pct) - len(label) - 6))
+    total = len(pct) + 1 + bar_w + 1 + len(label)
+    if total > w:
+        bar_w = max(4, w - len(pct) - len(label) - 3)
+        total = len(pct) + 1 + bar_w + 1 + len(label)
+    if total > w:                                  # 太窄就只留百分比与标签
+        s.put(x1 - len(label) - len(pct) - 2, y0, pct + " " + label, colour)
+        return
+    bx = x1 - total
+    s.put(bx, y0, pct, colour)
+    fill_x = bx + len(pct) + 1
+    filled = int(round(bar_w * 0.99 * k))
+    s.put(fill_x, y0, "\u2500" * bar_w, ui(0.25))
     if filled:
-        s.put(bx + 5, by, "\u2588" * filled, colour)
+        s.put(fill_x, y0, "\u2588" * filled, colour)
     idle = 0.0 if k >= 1.0 else (0.35 + 0.65 * abs(math.sin(t * 6.0)))
-    s.put(bx + 5 + filled, by, "\u2591", mix(ANOM, idle))
-    # 标签也跟着换：停在 `RUNNING` 是"这个任务还在跑"的判词，红字出现时才配得上它
-    s.put(bx + 6 + bar_w, by, "EXECUTION" if red else ("RUNNING" if k >= 1.0 else "loading"),
+    s.put(fill_x + filled, y0, "\u2591", mix(ANOM, idle))
+    s.put(fill_x + bar_w + 1, y0, label,
           mix(RED, 1.0) if red else ui(0.45 + 0.3 * k))
 
 
@@ -5157,7 +5167,11 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
     # on `BLACK_START` rather than on `ent["name"]` also survives the shot's last frame, where `ent`
     # can still be the outgoing shot.
     if WHALE_FALL_START <= t < BLACK_START:
-        draw_stuck_progress(s, 1, top, cols - 2, bottom, t)
+        # **画在右栏的抬头行**（批 103）：`y0 = top` 就是 `▏ 标题 · 说明` 那一行，
+        # 进度条右对齐贴在它的空处（这一段 `pane_landmark_crest` 没有 `EXEC nn/nn` 计数器）。
+        # 原来画在 stdout 栏的底部，压住了那一屏自己的画面（用户："所在位置有些遮挡其他东西"）。
+        # 列的左右边界从**发布出来的 `PANE_BOX`** 取（`pane_x0/pane_x1` 是 `draw_body` 的局部名）。
+        draw_stuck_progress(s, PANE_BOX[0], top, PANE_BOX[2], top, t)
     # **...and the counted number goes on last** (batch 68). It belongs to the stdout box, but it is
     # allowed to run past it - that is the user's own note - so it cannot be drawn *inside* the band's
     # own pass: the box is redrawn by `_band_restore` when a `behind` photograph goes down, and the

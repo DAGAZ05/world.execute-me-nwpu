@@ -2192,7 +2192,15 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     #     歼-20 on "From AM to PM" (93.52): the one line in the song that is literally about crossing the
     #     sky, and the aircraft that a NWPU student is meant to read as this school's own. A real diagonal
     #     (dy 0.45, climbing left-to-right) rather than the shallow rail it was.
-    (91.60, 93.80, fly, dict(name="j20", y=0.62, rows_n=13, size=0, body=4, dy=-0.45)),
+    #
+    #     **基准行 0.62 → 0.34**（批 103，用户："歼20飞过时会被music panel遮挡，调整一下飞行轨迹"）：
+    #     音游面板占左列最下 6 行（y=42..47），而这架飞机的**前 60% 航程横跨左列**（x=1..98），
+    #     底行深到 44+，于是它正好从面板上穿过去。横向轨迹一个数没动（还是 dy -0.45 的斜向爬升），
+    #     只改了基准高度——`_fly_at` 是 `int(rows * y + dy * ...)`，**`rows * y` 越大越靠下，
+    #     所以"抬高"是减 `y`**（我先按加号改了一版，`_dev/j20_path_probe.py` 立刻把交集从
+    #     12/21 量成 26/41）。现在这条轨迹与面板矩形（左列 × 行 42..47）的**交集是 0/81**。
+    #     `y=0.34` 也是这条斜线能取的最低值：再大 0.02 就有点碰到面板的顶边（0.36 → 2/81）。
+    (91.60, 93.80, fly, dict(name="j20", y=0.34, rows_n=13, size=0, body=4, dy=-0.45)),
     # --- 总师文化: the five firsts, on the line that claims uniqueness. **No picture.** It was the gate
     #     again (70x22, then 139x44), and the user's note is that the gate and the crest each appear once
     #     - "校门、校徽的大图出现了多次，仅保留第一次". The line is carried by the right column, which has
