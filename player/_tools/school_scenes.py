@@ -2319,6 +2319,81 @@ def pane_supervisory(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
               "\u8f6e\u5230\u4ed6\u4e86", _ui(0.55))
 
 
+def pane_fourier(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
+    """**第一处间奏**（25.14-29.28）：傅里叶分解 —— 音乐分解成谐波（清单第 9 + 11 条）。
+
+    用户："scene12动画框沿用之前场景的动画，不要使用叶序（这段是间奏），改用傅里叶分析的动态图示
+    （音乐分解）"、"第一处间奏的动画内容为校徽 + 超椭圆 + 刚才的傅里叶分析 两部分"。
+    这一格原来挂的是 `pane_motif_phyllotaxis`（叶序）——**是这处间奏唯一错的东西**。
+
+    画的是**分解**这件事本身，左右两半：
+
+    * **左：谐波柱**。第 n 次谐波的振幅 `a_n`（按 `1/n` 衰减，再叠一个随歌走的调制），
+      柱高就是振幅——一眼看出"低频厚、高频薄"。
+    * **右：逐次累加**。第一根谐波单独画，然后把第 2、3… 根一根一根加进去；每加一根，
+      曲线就离目标波形近一点。这是傅里叶级数"逼近"的原始样子，不是一条画好的曲线。
+
+    `pane` 拿不到频谱（`school_motifs` 里也没有），所以波形由歌内时钟确定性生成——
+    同一秒永远同一幅，拉动进度条不会看到两种画面。
+    """
+    import school_courses as _C
+    k = _kit(s, x0, y0, x1, y1, 0, "\u5085\u91cc\u53f6\u5206\u89e3 \u00b7 \u97f3\u4e50\u5206\u89e3")
+    if k is None or k.bh < 8 or k.bw < 40:
+        return
+    lt0 = lt if lt is not None else 0.0
+    NH = 8                                   # 谐波根数
+    # 目标波形：一条"音乐"曲线（几个正弦叠出来的复合波形，随歌缓慢变形）
+    def wave(x: float) -> float:
+        v = 0.0
+        for n in range(1, NH + 1):
+            amp = 1.0 / n
+            v += amp * math.sin(n * x + 0.35 * n + 0.6 * math.sin(t * 0.4 + n * 0.7))
+        return v / 1.8
+
+    def partial(x: float, upto: int) -> float:
+        v = 0.0
+        for n in range(1, upto + 1):
+            amp = 1.0 / n
+            v += amp * math.sin(n * x + 0.35 * n + 0.6 * math.sin(t * 0.4 + n * 0.7))
+        return v / 1.8
+
+    # ---- 左半：谐波柱
+    bar_x = k.bx0
+    bar_y1 = k.by0 + 3 + max(6, k.bh // 2)
+    for n in range(1, NH + 1):
+        # **乘 8 必须写在 round 里面**（批 136）：原来是 round(v) * 8，round 先把振幅取整成
+        # 0 或 1，于是只有第 1 根柱有高度、第 2-8 根全是 0（实测整屏只有一列实心）。
+        v_amp = max(0.0, min(1.0, (1.0 / n) * (0.75 + 0.25 * math.sin(t * 1.7 + n))))
+        h = int(round(v_amp * 8))
+        bx = bar_x + (n - 1) * 4
+        if bx + 2 > k.bx0 + 40:
+            break
+        k.put(bx, k.by0 + 3, f"{n}", _ui(0.5))
+        for j in range(h):
+            k.put(bx + 1, bar_y1 - j, "\u2588", _mix(_C.BLUE, 0.45 + 0.5 * (j / max(1, h))))
+    k.put(bar_x, bar_y1 + 2, "\u7b2c n \u6b21\u8c10\u6ce2\u7684\u5e45\u5ea6 a_n", _ui(0.6))
+    # ---- 右半：逐次累加（每 0.35 s 添一根谐波）
+    steps = 1 + int(lt0 / 0.35)
+    upto = max(1, min(NH, steps))
+    plot_x = k.bx0 + min(44, k.bw // 2)
+    plot_w = max(12, k.bx1 - plot_x - 1)
+    cy = k.by0 + 3 + max(4, k.bh // 3)
+    scale = max(3, min(9, k.bh // 5))
+    for i in range(plot_w):
+        xx = (i / max(1, plot_w - 1)) * (2 * math.pi)
+        yv = int(cy - scale * partial(xx, upto))
+        yt = int(cy - scale * wave(xx))
+        if k.by0 + 2 <= yv <= k.by1:
+            k.put(plot_x + i, yv, "\u2022", _mix(_C.AMBER, 0.95))
+        if k.by0 + 2 <= yt <= k.by1:
+            k.put(plot_x + i, yt, "\u00b7", _mix(_C.BLUE, 0.35))
+    k.put(plot_x, cy, "\u2500", _ui(0.3))
+    k.put(plot_x, cy + 2, f"\u52a0\u5230\u7b2c {upto} \u6839\uff1a\u21d2 \u76ee\u6807\u6ce2\u5f62", _mix(_C.GREEN, 0.85))
+    if k.bh >= 12:
+        k.put(k.bx0, k.by1, "x(t) = a\u2081sin \u03c9t + a\u2082sin 2\u03c9t + a\u2083sin 3\u03c9t + \u2026",
+              _ui(0.55))
+
+
 def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
     """互换: four things that are the same thing twice, on the lines about switching roles.
 
@@ -2983,6 +3058,8 @@ PANE_BY_NAME.update({
     "pane_spinoza": pane_spinoza,
     # 清单第 31 条：`To S, to M` 的监察博弈支付矩阵
     "pane_supervisory": pane_supervisory,
+    # 清单第 9 + 11 条：第一处间奏的傅里叶分解
+    "pane_fourier": pane_fourier,
     "pane_landmark_dialogue": pane_landmark_dialogue,
     "pane_landmark_sword": pane_landmark_sword,
     "pane_landmark_hezun": pane_landmark_hezun,

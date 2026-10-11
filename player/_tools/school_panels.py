@@ -333,8 +333,14 @@ SHOT_ROWS: list[dict] = [
          ops=["\u6821\u5fbd", "1938"], mascot=False, ),
     dict(at=21.00, name="pane_landmark_crest", lyric="[gap]",
          ops=["\u6821\u5fbd", "1938", "\u516c\u8bda\u52c7\u6bc5"], mascot=False, ),
-    dict(at=25.14, name="pane_motif_phyllotaxis", lyric="[gap]",
-         ops=["叶序", "GROW"], mascot=False, ),
+    # **第一处间奏：叶序 → 傅里叶分解**（批 136，清单第 9 + 11 条）。
+    # 用户："scene12动画框沿用之前场景的动画，不要使用叶序（这段是间奏），改用傅里叶分析的动态图示
+    # （音乐分解）"、"第一处间奏的动画内容为校徽 + 超椭圆 + 刚才的傅里叶分析 两部分"。
+    # 这一行（25.14-29.28，`[gap]`＝间奏）原来挂的是 `pane_motif_phyllotaxis`——**是这处间奏里
+    # 唯一错的东西**；上一行（17.00-25.14，`pane_landmark_crest`）就是"校徽"那一半。
+    dict(at=25.14, name="pane_fourier", lyric="[gap]",
+         ops=["FFT", "\u8c10\u6ce2"], mascot=False,
+         sub="\u97f3\u4e50\u62c6\u6210\u8c10\u6ce2\uff1a\u4e00\u6839\u4e00\u6839\u52a0\u56de\u53bb"),
     # Batch 50 split this row for the matrix: 线性代数, 计算方法, 离散数学 and 深度学习 are all about the
     # same object and the film had none (the user: "增加矩阵的要素（线性代数、计算方法、离散数学、深度学习
     # 中均涉及矩阵）"). It belongs on this line rather than in the college section because a matrix *is* a
