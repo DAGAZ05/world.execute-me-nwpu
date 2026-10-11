@@ -739,10 +739,17 @@ def _ifthen_wanted(t: float) -> bool:
 IFTHEN_ROWS = 3
 #: **框的最低起点**（批 111）：右栏顶部是 feature bands（1 个抬头行 + 7 条频带，到第 8 行），
 #: 框原来从 `PANE_BOX[1] + 2` 起画，正好压在频带上（用户："当前你把它覆盖到 feature bands
-#: panel 上了"）。频带是固定 8 行，所以框的起点定在第 9 行——真正的"pane 内容区"。
-IFTHEN_TOP_ROW = 9
-#: pane 内容要让开的总行数 = 框的位置（从 pane 顶算） + 框自身 3 行。
-IFTHEN_RESERVE = IFTHEN_TOP_ROW - 1 + IFTHEN_ROWS
+#: panel 上了"）。
+#: **批 113 下调 1 行**（用户："if then 框略偏上了点，稍微下调"）：9 -> 10。
+IFTHEN_TOP_ROW = 10
+#: pane 内容要让开的总行数 = **`_Kit` 的抬头 2 行 + 框自身 3 行**。
+#:
+#: **这里我犯过一次大错**：曾经写成 `IFTHEN_TOP_ROW - 1 + IFTHEN_ROWS` = 11 行——那是"框的位置
+#: （从 pane 顶算） + 框高"，但 pane 的 `y0` 本来就是**抬头之下**的起点，两个数不能相加。
+#: 结果内容被推下去 11 行，而这个 pane 的内容总共才 11 行高，于是 **动画整个不见了**
+#: （用户："你把动画调的太靠下了，像 sin 包络、番茄红素动画直接就不见了"）。
+#: 正确的让位就是抬头那两行加框那三行。
+IFTHEN_RESERVE = 2 + IFTHEN_ROWS
 
 
 #: 上一帧画过框的行区间 `[x0, x1, y0, y1]`，供"这一帧不该有框时把它擦掉"（见 `_ifthen_frame`）。
@@ -1726,10 +1733,13 @@ def _ev_exists(k, t: float, u: float) -> None:
           _mix(_C.AMBER, 0.7))
 
 
-#: `sin x / x` 要一直演到 `Then you can be my limitations` 结束（批 111）。
-#: 40.36 = `If I approach infinity`；45.52 = `To AC, to DC` 开始（下一个 pane 行）。
+#: `sin x / x` 覆盖**两句歌词**（批 113 修正，用户："sin x / x 的动画是 if I approach ...
+#: limitations 这 2 句歌词，你又改错了"）：
+#:   40.36 = `If I approach infinity` 开始
+#:   44.04 = `Then you can be my limitations` 结束（下一句 `Switch my current` 起）
+#: 第一版写成 `40.36-45.52`，把 `Switch my current` 也吞进去了——那一句要的是**逻辑门**。
 _SIN_LIMIT_FROM = 40.36
-_SIN_LIMIT_TO = 45.52
+_SIN_LIMIT_TO = 44.04
 
 
 def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
@@ -1753,6 +1763,16 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
     # 里面画的是 `sin x / x`（见下），所以抬头这时不能还写 `F → M · 3 位`——那是 `panel="bits"`
     # 的名字。`t=44.90` 实测原本显示的就是 F→M 的抬头，而画面已经被我换成 sin x/x。
     _sin_here = _SIN_LIMIT_FROM <= t < _SIN_LIMIT_TO
+    if _sin_here:
+        # 说明**整段统一**（批 113）：第一段（`If I approach infinity`）原来落回
+        # `pane_motif_sine` 那一行的说明"振荡在衰减，极限是 0"，第二段才是我设的
+        # `lim x→∞ sin x / x = 0（这不是洛必达！）`——同一张图两段两个说法。现在两段同一个。
+        try:
+            import school_courses as _CC
+            _CC.PANE_SUB[0] = ("lim x\u2192\u221e sin x / x = 0"
+                               "\uff08\u8fd9\u4e0d\u662f\u6d1b\u5fc5\u8fbe\uff01\uff09")
+        except Exception:
+            pass
     k = _kit(s, x0, y0, x1, y1, 0,
              "sin x / x" if _sin_here else TITLE.get(panel, "\u4e92\u6362"))
     if k is None:
@@ -2350,8 +2370,8 @@ def draw_pane(name: str, s, x0: int, y0: int, x1: int, y1: int, t: float,
             if k.bh < 3 or k.bw < 8:
                 return True                 # no room for the drawing: the header is the pane
             x0, y0, x1, y1 = k.bx0, k.by0, k.bx1, k.by1
-    # **给 IF/THEN 框让出顶上 11 行**（批 111）：框从第 9 行起、占 3 行（到第 11 行），
-    # 所以 pane 的内容要从第 12 行起画才不撞。`IFTHEN_RESERVE` 就是这个数。
+    # **给 IF/THEN 框让出 5 行**（抬头 2 + 框 3，批 113 修正）。放在 `args` 之前，
+    # 否则带注解的 pane（矩阵、正弦…恰好都是 If/Then 那几句）会被两层 `return` 绕过。
     if _ifthen_wanted(t):
         y0 = min(y0 + IFTHEN_RESERVE, max(y0, y1 - 3))
     if args:
