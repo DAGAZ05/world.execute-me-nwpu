@@ -2051,9 +2051,11 @@ def _ex_timeline(k, t: float, u: float) -> None:
       半坡约前 4000、西周丰镐前 1046、秦咸阳前 221、汉长安城前 202、隋大兴城 582、
       唐长安城 618、明西安府 1370；
     * **"不要最下方的小字"** —— 删掉原来那句"同一块地方，换了三个名字 / 一条路走到今天"；
-    * **"按照歌词节点应该从后往前亮"** —— 游标**从右往左**走、结点**从晚到早**依次亮。
-      这与 `To AD, to BC`（往公元前后回望）同向，`we can travel` 那一段也照此，
-      免得两屏方向不一致。
+    * **"按照歌词节点应该从后往前亮"** —— 这一步**只对西安那一段**（批 122 我误改了两段，
+      批 123 用户更正："西工大校史节点亮还是顺序，西安历史时间线才是倒序"）：
+      * **校史**（`Oh, we can travel`）：**顺序**，1938 → 1957 → 1970 → 2026，游标从左往右；
+      * **西安**（`To AD, to BC`）：**倒序**，今天 → 明 → 唐 → 汉 → 秦 → 丰镐 → 半坡，
+        游标从右端往左走——与"往公元前后回望"的歌词同向。
     """
     import school_courses as _C
     w = k.bw
@@ -2074,20 +2076,23 @@ def _ex_timeline(k, t: float, u: float) -> None:
     k.hline(k.bx0, y_axis, k.bx0 + w - 1, "\u2500", _ui(0.35))
     span = max(1, w - 4)
     n = len(nodes)
-    # **从后往前亮**：`prog` 0→1 时，亮的结点从最右（最晚）推到最左（最早）。
+    # **点亮次序按段分**（批 123）：`prog` 0→1 时，
+    #   * 校史段：第 0 个（最早）先亮 —— 顺序；
+    #   * 西安段：第 `n-1` 个（最晚）先亮 —— 倒序。
     prog = (t - (TRAVEL_XIAN_AT if xian else TRAVEL_SCHOOL_AT)) * 0.9
     y_lab = y_axis + 1
     for i, (year, name) in enumerate(nodes):
         x = k.bx0 + 2 + int(span * (i + 0.5) / n)
-        # 第 i 个结点距右端有多远（最右是 0）——它就按这个先后亮
-        lit = prog >= (n - 1 - i + 0.5) / n
+        step = (n - 1 - i) if xian else i          # 西安段从右数、校史段从左数
+        lit = prog >= (step + 0.5) / n
         col = _mix(_C.GREEN if lit else _C.BLUE, 0.95 if lit else 0.40)
         k.put(x, y_axis, "\u25cf" if lit else "\u25cb", col)
         k.put(x, y_axis - 1, "|", col)
         k.put(x - len(year) // 2, y_axis - 2, year, col)
         k.put(x - min(len(name), 4) // 2, y_lab, name[:4], _mix(_C.AMBER, 0.85) if lit else _ui(0.40))
-    # 游标：从右端出发往左走（与"从后往前亮"同向）
-    curx = k.bx0 + 2 + int(span * (1.0 - min(1.0, max(0.0, prog))))
+    # 游标：西安段从右端往左走，校史段从左端往右走
+    _u = min(1.0, max(0.0, prog))
+    curx = k.bx0 + 2 + int(span * ((1.0 - _u) if xian else _u))
     k.put(curx, y_lab + 2, "\u25b2", _mix(_C.RED, 0.9))
 
 
