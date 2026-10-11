@@ -369,8 +369,22 @@ def pane_polyhedra(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
             s.put(cx - rx, cy + ry + 1, f"{n_sides:>2} \u8fb9" if n_sides < 36 else "\u5706", _ui(0.75))
             s.put(cx - rx, cy + ry + 2, f"{2 * n_sides * math.sin(math.pi / n_sides):.3f} r",
                   _mix(ANOM, 0.7))
-    s.put(x0 + 1, y1 - 1, "n \u8fb9\u5f62\u7684\u5468\u957f \u2192 2\u03c0r\uff1a\u8fb9\u6570"
-                          "\u8d8a\u591a\uff0c\u8d8a\u50cf\u5706", _ui(0.5))
+    # **周长那两句写成公式**（批 110，用户："在歌词 circu...（周长）时，框内显示：正多边形周长公式
+    # -> 圆周长公式（使用数学公式，这只是文字说明）"）。
+    # `Then I will give you my circumference` 在 34.54——这一行 pane 从 33.01 起，所以在 34.54
+    # 之前给**正多边形的周长公式**，之后切换成**圆周长公式**，中间用 `→` 表示"n→∞ 时趋近"。
+    # 两条都是文字说明，不参与图形：正 n 边形内接于半径 r 的圆时，边长 = 2r·sin(π/n)，故周长 = 2n·r·sin(π/n)。
+    CY_AT = 34.54
+    f1 = "P_n = 2n\u00b7r\u00b7sin(\u03c0/n)"
+    f2 = "P_\u221e = 2\u03c0r"
+    if t < CY_AT:
+        s.put(x0 + 2, y1 - 1, f1, _mix(ANOM, 0.95))
+        s.put(x0 + 2, y1, "\u6b63 n \u8fb9\u5f62\u7684\u5468\u957f\uff08\u5185\u63a5\u4e8e\u534a\u5f84 r "
+                          "\u7684\u5706\uff09", _ui(0.5))
+    else:
+        s.put(x0 + 2, y1 - 1, f1 + "   \u2192   " + f2, _mix(ANOM, 0.95))
+        s.put(x0 + 2, y1, "\u5706\u5468\u957f\uff1a\u6b63 n \u8fb9\u5f62\u7684\u5468\u957f "
+                          "\u2192 2\u03c0r", _ui(0.5))
 
 
 def pane_three_arms(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
@@ -607,6 +621,28 @@ _IFTHEN_N: list = [0]
 _IFTHEN_BROKEN = False
 
 
+def _ifthen_wanted(t: float) -> bool:
+    """这一刻的歌词是不是 `If …` / `Then …`——`_ifthen_frame` 与要给它是让位的 pane 共用这一个判据。
+
+    **单一来源**：框画不画、内容让不让位，必须由同一句判断决定，否则两边错开一帧就会出现
+    "框和内容叠在一起"或"让了位却没有框"。`_dev/ifthen_pipeline_probe.py` 量的是整帧效果，
+    而这里量的是那个判据本身。
+    """
+    try:
+        import school_panels as _SP
+        for r in _SP.shot_rows():
+            if r["at"] - 1e-6 <= t < r["end"] + 1e-6:
+                ly = str(r.get("lyric", ""))
+                return ly.startswith("If ") or ly.startswith("Then ")
+    except Exception:
+        pass
+    return False
+
+
+#: 框占它自己区域内最上面的几行（`_ifthen_frame` 是 3 行）。要让位的 pane 按这个数下移。
+IFTHEN_ROWS = 3
+
+
 def _ifthen_frame(s, x0, y0, x1, y1, t, lt, dur, u) -> int:
     """`If … -> Then …` 两格框，**对整首歌里每一对 If/Then 都画**（批 108）。
 
@@ -632,34 +668,34 @@ def _ifthen_frame(s, x0, y0, x1, y1, t, lt, dur, u) -> int:
     # 去重"的写法都会把**同一时刻的第 2..N 次调用**跳掉，而回放与探针恰恰是在最后一帧上取画面。
     # 现在只由 `school_panels.draw_scene_pane`（右栏最外层）画一次，本函数不再画。
 
-    # **按歌词顺序配对**：`If …` 与它**后面最近的那一句** `Then …` 是一对，而两者常常分属
-    # 前后两个 pane、时间上不重叠（`If I'm a set of point` 跨了 `pane_point_set` 与
-    # `pane_motif_matrix`，`Then …` 往往在第三个 pane 里）。所以框的内容**不按"同一帧有没有 Then"**
-    # 决定，而是"本帧落在哪一对的跨度里"——整对一起点亮，左格写条件、右格写结果。
+    # **只在"此刻唱的这一句就是 If …/Then …"时才出现**（批 110，用户："if then 框仅在歌词为
+    # if ... then ... 时出现，你现在 if then 框被固定住了"）。
+    #
+    # 上一版按"整对的跨度"决定（`rows[j]["at"] <= t < rows[k]["end"]`），那个跨度**跨过了中间的
+    # 别的歌词**：例如 29.28-88.34 之间还有 `If I'm a circle`、`If I'm a sine wave`、
+    # `And then blind my vision`、`Oh, we can travel`…… 于是那些句子上也挂着这个框——
+    # 看着就是"框被固定住了"。正确的判据很简单：**取当前这一句歌词，它必须以 `If ` 或 `Then `
+    # 开头**（大小写不敏感、允许 `And then` 这种小写变体按原样不算）。
+    cur = ""
+    for r in rows:
+        if r["at"] - 1e-6 <= t < r["end"] + 1e-6:
+            cur = str(r.get("lyric", ""))
+            break
+    if not (cur.startswith("If ") or cur.startswith("Then ")):
+        return 0
+    # 当前这一句是 If ⇒ 左格写它、右格写它后面最近的 Then；当前这一句是 Then ⇒ 反过来配对。
     cond = cons = ""
-    for j in range(len(rows)):
-        if not str(rows[j].get("lyric", "")).startswith("If "):
-            continue
-        k = j + 1
-        while k < len(rows) and not str(rows[k].get("lyric", "")).startswith("Then "):
-            k += 1
-        if k >= len(rows):
-            break                       # 后面再没有 Then 了
-        # **同一句 `If …` 会连续占据好几个 pane**（`If I'm a set of point` 在 rows 12 与 13 上各有一行），
-        # 所以跨度要算到**这一组 If 的最后一行**为止；命中之后**不 break**，取最后一个匹配的
-        # （越靠后的那一行越贴近当前 t，才是"现在这一屏"的那一对）。
-        j_end = rows[j]["end"]
-        for m in range(j + 1, k):
-            if str(rows[m].get("lyric", "")).startswith("If "):
-                j_end = max(j_end, rows[m]["end"])
-        if rows[j]["at"] - 1e-6 <= t < max(j_end, rows[k]["end"]) + 1e-6:
-            cond = str(rows[j].get("lyric", ""))
-            cons = str(rows[k].get("lyric", ""))
-    if not cond:
-        # 单独落在某一句 THEN 里（它的 If 在此之前就结束了）：只点亮右格
+    if cur.startswith("If "):
+        cond = cur
         for r in rows:
-            if r["at"] <= t + 1e-6 < r["end"] and str(r.get("lyric", "")).startswith("Then "):
+            if r["at"] > t and str(r.get("lyric", "")).startswith("Then "):
                 cons = str(r["lyric"])
+                break
+    else:
+        cons = cur
+        for r in reversed([r for r in rows if r["end"] <= t + 1e-6]):
+            if str(r.get("lyric", "")).startswith("If "):
+                cond = str(r["lyric"])
                 break
     if not cond and not cons:
         return 0
@@ -2141,7 +2177,9 @@ HEADERLESS = {
     "pane_class": "类与对象",
     "pane_parameters": "参数表",
     "pane_point_set": "点集",
-    "pane_polyhedra": "多面体",
+    # **`多面体` 也是错的**（批 110，用户："if I'm a circle 动画框的抬头你依旧没改（不是超椭圆！）"）：
+    # 这一屏画的是**正多边形**（平面图形）趋近**圆**，既不是多面体，也不是超椭圆。
+    "pane_polyhedra": "正多边形\u2192圆",
     "pane_three_arms": "三旋臂",
     "pane_countdown": "倒计时",
     "pane_curriculum": "四年课表",
@@ -2189,6 +2227,12 @@ def draw_pane(name: str, s, x0: int, y0: int, x1: int, y1: int, t: float,
             if k.bh < 3 or k.bw < 8:
                 return True                 # no room for the drawing: the header is the pane
             x0, y0, x1, y1 = k.bx0, k.by0, k.bx1, k.by1
+    # **给 IF/THEN 框让出顶上三行**（批 110，用户："增加了 if then 框的动画，动画内容要下移
+    # （不然会和 if then 重叠）"）。框由 `school_panels.draw_scene_pane` 在**最后**画、位置
+    # `y0+2`，所以 pane 的内容要从 `y0+IFTHEN_ROWS` 起画才不撞。**放在 `args` 之前**，
+    # 否则带注解的 pane（矩阵、正弦…恰好都是 If/Then 那几句）会被两层 `return` 绕过。
+    if _ifthen_wanted(t):
+        y0 = min(y0 + IFTHEN_ROWS, max(y0, y1 - 3))
     if args:
         try:
             fn(s, x0, y0, x1, y1, t, lt, dur, u, **args)

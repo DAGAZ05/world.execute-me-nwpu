@@ -349,8 +349,13 @@ SHOT_ROWS: list[dict] = [
     # following the song - so each couplet gets the pane that draws *it*: the conditional device, then the
     # superellipse (a circle is `n = 2` of it), then the sine and its envelope, which is also where the
     # pane's own third stage already was.
+    # **抬头说明改对**（批 110，用户："if I'm a circle 动画框的抬头你依旧没改（不是超椭圆！）"）。
+    # 这一屏画的是**正多边形在 n→∞ 时趋近圆**，和超椭圆是两件事：
+    # 超椭圆是 `|x/a|^n + |y/b|^n = 1` 这一族曲线（n=2 是椭圆、n→∞ 是矩形），
+    # 而这里是**内接正多边形**的周长趋近圆周长。文字与画面必须指同一件事。
     dict(at=33.01, name="pane_polyhedra", lyric="If I'm a circle",
-         ops=["n \u2192 \u221e", "2\u03c0r", "CIRCLE"], mascot=False, sub="圆是 n→∞ 的超椭圆"),
+         ops=["n \u2192 \u221e", "2\u03c0r", "CIRCLE"], mascot=False,
+         sub="正多边形 n→∞ 趋近圆，周长趋近 2πr"),
     # **抬头与 ops 跟着画面改**（批 107）：这一行跨两条歌词——
     # `If I'm a sine wave`（36.77-40.36）与 **`If I approach infinity`（40.36-41.92）**。
     # 后半段画的是 `sin x / x`（用户："请改为函数 sin x / x…并在框内进行文字说明"），
@@ -946,24 +951,10 @@ def draw_scene_pane(pane: str, s, x0: int, y0: int, x1: int, y1: int,
         else:
             drawn = _SC.draw_pane(pane, s, x0, y0, x1, y1, t, lt, dur, u, args=args)
     finally:
-        # **框画在 pane 内容之后**（批 109 第三次修正，用户："if then 完全改错了"）：
-        # pane 自己的 `k.section`（框内小标题）与图形都在写顶部那几行，先画框就被它们压在下面
-        # ——实测 t=32 框在第 12-14 行、而矩阵的小标题与上半截盖在第 13-14 行上；
-        # 而 t=30（点集）恰好没被盖，所以这类错误只在部分 pane 上出现。
-        # 放在 `finally` 里：三条派发路径（课程 / 仪表 / 场景）都会走到，`return` 也不会漏掉。
-        # 位置取 `y0 + 2`：`_Kit` 的抬头（`▏标题 · 说明` + 横线）占最上面两行。
-        try:
-            import school_scenes as _SC2
-            _SC2._ifthen_frame(s, x0, y0 + 2, x1, y1, t, lt, dur, u)
-        except Exception as _exc:
-            # **不要静默**：这个框曾经因为一个被吞掉的异常（`_C` 未定义）整整一批没画出来，
-            # 而屏幕上只是"少了个框"、没有任何提示。只报一次。
-            global _IFTHEN_BROKEN
-            if not _IFTHEN_BROKEN:
-                _IFTHEN_BROKEN = True
-                import sys as _sys
-                print(f"warning: the IF/THEN frame failed ({_exc!r})",
-                      file=_sys.stderr, flush=True)
+        # **框已移到 `tui_live.draw`（批 110）**：`school_entry` 返回 base 的那些行右栏由**上游**
+        # 自己画、这个函数根本不会被调用，于是 162-175 s 那几句 `If I can, if I have you back`
+        # 上没有框（探针 SCOPE FAIL）。挂在"整帧画完之后"就与"谁画的右栏"无关——
+        # 与 `fx_school_wipe` 同一个理由、同一处位置。
         _CO.PANE_SUB[0] = ""
     return drawn
 

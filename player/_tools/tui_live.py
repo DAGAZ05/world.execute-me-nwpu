@@ -4503,6 +4503,31 @@ def _repaint_pane(s: Screen, t: float) -> bool:
 PANE_ON_TOP = ("pane_parameters", "pane_class", "pane_power_on", "pane_protection")
 
 
+def _draw_ifthen_frame(s: Screen, t: float) -> bool:
+    """右栏的 `If … / Then …` 两格框，画在所有 pane 之后（批 110）。
+
+    为什么在这一层：右栏的行分两种——学校 overlay 的行由 `school_scenes.draw_pane` 画，
+    而 `school_entry` 返回 `base` 的行由**上游**自己画，后者不会经过那个函数。挂在 pane 里
+    就会漏掉 162-175 s 那几句 `If I can …`。所以它和 `fx_school_wipe` 一样住在播放器这一层。
+
+    位置与让位：框占 `PANE_BOX[1]+2` 起的 3 行（让开 `_Kit` 抬头那两行），而 pane 的内容
+    在 `school_scenes.draw_pane` 里已经下移了 `IFTHEN_ROWS` 行，所以两者不叠。
+    """
+    if SP is None or VAR[0] != "school":
+        return False
+    try:
+        import school_scenes as _SC
+        if not _SC._ifthen_wanted(t):
+            return False
+        x0, y0, x1, y1 = PANE_BOX
+        if x1 - x0 < 16 or y1 - y0 < 6:
+            return False
+        return bool(_SC._ifthen_frame(s, x0, y0 + 2, x1, y1, t, 0.0, 1.0, 0.0))
+    except Exception as exc:
+        print(f"warning: the IF/THEN frame failed ({exc})", file=sys.stderr, flush=True)
+        return False
+
+
 def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float,
               x0: int, top: int, x1: int, bottom: int) -> None:
     """Everything but the header and the footer: her pane, the stdout band, the right column."""
@@ -5172,6 +5197,12 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
         draw_collapse(s, 1, top, cols - 2, bottom, ent["u"])
     else:
         draw_body(s, d, eng, ent, t, 1, top, cols - 2, bottom)
+    # **IF/THEN 框挂在"整帧画完之后"**（批 110）：右栏有时是学校画的、有时是**上游**自己画的
+    # （`school_entry` 返回 `base` 的那些行），后者根本不会走 `school_scenes.draw_pane`
+    # ——挂在 pane 里就会漏掉 162-175 s 那几句 `If I can …`（探针 SCOPE FAIL）。
+    # 与 `fx_school_wipe` 同一个理由、同一处位置：不管右栏是谁画的都生效。
+    # 位置取 `PANE_BOX[1] + 2`：让开 `_Kit` 的抬头两行；pane 内容已被 `draw_pane` 下移三行让位。
+    _draw_ifthen_frame(s, t)
     draw_footer(s, d, t, playing, fps, ent, rows, cols, audio)
     # The full-frame layer: the aircraft, the campus hits and the AI particle field, drawn *over* the
     # whole frame so a plane can pass between the left window and the right column and a photograph can
