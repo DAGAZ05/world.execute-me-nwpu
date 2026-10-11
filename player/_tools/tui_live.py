@@ -4466,6 +4466,12 @@ def SP_scene_pane(pane: str, s: Screen, x0: int, y0: int, x1: int, y1: int,
 
 #: `draw_body` 最后一个 pane 的参数，供整帧层之后重画（见 `draw()` 末尾）。`[pane, x0, y0, x1, y1]`。
 _PANE_LAST: list = []
+#: 临时诊断：框那一行在各阶段的内容（定位"谁把旧框带回来"）。
+_DBG_ROW: list = ["", "", "", ""]
+
+
+def _row10(s: Screen) -> str:
+    return "".join(s.buf[10][x][0] or " " for x in range(99, min(196, s.cols))).strip()[:34]
 
 
 def _repaint_pane(s: Screen, t: float) -> bool:
@@ -5208,8 +5214,7 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
     # （`school_entry` 返回 `base` 的那些行），后者根本不会走 `school_scenes.draw_pane`
     # ——挂在 pane 里就会漏掉 162-175 s 那几句 `If I can …`（探针 SCOPE FAIL）。
     # 与 `fx_school_wipe` 同一个理由、同一处位置：不管右栏是谁画的都生效。
-    # 位置取 `PANE_BOX[1] + 2`：让开 `_Kit` 的抬头两行；pane 内容已被 `draw_pane` 下移三行让位。
-    _draw_ifthen_frame(s, t)
+    # **真正的绘制在 `fx_apply` 之后**（批 111，见那里的注释）——这里不再调用。
     draw_footer(s, d, t, playing, fps, ent, rows, cols, audio)
     # The full-frame layer: the aircraft, the campus hits and the AI particle field, drawn *over* the
     # whole frame so a plane can pass between the left window and the right column and a photograph can
@@ -5235,6 +5240,11 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
     fx_school_wipe(s, t)
     # tuikit.py:468-476's post, and the cut's reveal, both after everything else has been drawn
     fx_apply(s, t, ent)
+    # **框在后期之后补画一次**（批 111）：`fx_apply` 的 `reveal`/`trail` 会把某些矩形的**旧格**
+    # 保留下来（那就是用户说的"动画框切换特效"），而框所在的横条正是它保留的其中一块——
+    # 实测 `Switch my current`(44.04 起) 不该有框，阶段 1/2 都擦干净了，`fx_apply` 之后
+    # 旧框又回来了。所以顺序只能是：**先让它做过渡，再补画这一帧该有的内容**。
+    _draw_ifthen_frame(s, t)
     # **The stuck-99% bar goes on after the full-frame layer, and that placement is load-bearing.**
     # The bar's home is the last row of the stdout band, and `shot_whale_fall`'s own pane paints
     # selectively across that row as it falls: drawn from the shot's dispatch (before the layer) it
