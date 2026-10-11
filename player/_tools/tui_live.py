@@ -3926,6 +3926,11 @@ WHALE_FALL_START = 193.583
 #: 于是进度条在 fall 一开始就是红的，"最后一句 execution 时变红"这个动作根本没发生。
 #: 变红的锚点必须是那句词自己的镜头，不是任何中间产物的章节号。
 LAST_EXEC_START = 205.583
+#: 卡在 99% 那根进度条画在第几行（批 139，**实测钉住**）。
+#: 它是**画面左侧动画框的抬头行**——那一段时间那行写的是 `▏ 西北工业大学`。
+#: 批 103 用的是 `draw_body` 的局部名 `top`，而 `top` 其实是 stdout 栏的顶行（第 1 行），
+#: 所以进度条一直压在 `feature bands` 那个方框的标题上；抬头行在第 10 行。
+STUCK_BAR_ROW = 10
 #: `shot_black` 的起点（207.083）：画面全黑，**进度条必须跟着一起消失**——
 #: 黑屏上留一个进度条，等于在说"任务还在跑"，而这一帧说的正是"它停了"。
 BLACK_START = 207.083
@@ -3933,7 +3938,8 @@ BLACK_START = 207.083
 SKILL_BAR_FILL = 5.0
 
 
-def draw_stuck_progress(s: Screen, x0: int, y0: int, x1: int, y1: int, t: float) -> None:
+def draw_stuck_progress(s: Screen, x0: int, y0: int, x1: int, y1: int, t: float,
+                        align: str = "right") -> None:
     """The bar that stops at 99% — over 03:12.5-03:31.9, which in this cut is `shot_whale_fall`.
 
     This is the one visual item in the reference repo's prompt document
@@ -3975,7 +3981,10 @@ def draw_stuck_progress(s: Screen, x0: int, y0: int, x1: int, y1: int, t: float)
     if total > w:                                  # 太窄就只留百分比与标签
         s.put(x1 - len(label) - len(pct) - 2, y0, pct + " " + label, colour)
         return
-    bx = x1 - total
+    # `align="left"` 是批 139 加的：用户说这个 0-99% 进度框的位置不对，要放到**画面左侧动画框
+    # 抬头那几个字之后**（此时抬头是「西北工业大学」）。右对齐会把它甩到抬头行的最右端，
+    # 而抬头行左端（标题之后）本来就是空的。
+    bx = x0 if align == "left" else x1 - total
     s.put(bx, y0, pct, colour)
     fill_x = bx + len(pct) + 1
     filled = int(round(bar_w * 0.99 * k))
@@ -5376,11 +5385,15 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
     # on `BLACK_START` rather than on `ent["name"]` also survives the shot's last frame, where `ent`
     # can still be the outgoing shot.
     if WHALE_FALL_START <= t < BLACK_START:
-        # **画在右栏的抬头行**（批 103）：`y0 = top` 就是 `▏ 标题 · 说明` 那一行，
-        # 进度条右对齐贴在它的空处（这一段 `pane_landmark_crest` 没有 `EXEC nn/nn` 计数器）。
-        # 原来画在 stdout 栏的底部，压住了那一屏自己的画面（用户："所在位置有些遮挡其他东西"）。
-        # 列的左右边界从**发布出来的 `PANE_BOX`** 取（`pane_x0/pane_x1` 是 `draw_body` 的局部名）。
-        draw_stuck_progress(s, PANE_BOX[0], top, PANE_BOX[2], top, t)
+        # **画在画面左侧动画框的抬头行、紧跟标题之后**（批 139，用户："学院部分快结束时，有个
+        # 0-99% 的进度框（不是全局进度条），其位置不对，改在画面左侧动画框抬头（此时的抬头是
+        # 「西北工业大学」）字体后"）。
+        #
+        # **`top` 不是抬头行**——批 103 的注释写着"`y0 = top` 就是 `▏ 标题 · 说明` 那一行"，
+        # 但实测 `top` 是 **stdout 栏的顶行（第 1 行）**，于是进度条压在 `feature bands` 那个
+        # 方框的标题上（实测 `┌─ \ feat099%b██████░RUNNING───┐`）。抬头行是**第 10 行**
+        # （`▏ 西北工业大学`），所以行号按实测钉住。
+        draw_stuck_progress(s, 18, STUCK_BAR_ROW, 96, STUCK_BAR_ROW, t, align="left")
     # **...and the counted number goes on last** (batch 68). It belongs to the stdout box, but it is
     # allowed to run past it - that is the user's own note - so it cannot be drawn *inside* the band's
     # own pass: the box is redrawn by `_band_restore` when a `behind` photograph goes down, and the

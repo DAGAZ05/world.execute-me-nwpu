@@ -2389,7 +2389,9 @@ def pane_fourier(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     def harm(xx: float, n: int) -> float:
         return (1.0 / n) * math.sin(n * xx + 0.35 * n + 0.6 * math.sin(t * 0.4 + n * 0.7))
 
-    # ---- 每根谐波自己的那一条
+    # ---- 每根谐波自己的那一条。**一根一个颜色**（批 139，用户："音乐分解不同波形可以给不同颜色"）
+    # ——分层之后每层颜色不同，才看得出"底下那条是哪些层叠出来的"。色序取冷暖交替，相邻两层差别最大。
+    LANE_COL = ((255, 170, 120), (140, 200, 255), (180, 240, 170), (230, 170, 240), (250, 230, 140))
     for n in range(1, n_lanes + 1):
         ly = lane_top + (n - 1) * (lane_h + 1)
         if ly + lane_h > k.by1 - 4:
@@ -2397,13 +2399,14 @@ def pane_fourier(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         on = n <= upto
         mid = ly + 1
         amp = max(1, lane_h)
+        lane_col = LANE_COL[(n - 1) % len(LANE_COL)]
         for i in range(plot_w):
             xx = (i / max(1, plot_w - 1)) * (8 * math.pi)
             yy = int(mid - amp * harm(xx, n) * n / 1.0)
             yy = max(ly, min(ly + lane_h, yy))
             k.put(plot_x + i, yy, "\u00b7" if not on else "\u2022",
-                  _mix(_C.BLUE, 0.30 if not on else 0.95))
-        k.put(k.bx1 - 3, mid, f"{n}f", _mix(_C.BLUE, 0.45 if not on else 0.95))
+                  _mix(lane_col, 0.25 if not on else 0.95))
+        k.put(k.bx1 - 3, mid, f"{n}f", _mix(lane_col, 0.4 if not on else 0.95))
     # ---- 底下那一条：叠加的结果
     sy = lane_top + n_lanes * (lane_h + 1) + 1
     if sy + 3 <= k.by1:
@@ -2801,7 +2804,10 @@ def pane_isolation(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         # 我前两版按相对算，字符画落在 y=39..43、比抽屉下沿还低 5 行，右端还被切掉。
         # 分栏（量过抽屉 95 宽）：左边 `LEAD=8` 列给点阵的口子，右边留给字符画，中间留白。
         LEAD = 8
-        art_x = max(k.bx0 + LEAD + 4, k.bx1 - art_w + 1)
+        # **往左留 3 格**（批 139，用户："isolation 字符画没显示全，往左移"）：原来贴死在
+        # `k.bx1 - art_w + 1`，最后两三格正好压在抽屉**右边框**上、被那根竖线吃掉，
+        # 所以右边看着是缺的。现在收进来 3 格。
+        art_x = max(k.bx0 + LEAD + 4, k.bx1 - art_w - 2)
         art_y = k.by1 - art_h + 1
         # 放不下就整个不画（宁可只要点阵，也不要一幅被切掉或压住点阵的字）。判据与上面同一套账：
         # 点阵的宽 = `2 + 8*a`，要留在 `art_x - 3` 左边；高度要到 `art_y - 2` 为止。
