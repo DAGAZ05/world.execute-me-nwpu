@@ -270,14 +270,22 @@ def pane_parameters(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     ]
     w, h = x1 - x0, y1 - y0
     n = min(len(rows), max(1, h))
+    # **整张表推到 pane 的右侧**（批 109 第二次修正，用户："我实际看列表内容依旧没置于最右侧"）。
+    # 左半幅让给画面（这一屏是 7.30-9.60 的何尊大图，它居中铺到 x=133，右移之后表的后半段
+    # 仍然压在它上面，所以 `tui_live._repaint_pane` 又把这个 pane 提到整帧层之上重画一次——
+    # 何尊按用户要求一个像素没动）。
+    # **宽度要按 pane 真的有多宽算**：表的最窄形态是 `键 8 + 间 1 + 值`，定死 35 列会在
+    # 34 宽的 pane 上越界 6 格（`pane_probe` 的 `LEAK` 抓到的就是这一条）。
+    kw_ = min(10, max(6, w // 3))
+    vw_ = max(6, min(22, w - kw_ - 3))
+    tx = x1 - 1 - kw_ - 1 - vw_
     for i in range(n):
         at = 0.04 + 0.86 * (i / max(1, n - 1))
         if u < at:
             continue
         k, v, _src = rows[i]
-        s.put(x0 + 1, y0 + i, f"{k:<10}"[: max(0, w - 4)], _ui(0.7))
-        if w >= 16:
-            s.put(x0 + 13, y0 + i, v[: max(0, w - 17)], _mix(ME_TEXT, 0.9))
+        s.put(tx, y0 + i, f"{k:<10}"[:kw_], _ui(0.7))
+        s.put(tx + kw_ + 1, y0 + i, v[:vw_], _mix(ME_TEXT, 0.9))
     # the table is being filled: a cursor walks its rows on the song clock (see `pane_class`)
     if n:
         s.put(x0, y0 + int(t * 2.0) % n, ">", _mix(ANOM, 0.7))
@@ -659,18 +667,21 @@ def _ifthen_frame(s, x0, y0, x1, y1, t, lt, dur, u) -> int:
     if w < 14 or h < 3:
         return 0
     half = max(6, (w - 3) // 2)
+    # **原版的画法**（批 109 修正，用户："if then 完全改错了（请参考图中原版的）"）：
+    # 顶框是干净的 `┌─┬─┐`——`IF`/`THEN` **不在框线上**，两个词写在**下一行**两格的开头。
+    # 批 108 我把 `IF`/`THEN` 写到顶框上（`┌─IF──┬─THEN──┐`），那不是原版的样子。
     s.put(x0, y0, "\u250c" + "\u2500" * (half - 1) + "\u252c" + "\u2500" * (w - half - 2) + "\u2510",
           _mix(ME_TEXT, 0.7))
-    s.put(x0 + 2, y0, "IF", _mix(ME_TEXT, 0.95) if cond else _ui(0.35))
-    s.put(x0 + half + 2, y0, "THEN", _mix(_C.GREEN, 0.95) if cons else _ui(0.35))
     s.put(x0, y0 + 1, "\u2502" + " " * (w - 2) + "\u2502", _mix(ME_TEXT, 0.7))
-    # 两格的内容都从歌词里剪：左格 = IF 的条件，右格 = THEN 的结果
-    lw, rw = max(0, half - 4), max(0, w - half - 6)
+    # 一格之内是 `<词> <内容>`：词占前 2 列，内容紧跟其后 1 列
+    s.put(x0 + 2, y0 + 1, "IF", _mix(ME_TEXT, 0.95) if cond else _ui(0.35))
+    s.put(x0 + half + 2, y0 + 1, "THEN", _mix(_C.GREEN, 0.95) if cons else _ui(0.35))
+    lw, rw = max(0, half - 6), max(0, w - half - 8)
     if cond:
-        s.put(x0 + 2, y0 + 1, cond[3:][:lw] if cond.startswith("If ") else cond[:lw],
+        s.put(x0 + 5, y0 + 1, cond[3:][:lw] if cond.startswith("If ") else cond[:lw],
               _ui(0.9))
     if cons:
-        s.put(x0 + half + 2, y0 + 1, cons[5:][:rw] if cons.startswith("Then ") else cons[:rw],
+        s.put(x0 + half + 7, y0 + 1, cons[5:][:rw] if cons.startswith("Then ") else cons[:rw],
               _mix(_C.GREEN, 0.9))
     s.put(x0, y0 + 2, "\u2514" + "\u2500" * (w - 2) + "\u2518", _mix(ME_TEXT, 0.7))
     return 3

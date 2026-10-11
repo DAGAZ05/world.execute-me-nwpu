@@ -138,7 +138,10 @@ def flood_stamp(t: float) -> str:
 # A module constant rather than a string at each call site because `_tools/sweep_tui.py` reads this
 # pane back out of the rendered frame by *searching for the title* - a title that changes without the
 # check changing turns that check into a permanent false alarm.
-WINDOW_TITLE = "hangxiaotian" if VAR[0] == "school" else "dsh web"
+#: **抬头框的标题也缩成 `hxt`**（批 109）：用户在 footer 上要求"hangxiaotian:chat -> hxt:chat"，
+#: 而同一屏顶部的框名还是全称，两处不一致；两处一起改成一个直接喊他的名字。
+#: 这个常量被 `_tools/sweep_tui.py` 反读（它按**标题**在帧里找这个 pane），改这里它就跟着对上。
+WINDOW_TITLE = "hxt" if VAR[0] == "school" else "dsh web"
 
 ROOT = Path(__file__).resolve().parents[1]
 DSH = ROOT / "film" / "pv_dsh_frontend_20260927"
@@ -4461,6 +4464,45 @@ def SP_scene_pane(pane: str, s: Screen, x0: int, y0: int, x1: int, y1: int,
     return SP.draw_scene_pane(pane, s, x0, y0, x1, y1, t, lt, dur, u, args=args, sub=sub)
 
 
+#: `draw_body` 最后一个 pane 的参数，供整帧层之后重画（见 `draw()` 末尾）。`[pane, x0, y0, x1, y1]`。
+_PANE_LAST: list = []
+
+
+def _repaint_pane(s: Screen, t: float) -> bool:
+    """把当前这一屏的 pane **在整帧层之后再画一次**（批 109）。
+
+    为什么需要：`school_fx` 的整帧层（飞机、校园大图、粒子）画在 `draw_body` 之后，所以
+    7.30-9.60 的**何尊大图**（`plate("he_zun", cols_n=72)`，居中占 x=62..133）会把右栏的
+    **参数表**（x=99..195，`pane_parameters`）整片盖掉。用户："参数表依旧被何尊遮盖（不允许改何尊）"
+    ——何尊不动，那就把这一屏的 pane 提到最上层。只在这两种情况里做：
+    该 pane 的名字在 `PANE_ON_TOP` 里。其余 pane 保持原样（大图盖住画面本来就是电影语言）。
+    """
+    if SP is None or VAR[0] != "school" or not _PANE_LAST:
+        return False
+    pane, px0, py0, px1, py1 = _PANE_LAST[:5]
+    if pane not in PANE_ON_TOP:
+        return False
+    ent = None
+    try:
+        import school_panels as _SPa
+        ent = _SPa.school_entry(t, None)
+    except Exception:
+        ent = None
+    if not ent or ent.get("pane") != pane:
+        return False
+    dur = max(1e-6, ent["end"] - ent["start"])
+    try:
+        return SP_scene_pane(pane, s, px0, py0, px1, py1, t, ent["u"] * dur, dur, ent["u"],
+                             args=ent.get("pane_args"), sub=ent.get("pane_sub", ""))
+    except Exception:
+        return False
+
+
+#: 哪些 pane 要在整帧层**之上**重画一次。只放"必须看得清内容"的那一个：
+#: 参数表是这一屏唯一的文字信息，而何尊大图恰好压在它上面。
+PANE_ON_TOP = ("pane_parameters", "pane_class", "pane_power_on", "pane_protection")
+
+
 def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float,
               x0: int, top: int, x1: int, bottom: int) -> None:
     """Everything but the header and the footer: her pane, the stdout band, the right column."""
@@ -4662,6 +4704,11 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
         # have to match on the film's shot names at all - which is the whole point of the overlay: the
         # shot table stays the film's, the panel does not.
         pane, need, least = ent["pane"], int(ent.get("pane_need", 10)), 4
+        # **把这一刻的 pane 参数发布出来**（批 109）：整帧层（`school_fx`）画在 `draw_body` **之后**，
+        # 所以 7.30-9.60 的何尊大图会整片盖住参数表。用户："参数表依旧没置于最右侧，依旧被何尊遮盖
+        # （**不允许改何尊**）"——何尊不动，那就让这一屏的 pane 在整帧层之后再画一次
+        # （见 `draw()` 末尾的 `_repaint_pane`）。这里记下重画它需要的一切。
+        _PANE_LAST[:] = [pane, pane_x0, top, pane_x1, bottom]
     elif name == "shot_corpus":
         pane, need, least = "corpus", 10, 6
     elif name == "shot_losscurve":
@@ -4847,9 +4894,11 @@ def draw_footer(s: Screen, d: Data, t: float, playing: bool, fps: float, ent: di
         #
         # **The window is named by its own title.** In the school variant the box on screen is titled
         # `hangxiaotian` (batch 34 renamed it: `dsh web` -> `hangxiaotian`), so the footer says
-        # `hangxiaotian:chat` instead of the upstream's `win:chat` - the user's note is that a field
-        # whose label belongs to the other version reads as leftover chrome.
-        win = "hangxiaotian" if VAR[0] == "school" else "win"
+        # `hxt:chat` instead of the upstream's `win:chat` - the user's note is that a field whose label
+        # belongs to the other version reads as leftover chrome.
+        # **缩写 `hxt`**（批 109，用户："footer 部分 hangxiaotian:chat 改为 hxt:chat"）：
+        # 这一行同时挤着 fps、music、特效档位与按键提示，十三个字符太长。
+        win = "hxt" if VAR[0] == "school" else "win"
         left += f"  {win}:{WINDOW[0] or '-'}"
         if VAR[0] != "school":
             how, tint = her_style(ent)
@@ -5222,6 +5271,14 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
                                  ui, mix, ME_TEXT, BG, ANOM)
         except Exception as exc:
             print(f"warning: the music result failed ({exc})", file=sys.stderr, flush=True)
+    # **该置顶的 pane 在整帧层之后重画一次**（批 109）：`school_fx` 的何尊大图（7.30-9.60）居中
+    # 铺在 x=62..133，正压着右栏的参数表；用户要求"不允许改何尊"，那就把这一屏的 pane 提上来。
+    # 放在 `draw_final` 之前：结算屏只出现在 210.2 s 之后，与这一段不重叠，但顺序上"面板内容"
+    # 本来就该在"整帧演出"之后。
+    try:
+        _repaint_pane(s, t)
+    except Exception as exc:
+        print(f"warning: the pane repaint failed ({exc})", file=sys.stderr, flush=True)
     s.normalise()
 
 

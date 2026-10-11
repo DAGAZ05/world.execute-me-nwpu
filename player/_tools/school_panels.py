@@ -933,14 +933,28 @@ def draw_scene_pane(pane: str, s, x0: int, y0: int, x1: int, y1: int,
     它由播放器在"整帧画完之后"调用，**不管右栏是谁画的都生效**。
     """
     _CO.PANE_SUB[0] = sub
+    drawn = False
     try:
-        # **IF/THEN 框挂在这里**（批 108）：这是右栏的**最外层**入口，而下面两条快捷路径
+        # **IF/THEN 框挂在最外层**（批 108）：这是右栏的入口，而下面两条快捷路径
         # （课程图 / 仪表）会提前 `return`、绕过 `school_scenes.draw_pane`——
         # 探针第一版量出"只有 5/10 对两格都亮"，缺的正是走那两条路径的 pane。
-        # `_ifthen_frame` 自带同帧去重，所以两个调用点同时挂着也不会画两遍。
+        if _CO.draw_course(pane, s, x0, y0, x1, y1, t, lt, dur, u, run=_run_of(pane),
+                           total=len(EXEC_PANES)):
+            drawn = True
+        elif _CO.draw_gauge(pane, s, x0, y0, x1, y1, t, lt, dur, u, run=_run_of(pane)):
+            drawn = True
+        else:
+            drawn = _SC.draw_pane(pane, s, x0, y0, x1, y1, t, lt, dur, u, args=args)
+    finally:
+        # **框画在 pane 内容之后**（批 109 第三次修正，用户："if then 完全改错了"）：
+        # pane 自己的 `k.section`（框内小标题）与图形都在写顶部那几行，先画框就被它们压在下面
+        # ——实测 t=32 框在第 12-14 行、而矩阵的小标题与上半截盖在第 13-14 行上；
+        # 而 t=30（点集）恰好没被盖，所以这类错误只在部分 pane 上出现。
+        # 放在 `finally` 里：三条派发路径（课程 / 仪表 / 场景）都会走到，`return` 也不会漏掉。
+        # 位置取 `y0 + 2`：`_Kit` 的抬头（`▏标题 · 说明` + 横线）占最上面两行。
         try:
             import school_scenes as _SC2
-            _SC2._ifthen_frame(s, x0, y0, x1, y1, t, lt, dur, u)
+            _SC2._ifthen_frame(s, x0, y0 + 2, x1, y1, t, lt, dur, u)
         except Exception as _exc:
             # **不要静默**：这个框曾经因为一个被吞掉的异常（`_C` 未定义）整整一批没画出来，
             # 而屏幕上只是"少了个框"、没有任何提示。只报一次。
@@ -950,14 +964,8 @@ def draw_scene_pane(pane: str, s, x0: int, y0: int, x1: int, y1: int,
                 import sys as _sys
                 print(f"warning: the IF/THEN frame failed ({_exc!r})",
                       file=_sys.stderr, flush=True)
-        if _CO.draw_course(pane, s, x0, y0, x1, y1, t, lt, dur, u, run=_run_of(pane),
-                           total=len(EXEC_PANES)):
-            return True
-        if _CO.draw_gauge(pane, s, x0, y0, x1, y1, t, lt, dur, u, run=_run_of(pane)):
-            return True
-        return _SC.draw_pane(pane, s, x0, y0, x1, y1, t, lt, dur, u, args=args)
-    finally:
         _CO.PANE_SUB[0] = ""
+    return drawn
 
 
 #: "IF/THEN 框画失败"只报一次的开关（见 `draw_scene_pane`）。

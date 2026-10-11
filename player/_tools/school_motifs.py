@@ -550,6 +550,26 @@ def matrix(k, t: float) -> None:
     # ending as if it were the whole curriculum; the amber line said what the drawing already shows.
     k.put(k.bx0, k.by1 - 1, "\u7ebf\u6027\u4ee3\u6570 \u00b7 \u8ba1\u7b97\u65b9\u6cd5 \u00b7 "
           "\u79bb\u6563\u6570\u5b66 \u00b7 \u6df1\u5ea6\u5b66\u4e60 \u2026", _ui(0.6))
+    # **算完之后把结果向量画成字符画**（批 109，用户："矩阵动画得到 1938 结果后，显示一个
+    # [1 9 3 8]^T 字符画"）。`b` 那一列本身就是 `[1, 9, 3, 8]ᵀ`，但它是四行小字；这里把同一个
+    # 东西画成**竖直的列向量**：`┌ ┐` 夹住一列数字、右上角一个 `T` 表示转置，底下一行写明
+    # `[1 9 3 8]`。逐行**从上往下**点亮（`row` 是正在读的那一行），所以它跟着矩阵的节奏长出来。
+    # 框线用项目里已经证明能画的 `┌ ┐ └ ┘`（`⌈⌉⌊⌋` 那几个没有把握，`glyph_probe` 会判）。
+    if k.bw >= 46 and k.bh >= 11:
+        vx2 = k.bx1 - 11
+        vy = k.by0 + 2
+        k.put(vx2, vy, "\u250c", _mix(_C.GREEN, 0.9))
+        k.put(vx2 + 4, vy, "\u2510", _mix(_C.GREEN, 0.9))
+        k.put(vx2 + 5, vy - 1, "T", _mix(_C.AMBER, 0.95))
+        for i in range(n):
+            lit = i <= row
+            k.put(vx2 + 1, vy + 1 + i, "%3d" % b[i],
+                  _mix(_C.GREEN, 0.95) if lit else _ui(0.25))
+            k.put(vx2, vy + 1 + i, "\u2502", _mix(_C.GREEN, 0.7))
+            k.put(vx2 + 4, vy + 1 + i, "\u2502", _mix(_C.GREEN, 0.7))
+        k.put(vx2, vy + n + 1, "\u2514", _mix(_C.GREEN, 0.9))
+        k.put(vx2 + 4, vy + n + 1, "\u2518", _mix(_C.GREEN, 0.9))
+        k.put(vx2, vy + n + 3, "[1 9 3 8]", _mix(_C.GREEN, 0.95) if row >= n - 1 else _ui(0.3))
 
 
 def epicycles(k, t: float) -> None:
@@ -826,21 +846,72 @@ def fork_bomb(k, t: float) -> None:
                         "\u5df1\uff0c\u5341\u4e8c\u4ee3\u7ffb\u5230 4096", _ui(0.55))
 
 
+#: `if I approach infinity` 的歌词时刻。这一行 pane 跨**两句词**，而两句要的是两张不同的图，
+#: 所以切换点必须按歌词来（`school_panels` 里那一行的 `at` 是 36.77、下一行是 41.92，
+#: 而 `If I approach infinity` 在 40.36——它是这一行的**最后 1.56 s**）。
+APPROACH_INFINITY_AT = 40.36
+
+
 def sine(k, t: float) -> None:
-    """`sin x / x` —— 一条**衰减振荡**，是"趋近无穷"这一句的字面图像（批 107）。
+    """两句词、两张图：`sin x` 与它的切线包络，然后 `sin x / x`（批 109 修正）。
 
-    用户："歌词 if I approach infinity，你在动画框中仍然使用的是正弦函数，请改为函数
-    sin x / x（动态效果展示，坐标轴原点向左移，即展示的 x 越来越大），并在框内进行文字说明：
-    lim x->∞ sin x / x = 0（这不是洛必达！）"。
+    **批 107 我改错了**：用户说的是"歌词 `if I approach infinity` 处改为 `sin x / x`"，
+    而我把整个 `sine` 换掉了——于是 `If I'm a sine wave`（36.77-40.36）那一句原本的
+    **正弦 + 切线包络**也没了。用户："你把 if I'm sine wave 歌词处原本的 sinx 包络改了"。
 
-    三条都照做：
+    现在按 `APPROACH_INFINITY_AT`（40.36）分成两段，各画各的：
 
-    * 画的是 **y = sin x / x**（`x` 从 1 起，避开 x=0 那个可去奇点），x 轴**原点在左侧**
-      所以右侧展示的 x 越来越大、振幅按 1/x 收窄——这就是"approach infinity"的画面；
-    * 一条包络 ±1/x（把它夹到 0 的那两条线），比 ±1 更能说明"为什么趋于 0"；
-    * 框内写 `lim x->inf sin x / x = 0` 与 `（这不是洛必达！）`。
+    * `t < 40.36`（`If I'm a sine wave`）：**原来的 sin x + 切线包络**（两条 y=±1 的线 + 动点上的切线）；
+    * `t >= 40.36`（`If I approach infinity`）：**`sin x / x`**——x 从 1 起、原点在左、右端 `→`，
+      包络 ±1/x，框内写 `lim x->∞ sin x / x = 0` 与`（这不是洛必达！）`。
 
-    `x` 轴用 `→` 收尾，让"越往右 x 越大"这件事不用解释也看得见。
+    两段都用 `k.section` 写自己的小标题，所以抬头也跟着换。
+    """
+    if t >= APPROACH_INFINITY_AT:
+        _sine_over_x(k, t)
+        return
+    k.section(k.by0, "sin x \u4e0e\u5207\u7ebf\u5305\u7edc", 0.28)
+    n = max(20, k.bw - 6)
+    hi, lo = k.by0 + 2, k.by1 - 3
+    if lo - hi < 4:
+        return
+    mid = (hi + lo) // 2
+    amp = max(2, (lo - hi) // 2 - 1)
+    k.hline(k.bx0, mid, k.bx0 + n - 1, BOX_H, _ui(0.18))
+    for i in range(n):                                   # the curve
+        x = k.bx0 + i
+        ph = (i / max(1, n - 1)) * 4 * math.pi + t * 0.9
+        y = mid - int(amp * math.sin(ph))
+        k.put(x, max(hi, min(lo, y)), "\u2022", _mix(_C.BLUE, 0.9))
+    k.hline(k.bx0, mid - amp, k.bx0 + n - 1, "\u00b7", _mix(_C.GREEN, 0.45))
+    k.hline(k.bx0, mid + amp, k.bx0 + n - 1, "\u00b7", _mix(_C.GREEN, 0.45))
+    k.put(k.bx0 + n - 10 if k.bw > 30 else k.bx0, mid - amp, "y = \u00b11", _mix(_C.GREEN, 0.8))
+    # the tangent at the moving point: the tangent to sin at p is y = cos(p)(x-p) + sin(p)
+    p = (t * 0.9) % (4 * math.pi)
+    i0 = int((p / (4 * math.pi)) * (n - 1))
+    # **The curve's own phase at that column**, not `p`: the curve is `sin(ph)` with
+    # `ph = i/(n-1)*4pi + t*0.9`, so evaluating the dot (and the tangent) at `p` puts the time term in
+    # twice and the red dot sits off the curve - which is what the user reported in batch 34
+    # ("sin 曲线红点的位置没有沿在曲线上").
+    ph0 = (i0 / max(1, n - 1)) * 4 * math.pi + t * 0.9
+    for i in range(n):                                   # only the stretch that is on screen
+        dx = i - i0
+        yy = math.sin(ph0) + math.cos(ph0) * (dx * (4 * math.pi / max(1, n - 1)))
+        y = mid - int(amp * yy)
+        if hi <= y <= lo:
+            k.put(k.bx0 + i, y, "\u2500", _mix(_C.AMBER, 0.55))
+    y0 = mid - int(amp * math.sin(ph0))
+    k.put(k.bx0 + i0, max(hi, min(lo, y0)), "\u25cf", _mix(_C.RED, 0.95))
+    k.put(k.bx0, k.by1, "\u66f2\u7ebf\u78b0\u5230\u7684\u4e24\u6761\u76f4\u7ebf\uff0c\u5c31\u662f\u5b83\u7684"
+                        "\u5305\u7edc", _ui(0.5))
+
+
+def _sine_over_x(k, t: float) -> None:
+    """`y = sin x / x`：衰减振荡，**坐标轴原点在左侧**，所以右边展示的 x 越来越大。
+
+    这是"approach infinity"那一句的字面图像（用户："请改为函数 sin x / x（动态效果展示，
+    坐标轴原点向左移，即展示的 x 越来越大），并在框内进行文字说明：lim x->∞ sin x / x = 0
+    （这不是洛必达！）"）。包络用 ±1/x 而不是 ±1——它才是"为什么趋于 0"的说明。
     """
     k.section(k.by0, "sin x / x", 0.28)
     n = max(20, k.bw - 8)
