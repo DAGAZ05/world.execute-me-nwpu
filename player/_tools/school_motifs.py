@@ -846,9 +846,16 @@ def fork_bomb(k, t: float) -> None:
                         "\u5df1\uff0c\u5341\u4e8c\u4ee3\u7ffb\u5230 4096", _ui(0.55))
 
 
-#: `if I approach infinity` 的歌词时刻。这一行 pane 跨**两句词**，而两句要的是两张不同的图，
-#: 所以切换点必须按歌词来（`school_panels` 里那一行的 `at` 是 36.77、下一行是 41.92，
-#: 而 `If I approach infinity` 在 40.36——它是这一行的**最后 1.56 s**）。
+#: `if I approach infinity` 的歌词时刻。这一行 pane 跨**三句词**，而它们要的是两种图，
+#: 所以切换点必须按歌词来。`school_panels` 里这一行是 36.77-41.92，覆盖：
+#:   * `If I'm a sine wave`（36.77-40.36）        → sin x 与切线包络
+#:   * **`If I approach infinity`（40.36-41.92）** → sin x / x
+#:   * **`Then you can be my limitations`（41.92 起）** → 仍然是 `sin x / x`（见下）
+#: 用户批 111："sin x / x 动画出现的位置不仅是 if I approach infinity，还有接下来一句的
+#: then you can be my limitations，删掉你放在这里的 F-M 动画"。
+#: 也就是说 41.92 之后一直到这一行 pane 结束（`pane_exchange` 的 41.92 起那一段）都要是 `sin x / x`，
+#: 而原来那里是**电磁换向（F→M）**的动画。所以这里只留一个切换点：40.36 之前是 sin x，之后是 sin x / x。
+LIMITATIONS_UNTIL = 45.52          # `Switch my current`（44.04）之前；这一行 pane 到 45.52 结束
 APPROACH_INFINITY_AT = 40.36
 
 

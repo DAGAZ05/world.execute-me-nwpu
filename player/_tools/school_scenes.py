@@ -220,9 +220,14 @@ def pane_pieces(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
 
 
 def pane_class(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
-    """`And let's begin object creation` (5.16 s): the class the bench became, fields filling in."""
+    """`And let's begin object creation` (5.16 s): the class the bench became, fields filling in.
+
+    **`class World(UNO):` 改成 `class World(National_Defense):`**（批 111，用户："scene04 类与对象
+    class world(uno) 改为 class world(national_defense)"）。这一屏是在造"这个对象"，而它的父类
+    应该是这所学校本身，不是那块开发板；UNO 留在上面的引脚图里（那一屏讲的就是接线）。
+    """
     src = [
-        "class World(UNO):",
+        "class World(National_Defense):",
         "    name     = \"NWPU\"",
         "    campus   = \"CHANG'AN\"",
         "    sensors  = []",
@@ -621,26 +626,145 @@ _IFTHEN_N: list = [0]
 _IFTHEN_BROKEN = False
 
 
-def _ifthen_wanted(t: float) -> bool:
-    """这一刻的歌词是不是 `If …` / `Then …`——`_ifthen_frame` 与要给它是让位的 pane 共用这一个判据。
+#: `if I can, if I can … / then I can, then I can …` 这一族**不算条件句**（批 111，用户：
+#: "我说的 if then 不包含 if I can if I can ... then I can then I can 那几句"）。
+#: 它们是同一句的重复，不是"如果…那么…"；框上写它们既没有信息量，也在整首歌里反复出现。
+#: `then maybe, then maybe`（121.8）是同一族的第三句（探针在 123.12 抓到的）。
+_IFTHEN_SKIP = ("If I can", "Then I can", "Then maybe", "If maybe")
 
-    **单一来源**：框画不画、内容让不让位，必须由同一句判断决定，否则两边错开一帧就会出现
-    "框和内容叠在一起"或"让了位却没有框"。`_dev/ifthen_pipeline_probe.py` 量的是整帧效果，
-    而这里量的是那个判据本身。
-    """
+
+def _ifthen_clause(lyric: str) -> bool:
+    """这一句是不是**真正的条件句**（`If …` / `Then …`），排掉 `if I can` 那一族。"""
+    ly = str(lyric)
+    if not (ly.startswith("If ") or ly.startswith("Then ")):
+        return False
+    for pre in _IFTHEN_SKIP:
+        if ly.startswith(pre):
+            return False
+    return True
+
+
+#: **配对要读歌词文件，不能读镜头表**（批 111 的根因）。
+#:
+#: `school_panels.shot_rows()` 是**压缩过的镜头表**：它把一秒上下、紧邻的歌词行合并成一行。
+#: 于是 `Then I will give you my dimension`（30.89）这类行**在镜头表里根本不存在**——
+#: 按"镜头表里后面最近的 Then"配对，前四句 If 会一路跳过它们、全都配到 86.21 的
+#: `Then you're the proof of my existence`（用户上一轮看到的正是这个"THEN 内容不变"）。
+#: `input/lyrics.lrc` 才是逐句的真相，且行与行成对：
+#:     If I'm a set of point  -> Then I will give you my dimension     (30.89)
+#:     If I'm a circle        -> Then I will give you my circumference (34.54)
+#:     If I'm a sine wave     -> Then you can sit on all my tangents   (38.27)
+#:     If I approach infinity -> Then you can be my limitations        (41.92)
+_LYRIC_ROWS: list = []
+_LYRIC_STAMP: list = [None]
+
+
+def _lyric_rows() -> list[tuple[float, str]]:
+    """`input/lyrics.lrc` 逐句读成 `[(t, text), …]`（按需读一次，之后缓存）。"""
+    if _LYRIC_ROWS:
+        return _LYRIC_ROWS
+    import re as _re
+    from pathlib import Path as _P
+    path = _P(__file__).resolve().parents[1] / "input" / "lyrics.lrc"
     try:
-        import school_panels as _SP
-        for r in _SP.shot_rows():
-            if r["at"] - 1e-6 <= t < r["end"] + 1e-6:
-                ly = str(r.get("lyric", ""))
-                return ly.startswith("If ") or ly.startswith("Then ")
+        for line in path.read_text(encoding="utf8").splitlines():
+            m = _re.match(r"^\[(\d+):(\d+(?:\.\d+)?)\]\s*(.*)$", line.strip())
+            if not m:
+                continue
+            t = int(m.group(1)) * 60 + float(m.group(2))
+            txt = m.group(3).strip()
+            if txt:
+                _LYRIC_ROWS.append((t, txt))
     except Exception:
         pass
-    return False
+    return _LYRIC_ROWS
+
+
+def _lyric_at(t: float) -> tuple[float, str]:
+    """此刻唱的那一句（从歌词文件取，而不是从镜头表取）。"""
+    rows = _lyric_rows()
+    cur = (0.0, "")
+    for tt, txt in rows:
+        if tt - 1e-6 <= t:
+            cur = (tt, txt)
+        else:
+            break
+    return cur
+
+
+def _ifthen_pair(t: float) -> tuple[str, str] | None:
+    """此刻这一句对应的 `(If …, Then …)`；不是条件句则 `None`。
+
+    规则：**每一句 `If …` 配它后面最近的那一句 `Then …`**（歌词文件里它们是紧邻的一对），
+    遇到 `Then …` 就往前找最近的那一句 `If …`。`if I can` 那一族不算条件句。
+    """
+    rows = _lyric_rows()
+    if not rows:
+        return None
+    idx = None
+    for i, (tt, _txt) in enumerate(rows):
+        if tt - 1e-6 <= t:
+            idx = i
+        else:
+            break
+    if idx is None:
+        return None
+    cur = rows[idx][1]
+    if not _ifthen_clause(cur):
+        return None
+    if cur.startswith("If "):
+        for _tt, txt in rows[idx + 1:]:
+            if txt.startswith("Then "):
+                return cur, txt
+        return cur, ""
+    for _tt, txt in reversed(rows[:idx + 1]):
+        if txt.startswith("If "):
+            return txt, cur
+    return "", cur
+
+
+def _ifthen_wanted(t: float) -> bool:
+    """这一刻的歌词是不是条件句——`_ifthen_frame` 与要给它是让位的 pane 共用这一个判据。
+
+    **单一来源**：框画不画、内容让不让位，必须由同一句判断决定，否则两边错开一帧就会出现
+    "框和内容叠在一起"或"让了位却没有框"。
+    """
+    try:
+        return _ifthen_pair(t) is not None
+    except Exception:
+        return False
 
 
 #: 框占它自己区域内最上面的几行（`_ifthen_frame` 是 3 行）。要让位的 pane 按这个数下移。
 IFTHEN_ROWS = 3
+#: **框的最低起点**（批 111）：右栏顶部是 feature bands（1 个抬头行 + 7 条频带，到第 8 行），
+#: 框原来从 `PANE_BOX[1] + 2` 起画，正好压在频带上（用户："当前你把它覆盖到 feature bands
+#: panel 上了"）。频带是固定 8 行，所以框的起点定在第 9 行——真正的"pane 内容区"。
+IFTHEN_TOP_ROW = 9
+#: pane 内容要让开的总行数 = 框的位置（从 pane 顶算） + 框自身 3 行。
+IFTHEN_RESERVE = IFTHEN_TOP_ROW - 1 + IFTHEN_ROWS
+
+
+#: 上一帧画过框的行区间 `[x0, x1, y0, y1]`，供"这一帧不该有框时把它擦掉"（见 `_ifthen_frame`）。
+_IFTHEN_DRAWN: list = []
+
+
+def _ifthen_erase(s, x0, x1) -> None:
+    """把**上一帧**画过框的那几行擦掉。
+
+    为什么需要：这一帧不该有框时，如果不擦，**上一帧的框会留在画面上**——右栏并不是每帧都
+    整体重绘的（谁画那一栏、画多少格由上游镜头决定），所以没人覆盖那三行。
+    实测：`Switch my current` 从 44.04 起不该有框，而 44.08 的帧里第 10 行仍是
+    `│ IF I approach infinity   THEN you can be my limitations │`（探针 SCOPE FAIL 抓到的）。
+    """
+    if not _IFTHEN_DRAWN:
+        return
+    ax0, ax1, ay0, ay1 = _IFTHEN_DRAWN[0]
+    for y in range(ay0, ay1 + 1):
+        for x in range(ax0, ax1 + 1):
+            if 0 <= y < s.rows and 0 <= x < s.cols:
+                s.set_cell(x, y, " ", (0, 0, 0), (0, 0, 0))
+    _IFTHEN_DRAWN[:] = []
 
 
 def _ifthen_frame(s, x0, y0, x1, y1, t, lt, dur, u) -> int:
@@ -668,36 +792,16 @@ def _ifthen_frame(s, x0, y0, x1, y1, t, lt, dur, u) -> int:
     # 去重"的写法都会把**同一时刻的第 2..N 次调用**跳掉，而回放与探针恰恰是在最后一帧上取画面。
     # 现在只由 `school_panels.draw_scene_pane`（右栏最外层）画一次，本函数不再画。
 
-    # **只在"此刻唱的这一句就是 If …/Then …"时才出现**（批 110，用户："if then 框仅在歌词为
-    # if ... then ... 时出现，你现在 if then 框被固定住了"）。
-    #
-    # 上一版按"整对的跨度"决定（`rows[j]["at"] <= t < rows[k]["end"]`），那个跨度**跨过了中间的
-    # 别的歌词**：例如 29.28-88.34 之间还有 `If I'm a circle`、`If I'm a sine wave`、
-    # `And then blind my vision`、`Oh, we can travel`…… 于是那些句子上也挂着这个框——
-    # 看着就是"框被固定住了"。正确的判据很简单：**取当前这一句歌词，它必须以 `If ` 或 `Then `
-    # 开头**（大小写不敏感、允许 `And then` 这种小写变体按原样不算）。
-    cur = ""
-    for r in rows:
-        if r["at"] - 1e-6 <= t < r["end"] + 1e-6:
-            cur = str(r.get("lyric", ""))
-            break
-    if not (cur.startswith("If ") or cur.startswith("Then ")):
+    # **只在"此刻唱的这一句就是条件句"时才出现**（批 110），且 `if I can …` 那一族不算条件句
+    # （批 111）。**配对从歌词文件取**（`_ifthen_pair`）——镜头表被压缩过，缺了
+    # `Then I will give you my dimension` 这类行，按它配对会把前四句 If 全配到 86.21 那句。
+    pair = _ifthen_pair(t)
+    if pair is None:
+        _ifthen_erase(s, x0, x1)          # 这一帧不该有框：把上一帧的擦掉（见 `_ifthen_erase`）
         return 0
-    # 当前这一句是 If ⇒ 左格写它、右格写它后面最近的 Then；当前这一句是 Then ⇒ 反过来配对。
-    cond = cons = ""
-    if cur.startswith("If "):
-        cond = cur
-        for r in rows:
-            if r["at"] > t and str(r.get("lyric", "")).startswith("Then "):
-                cons = str(r["lyric"])
-                break
-    else:
-        cons = cur
-        for r in reversed([r for r in rows if r["end"] <= t + 1e-6]):
-            if str(r.get("lyric", "")).startswith("If "):
-                cond = str(r["lyric"])
-                break
+    cond, cons = pair
     if not cond and not cons:
+        _ifthen_erase(s, x0, x1)
         return 0
     w, h = x1 - x0, y1 - y0
     if w < 14 or h < 3:
@@ -720,6 +824,7 @@ def _ifthen_frame(s, x0, y0, x1, y1, t, lt, dur, u) -> int:
         s.put(x0 + half + 7, y0 + 1, cons[5:][:rw] if cons.startswith("Then ") else cons[:rw],
               _mix(_C.GREEN, 0.9))
     s.put(x0, y0 + 2, "\u2514" + "\u2500" * (w - 2) + "\u2518", _mix(ME_TEXT, 0.7))
+    _IFTHEN_DRAWN[:] = [(x0, x1, y0, y0 + 2)]   # 记住位置，供下一帧不该有时擦掉
     return 3
 
 
@@ -1621,6 +1726,12 @@ def _ev_exists(k, t: float, u: float) -> None:
           _mix(_C.AMBER, 0.7))
 
 
+#: `sin x / x` 要一直演到 `Then you can be my limitations` 结束（批 111）。
+#: 40.36 = `If I approach infinity`；45.52 = `To AC, to DC` 开始（下一个 pane 行）。
+_SIN_LIMIT_FROM = 40.36
+_SIN_LIMIT_TO = 45.52
+
+
 def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
     """互换: four things that are the same thing twice, on the lines about switching roles.
 
@@ -1638,8 +1749,20 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
     TITLE = {"bits": "F \u2192 M \u00b7 3 \u4f4d", "clock": "12 \u5c0f\u65f6 \u00b7 \u53cc\u91cd\u8986\u76d6",
              "braid": "\u03c31 \u00b7 \u7f16\u7ec7", "hyper": "\u8d85\u692d\u5706",
              "letters": "S \u2192 M \u00b7 \u5b57\u5f62\u7ffb\u4f4d"}
-    k = _kit(s, x0, y0, x1, y1, 0, TITLE.get(panel, "\u4e92\u6362"))
+    # **抬头要和里面画的东西一致**（批 98e 的规矩，批 111 又用到一次）：40.36-45.52 这一段
+    # 里面画的是 `sin x / x`（见下），所以抬头这时不能还写 `F → M · 3 位`——那是 `panel="bits"`
+    # 的名字。`t=44.90` 实测原本显示的就是 F→M 的抬头，而画面已经被我换成 sin x/x。
+    _sin_here = _SIN_LIMIT_FROM <= t < _SIN_LIMIT_TO
+    k = _kit(s, x0, y0, x1, y1, 0,
+             "sin x / x" if _sin_here else TITLE.get(panel, "\u4e92\u6362"))
     if k is None:
+        return
+    if _sin_here:
+        try:
+            import school_motifs as _M
+            _M.sine(k, t)
+        except Exception:
+            pass
         return
     # `panel` draws one of the four at full width. The row was 12.8 s and seven lyric lines with all four
     # small at once - the "占时过长" the user objected to on the tomato pane - so the schedule gives each
@@ -2227,12 +2350,10 @@ def draw_pane(name: str, s, x0: int, y0: int, x1: int, y1: int, t: float,
             if k.bh < 3 or k.bw < 8:
                 return True                 # no room for the drawing: the header is the pane
             x0, y0, x1, y1 = k.bx0, k.by0, k.bx1, k.by1
-    # **给 IF/THEN 框让出顶上三行**（批 110，用户："增加了 if then 框的动画，动画内容要下移
-    # （不然会和 if then 重叠）"）。框由 `school_panels.draw_scene_pane` 在**最后**画、位置
-    # `y0+2`，所以 pane 的内容要从 `y0+IFTHEN_ROWS` 起画才不撞。**放在 `args` 之前**，
-    # 否则带注解的 pane（矩阵、正弦…恰好都是 If/Then 那几句）会被两层 `return` 绕过。
+    # **给 IF/THEN 框让出顶上 11 行**（批 111）：框从第 9 行起、占 3 行（到第 11 行），
+    # 所以 pane 的内容要从第 12 行起画才不撞。`IFTHEN_RESERVE` 就是这个数。
     if _ifthen_wanted(t):
-        y0 = min(y0 + IFTHEN_ROWS, max(y0, y1 - 3))
+        y0 = min(y0 + IFTHEN_RESERVE, max(y0, y1 - 3))
     if args:
         try:
             fn(s, x0, y0, x1, y1, t, lt, dur, u, **args)

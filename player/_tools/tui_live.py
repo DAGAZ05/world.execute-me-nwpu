@@ -4510,19 +4510,26 @@ def _draw_ifthen_frame(s: Screen, t: float) -> bool:
     而 `school_entry` 返回 `base` 的行由**上游**自己画，后者不会经过那个函数。挂在 pane 里
     就会漏掉 162-175 s 那几句 `If I can …`。所以它和 `fx_school_wipe` 一样住在播放器这一层。
 
-    位置与让位：框占 `PANE_BOX[1]+2` 起的 3 行（让开 `_Kit` 抬头那两行），而 pane 的内容
-    在 `school_scenes.draw_pane` 里已经下移了 `IFTHEN_ROWS` 行，所以两者不叠。
+    位置与让位：框从**第 9 行**起（`school_scenes.IFTHEN_TOP_ROW`）——右栏顶部是 feature bands
+    （1 个抬头行 + 7 条频带，共 8 行），框原来从 `PANE_BOX[1] + 2` 起画正好压在频带上
+    （用户批 111："当前你把它覆盖到 feature bands panel 上了"）。pane 的内容在
+    `school_scenes.draw_pane` 里已经下移了 `IFTHEN_RESERVE` 行，所以两者不叠。
     """
     if SP is None or VAR[0] != "school":
         return False
     try:
         import school_scenes as _SC
+        # **先擦上一帧的框**（批 111）：这一帧不该有框时也必须擦，否则旧框会留在画面上
+        # （右栏不是整体重绘的）。所以擦的动作在 `_ifthen_wanted` 门前，不能放在门后——
+        # 第一版就放在门后，于是 `Switch my current`(44.04 起) 那一屏上旧框一直挂着。
+        _SC._ifthen_erase(s, 0, s.cols - 1)
         if not _SC._ifthen_wanted(t):
             return False
-        x0, y0, x1, y1 = PANE_BOX
-        if x1 - x0 < 16 or y1 - y0 < 6:
+        x0, _y0, x1, y1 = PANE_BOX
+        if x1 - x0 < 16 or y1 - _y0 < 16:
             return False
-        return bool(_SC._ifthen_frame(s, x0, y0 + 2, x1, y1, t, 0.0, 1.0, 0.0))
+        top = max(_y0 + 1, _SC.IFTHEN_TOP_ROW)
+        return bool(_SC._ifthen_frame(s, x0, top, x1, y1, t, 0.0, 1.0, 0.0))
     except Exception as exc:
         print(f"warning: the IF/THEN frame failed ({exc})", file=sys.stderr, flush=True)
         return False
