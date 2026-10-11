@@ -2223,7 +2223,15 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     #     had `pane_landmark_dialogue` on it since 84.60, and by the ops ticker ("总师摇篮 · 第一架小型
     #     无人机" is the row's own `ops`, so nothing is lost with the caption).
     # --- "Challenging your God": the sword, over everything
-    (125.50, 128.20, flash, dict(name="sword", cols_n=76, rows_n=24)),
+    # **`topmost`**（批 131，清单第 50 条）：用户："学校部分快结束时，屏幕中央出现的铸剑雕塑，
+    # 在部分帧没有置于顶层，修改一下"。成因是**那一行自己的切点**：
+    #   * `school_cuts()` 在 125.4019 有一次学校切点 ⇒ `fx_school_wipe` 在 125.40-125.70 跑，
+    #     它做的事就是"把右栏的**旧格**贴回来"；
+    #   * `_cuts()` 在 125.33 也有一次转场 ⇒ `transition` 跑 125.33-125.79（`TRANS_DUR`）。
+    # 铸剑的窗口从 125.50 开始，与这两段重叠 **125.50-125.79 ≈ 7 帧**——那几帧里雕塑的右半被
+    # 旧格/转场的搬运盖住。标上 `topmost` 就排到 `fx_school_wipe`、`fx_apply`、`transition`
+    # 之后（`tui_live.draw` 末尾那一趟），这几帧也就在最上层了。
+    (125.50, 128.20, flash, dict(name="sword", cols_n=76, rows_n=24, topmost=True)),
     # --- "If I can, if I can": 航小天 打篮球 is **not on this list**. It covers the chat window, so it is
     #     drawn by the layer that owns that window (`WINDOW_EVENTS`, below) - see the note in `dunk` for
     #     why that is a layering fix and not a tidy-up. The score is unchanged: 58.65 is the first line,
