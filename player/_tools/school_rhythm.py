@@ -60,7 +60,26 @@ HOLD_MIN, HOLD_MAX = 0.35, 1.20
 HOLD_LOUD = 0.42
 #: 长按出现概率（只在符合条件的稀疏落点上，所以实际比例会低于它）。
 HOLD_PCT = 0.55
-#: 长按松手的容差（秒）：比尾巴早这么多松就算"断"。
+#: **判定结果的淡出颜色**（批 101）。用户："敲击时不同结果（PERFECT+GOOD+MISS）音符应该有
+#: 不同淡出颜色（对比明显点）"。在此之前 `done` 的音符一律画成 `ui(0.30)` 的暗灰——
+#: 三种结果在屏幕上完全分不出来。
+#:
+#: 三色要**在深底上互相分得开**，所以选的是色相差别大的三支：
+#:   * `PERFECT` **暖白**（和未击中的主题蓝区分最远）；
+#:   * `GOOD` **青绿**（冷色里最亮的一支，和白、红都不撞）；
+#:   * `MISS` **橙红**（唯一一支暖色，一眼看出"这个丢了"）。
+#: 显不显示由"离判定的时间"决定：`HIT_FADE` 秒内从满亮淡到 `HIT_FLOOR`，然后消失。
+#: **0.9 s 而不是 0.55**：三种结果的判定时刻天然相差约 `GAP`（0.458 s）×2，窗口短于 1.0 s 时
+#: "同屏同时看到三种颜色"在物理上不可能（`_dev/rhythm_fade_probe.py` 量过：0.66 s 的跨度
+#: 对 0.55 s 的窗口）。0.9 s 既让淡出看得见，也让三种结果能同框对比。
+FADE_COL = {
+    "PERFECT": (255, 246, 190),
+    "GOOD": (120, 255, 210),
+    "MISS": (255, 120, 90),
+}
+HIT_FADE = 0.9
+HIT_FLOOR = 0.22
+#: 长按松手的容差（秒）：比尾巴早这么多松就算"断"，断掉只丢尾巴那 1 分并断连击。
 HOLD_RELEASE = 0.18
 #: 面板高度（行）：**按当前有几个键决定**。用户的要求："我让你学院部分增加music panel高度，
 #: 容纳3个键位，你完全没改"——3 键那一段面板更高，并且每个键道有 **2 行**（音符是"厚块"，
@@ -379,6 +398,12 @@ class Game:
             if note.get("done"):
                 continue
             self.miss += 1
+            # **`done` 也要置上**（批 101）：`draw` 的淡出路径判断的是 `done`，只写
+            # `res/hit_t` 的话，漏掉的音符永远不会走淡出——`_dev/rhythm_fade_probe.py` 里
+            # "MISS 同色向的格数 0" 就是这一条。
+            note["done"] = True
+            note["res"] = "MISS"
+            note["hit_t"] = t          # 过期的那一刻，淡出从这时起算
             self.combo = 0
             self.flash = (t, "MISS", note["lane"])
 
@@ -415,11 +440,16 @@ class Game:
             return True
         note = self.notes[best_i]
         note["done"] = True
+        # **判定结果写在音符上**（批 101，用户："敲击时不同结果音符应该有不同淡出颜色（对比明显点）"）。
+        # `hit_t` 是判定发生的时刻（不是音符本身的时刻），`res` 是结果；`draw` 用它们算淡出。
+        note["hit_t"] = t
         if best_d <= PERFECT:
             self.perfect += 1
+            note["res"] = "PERFECT"
             self.flash = (t, "PERFECT", k)
         else:
             self.good += 1
+            note["res"] = "GOOD"
             self.flash = (t, "GOOD", k)
         self.combo += 1
         self.best = max(self.best, self.combo)
@@ -520,22 +550,41 @@ def draw(s, x0: int, y0: int, x1: int, y1: int, t: float, g: Game,
     drawn = 0
     for note in g.notes:
         dt = note["t"] - t
-        if dt < -GOOD or dt > look:
+        done = bool(note.get("done"))
+        # **已经判过的音符要单独放行**（批 101）。它们 `done` 之后 `dt` 越来越负，会被
+        # 下面这句 `dt < -GOOD` 直接跳过去——于是"判定结果的淡出颜色"从来没有被画出来过
+        # （`_dev/rhythm_fade_probe.py` 造了一屏三种结果，缓冲区里一格都没有，才查到这一条）。
+        if done:
+            age = t - note.get("hit_t", t)
+            if age > HIT_FADE or age < 0.0:
+                continue
+        elif dt < -GOOD or dt > look:
             continue
         ln = note["lane"]
         if ln not in lane_y:
             continue
-        x = lane_x1 - int(round(span * dt / look))
+        # 未判定的按"离判定线还有多久"定位；**已判定的钉在判定线上**（x = lane_x1），
+        # 因为它的时间关系已经用完了——继续往左滑只是在读一个已经结束的事件。
+        x = lane_x1 if done else lane_x1 - int(round(span * dt / look))
         yy0 = lane_y[ln]
         near = 1.0 - _clamp(abs(dt) / GOOD, 0.0, 1.0)
         #: 颜色：远 = 主题蓝 ×1.2（亮蓝），近 = 暖白。第一版从 `mix(me_text, 0.5)` 起，
         #: 实测最暗格 (58,71,121) 比正文还暗。
         far = tuple(min(255, int(v * 1.2)) for v in me_text)
-        done = bool(note.get("done"))
         kind = note.get("kind", "tap")
         bright = (255, 246, 190) if kind == "beat" else (214, 235, 255)
-        col = _grad(far, bright, near) if not done else ui(0.30)
-        ch = "\u2588" if not done else "\u2591"
+        # **已经判过的音符按结果淡出**（批 101）：`PERFECT` 暖白 / `GOOD` 青绿 / `MISS` 橙红，
+        # 亮度随"离判定多久"从 1.0 掉到 `HIT_FLOOR`，到 `HIT_FADE` 秒后不再画。
+        # 在此之前一律 `ui(0.30)` 灰——三种结果在屏幕上分不出来。
+        if done:
+            age = t - note.get("hit_t", t)
+            f = max(HIT_FLOOR, 1.0 - age / HIT_FADE)
+            base = FADE_COL.get(note.get("res"), (170, 190, 220))
+            col = tuple(int(round(c * f)) for c in base)
+            ch = "\u2593"                        # 实心度也降一档：淡出看得出"消下去"
+        else:
+            col = _grad(far, bright, near)
+            ch = "\u2588"
         # **长按 = 头 + 条**（批 100）：头是 3 格厚块，条沿"来向"（右边）铺到 `t + dur` 的位置。
         # 条用 `▄`（U+2584，半块）——**`glyph_probe` 抓到过 `▬`（U+25AC）在这个渲染器里是缺字方框**，
         # 半块是已经证明能画的那一类；读谱时"要按住多久"就是这条有多长。
