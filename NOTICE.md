@@ -1,7 +1,7 @@
 # NOTICE · 第三方素材、许可，以及"哪些东西不在仓库里"
 
 本仓库 = **上游影片包**（MisakaZentai 的开源重建，`player/`）+ **本次西工大改编**（根目录的文档、
-`preview/`、`assets/`、`03_批次设计/`、`04_验证记录/`、`_dev/` 与 `player/_tools/school_*.py` 的画面）。
+`preview/`、`assets/` 与 `player/_tools/school_*.py` 的画面）。
 两部分的第三方归属下面分开说；**上游影片包内部的逐项署名链在 [`player/NOTICE.md`](player/NOTICE.md)**，
 这里不复述，只给结论与入口。
 
@@ -12,7 +12,7 @@
 | 上游影片包的代码、dsh 前端、React | **MIT**（`player/LICENSE`、`player/LICENSES/React-MIT.txt`） |
 | 上游影片包里的鲸鱼娘立绘及其衍生画面 | **CC BY-NC-SA 4.0**（署名单见 `player/NOTICE.md`，全文在 `player/LICENSES/CC-BY-NC-SA-4.0.txt`） |
 | 字体（Space Mono Bold、Anton Regular） | **SIL OFL 1.1**（`player/film/ai_mascot_mv_world_execute_20260926/fonts/OFL_*.txt`） |
-| 本次西工大改编的文档与图像（根目录各篇 `.md`、`preview/`、`03_批次设计/`、`04_验证记录/`、`assets/`、学院版代码绘制的画面） | **CC BY-NC-SA 4.0**（见根目录 `LICENSE`） |
+| 本次西工大改编的文档与图像（根目录各篇 `.md`、`preview/`、`assets/`、学院版代码绘制的画面） | **CC BY-NC-SA 4.0**（见根目录 `LICENSE`） |
 | 歌曲与歌词 | **不在本仓库**，权利归 Mili；本仓库不授予其再许可 |
 
 ## 不在仓库里的东西（`.gitignore` 里都写明了）
@@ -22,7 +22,7 @@
 | 歌曲 `world.execute(me);` | Mili | 自备音频放到 `player/input/song.mp3`；要什么格式、怎么对齐见 [`player/input/README.md`](player/input/README.md) 与 `player/data/song.json`（时间零点是它的第一个采样） |
 | 歌词 `.lrc` | Mili | 上游包用 `player/tools/lyrics.py fetch` 从 [LRCLIB](https://lrclib.net)（条目 36914646）取到本机，或自备；仓库里只保留**不带文字**的逐词/逐句时间轴 `player/data/timing/*_notext.json` |
 | 逐字歌词时间轴 `word_timeline.json`（带文本的那份） | Mili | 构建期产物，不进仓库 |
-| 逐句歌词对照表 `01_歌词分析.md`、`05_歌词会话对照_v2.md`、`06_时序对照表.md/.tsv` | Mili | 三份文档逐句印着整首歌，只在本机生成（`_dev/chat_doc.py`、`_dev/timeline_doc.py`）；有 `lyrics.lrc` 就能重新生成 |
+| 逐句歌词对照表 `01_歌词分析.md`、`05_歌词会话对照_v2.md`、`06_时序对照表.md/.tsv` | Mili | 三份文档逐句印着整首歌，只在本机生成（本地的文档脚本）；有 `lyrics.lrc` 就能重新生成 |
 | 原片舞者画面 | 见 `player/NOTICE.md` | 基于第三方 MMD 模型与动作生成，许可范围未确认，上游用立绘生成替身帧 |
 | 音乐相关的一切 | Mili | 按 [Mili 官方使用指引](https://projectmili.com/copyright-guidelines) 处理：个人非商业二创可用；含 AI 的同人内容须明确标注；商用另行确认 |
 
