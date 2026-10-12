@@ -139,19 +139,32 @@ def rectifier(k, t: float) -> None:
           _mix(_C.AMBER, 0.7))
 
 
-def phyllotaxis(k, t: float) -> None:
+def phyllotaxis(k, t: float, titles: bool = True) -> None:
     """Sunflower phyllotaxis: `r = c\u221an`, `\u03b8 = n \u00b7 137.508\u00b0`, and the spiral nobody
     programmed.
 
     The golden angle is why the seeds do not line up: it is the worst-approximable number, so each
     seed lands in the largest gap left. Drawn as dots by density, turning slowly, because a still
     phyllotaxis looks like a mistake and a turning one looks inevitable.
+
+    `titles=False` 时**不写任何文字**（只留花的纹样）。用户批 119 对 `so dizzy, so dizzy`
+    那一处的要求是"对应动画改为之前的向日葵叶序（**框内的文字去掉**）"，所以那里传 False。
+    默认 True，`MOTIFS` 里那个叶序 pane（第一处间奏）保持原样。
     """
-    k.section(k.by0, "\u5411\u65e5\u8475\u53f6\u5e8f \u03b8 = n \u00b7 137.508\u00b0", 0.28)
+    if titles:
+        k.section(k.by0, "\u5411\u65e5\u8475\u53f6\u5e8f \u03b8 = n \u00b7 137.508\u00b0", 0.28)
     cx = k.bx0 + min(20, k.bw // 2)
-    cy = (k.by0 + k.by1) // 2
-    rw = max(3, min(16, k.bw // 4))
-    rh = max(2, min(14, (k.by1 - k.by0) // 3))
+    # 竖直居中，并用 `rh` 把花放进可用高度里（原来 `cy = (by0+by1)//2` 之后靠 `rh` 自己夹，
+    # 但 `rh` 太大时点会落到上下边界外、被 `if k.bx0 <= x <= k.bx1` 那一条过滤掉一大半）
+    cy = (k.by0 + k.by1 + 1) // 2
+    # **半径要跟着这个 pane 自己的尺寸缩放**（批 119）。原来写 `min(16, bw // 4)` /
+    # `min(14, bh // 3)`——那是按"整宽 pane"估的，放到小矩形（`so dizzy` 那一处只有 118x17、
+    # 而且 `_Kit` 还占掉两行）里，`bh // 3` 只有 3，花的半径被压到 3 格，看上去"没画出来"。
+    # 现在取"可用尺寸的比例"，并留出右侧说明/不贴边。
+    avail_h = max(2, (k.by1 - k.by0) // 2)
+    avail_w = max(3, k.bw // 4)
+    rw = max(4, min(avail_w, avail_h * 2))
+    rh = max(3, min(avail_h, max(3, rw // 2)))
     if rh < 2:
         return
     ga = math.radians(137.507764)
@@ -165,6 +178,8 @@ def phyllotaxis(k, t: float) -> None:
         if k.bx0 <= x <= k.bx1 and k.by0 <= y <= k.by1:
             k.put(x, y, "\u00b7" if i % 3 else "\u2022",
                   _mix(_C.AMBER if i % 8 else _C.GREEN, 0.4 + 0.5 * (i / n)))
+    if not titles:
+        return          # 只留花的纹样（`so dizzy, so dizzy` 那一处的要求）
     k.put(k.bx0 + 2 * rw + 3, cy - 2, "137.508\u00b0 = 360\u00b0 \u00d7 (1 \u2212 1/\u03c6)", _ui(0.55))
     k.put(k.bx0 + 2 * rw + 3, cy - 1, "\u9ec4\u91d1\u89d2\uff1a\u6700\u96be\u8fd1\u4f3c\u7684\u65e0\u7406\u6570", _ui(0.5))
     k.put(k.bx0 + 2 * rw + 3, cy, "\u6240\u4ee5\u6bcf\u4e00\u7c92\u90fd\u843d\u5728", _ui(0.5))
@@ -270,6 +285,46 @@ def quantize(k, t: float) -> None:
     # `pane_motif_<name>` can be a pane of its own ("禁止重复" needed more drawings, so the motifs became
     # panes). `_dev/clock_probe.py` is what asks, and a pane that never moves is a still frame.
     k.put(k.bx0 + 2 + int((t * 7.0) % max(1, n)), y - 1, "\u25bc", _mix(_C.AMBER, 0.9))
+
+
+def _row_window(name: str) -> tuple[float, float]:
+    """`(start, end)` of the **whole window** the schedule gives `name` — earliest `at` to latest `end`.
+
+    批 125：`_row_span` 只取**第一条**同名行。双星现在排成两行（`If I can, if I can` 58.65-60.57
+    与 `Give you all the simulations` 60.57-64.29，都是 `pane_motif_binary`），于是 `binary`
+    在第二行里算出的相位 `ph` 早就是 1.0——**整个 `Give you all the simulations` 都在看静止的终态**
+    （用户："if I can if i can歌词时在转，但 give you all simulations 时基本就停了"）。
+    一个 pane 被排成多行时，"它在演多久"应当是这些行的**并集**，不是第一条的跨度。
+    """
+    try:
+        import school_panels as _SP
+        ats, ends = [], []
+        for r in _SP.shot_rows():
+            if r.get("name") == name:
+                ats.append(float(r["at"]))
+                ends.append(float(r["end"]))
+        if ats:
+            return min(ats), max(ends)
+    except Exception:
+        pass
+    return 0.0, 1.0
+
+
+def _row_here(name: str, t: float) -> tuple[float, float]:
+    """**包含 `t` 的那一行**的 `(at, end)`；没有就回落到整段并集（`_row_window`）。
+
+    批 134：用户："双星旋进的动画也要改，其在 simulations 歌词时停止"。双星排成两行
+    （58.65-60.57 / 60.57-62.41），要的是**第二行开头就是并合**——所以相位必须按"当前
+    这一行"算，不能按并集（并集 58.65-62.41 会把并合推到 62.41，那正是要改掉的旧行为）。
+    """
+    try:
+        import school_panels as _SP
+        for r in _SP.shot_rows():
+            if r.get("name") == name and float(r["at"]) <= t < float(r["end"]):
+                return float(r["at"]), float(r["end"])
+    except Exception:
+        pass
+    return _row_window(name)
 
 
 @lru_cache(maxsize=None)
@@ -483,16 +538,25 @@ def matrix(k, t: float) -> None:
     share**, on the line that introduces the film's maths ("If I'm a set of points": a matrix is what you
     do to a set of points, row by row).
 
-    What is on screen is the definition rather than a picture of one: `A` is a 5x5 matrix of real integers
-    and `x = (1, 2, 3, 4, 5)`, so `b_i = sum_j a_ij x_j` is arithmetic a reader can check, and the
+    What is on screen is the definition rather than a picture of one: `A` is a 4x4 matrix of integers and
+    `x = (1, 2, 3, 4)`, so `b_i = sum_j a_ij x_j` is arithmetic a reader can check, and the
     highlight walks down the rows one cell per step - one row of `A` against the column `x`, which is the
     one operation every one of those four courses opens with (a linear system, an elimination step, a
     relation matrix, a dense layer).
+
+    **结果向量定成 `[1, 9, 3, 8]`**（批 107，用户："矩阵动画改一下矩阵、向量具体数值，使得结果向量值为
+    [1,9,3,8]"）。`A` 与 `x` 是**反过来解的**：先定 x=(1,2,3,4) 与 b=(1,9,3,8)，再逐行找一个绝对值最小、
+    零最多的整数解（`_dev/matrix_solve.py` 就是这一步，它顺手断言 A·x 真的等于目标）。四行都是
+    三两个小整数相加，读者能自己验：
+        -2 + 2 - 3 + 4 = 1      1 - 2 + 6 + 4 = 9      -2 - 2 + 3 + 4 = 3      -1 + 2 + 3 + 4 = 8
     """
     k.section(k.by0, "\u77e9\u9635 \u00b7 A\u00b7x = b\uff1a\u4e00\u884c\u70b9\u4e00\u5217", 0.28)
-    n = 5
-    a = [[(i * 7 + j * 3 + 1) % 9 - 4 for j in range(n)] for i in range(n)]
-    x = [i + 1 for i in range(n)]
+    n = 4
+    a = [[-2, 1, -1, 1],
+         [1, -1, 2, 1],
+         [-2, -1, 1, 1],
+         [-1, 1, 1, 1]]
+    x = [i + 1 for i in range(n)]                 # (1, 2, 3, 4)
     b = [sum(a[i][j] * x[j] for j in range(n)) for i in range(n)]
     at, end = _row_span("pane_motif_matrix")
     span = max(0.6, end - at)
@@ -541,6 +605,26 @@ def matrix(k, t: float) -> None:
     # ending as if it were the whole curriculum; the amber line said what the drawing already shows.
     k.put(k.bx0, k.by1 - 1, "\u7ebf\u6027\u4ee3\u6570 \u00b7 \u8ba1\u7b97\u65b9\u6cd5 \u00b7 "
           "\u79bb\u6563\u6570\u5b66 \u00b7 \u6df1\u5ea6\u5b66\u4e60 \u2026", _ui(0.6))
+    # **算完之后把结果向量画成字符画**（批 109，用户："矩阵动画得到 1938 结果后，显示一个
+    # [1 9 3 8]^T 字符画"）。`b` 那一列本身就是 `[1, 9, 3, 8]ᵀ`，但它是四行小字；这里把同一个
+    # 东西画成**竖直的列向量**：`┌ ┐` 夹住一列数字、右上角一个 `T` 表示转置，底下一行写明
+    # `[1 9 3 8]`。逐行**从上往下**点亮（`row` 是正在读的那一行），所以它跟着矩阵的节奏长出来。
+    # 框线用项目里已经证明能画的 `┌ ┐ └ ┘`（`⌈⌉⌊⌋` 那几个没有把握，`glyph_probe` 会判）。
+    if k.bw >= 46 and k.bh >= 11:
+        vx2 = k.bx1 - 11
+        vy = k.by0 + 2
+        k.put(vx2, vy, "\u250c", _mix(_C.GREEN, 0.9))
+        k.put(vx2 + 4, vy, "\u2510", _mix(_C.GREEN, 0.9))
+        k.put(vx2 + 5, vy - 1, "T", _mix(_C.AMBER, 0.95))
+        for i in range(n):
+            lit = i <= row
+            k.put(vx2 + 1, vy + 1 + i, "%3d" % b[i],
+                  _mix(_C.GREEN, 0.95) if lit else _ui(0.25))
+            k.put(vx2, vy + 1 + i, "\u2502", _mix(_C.GREEN, 0.7))
+            k.put(vx2 + 4, vy + 1 + i, "\u2502", _mix(_C.GREEN, 0.7))
+        k.put(vx2, vy + n + 1, "\u2514", _mix(_C.GREEN, 0.9))
+        k.put(vx2 + 4, vy + n + 1, "\u2518", _mix(_C.GREEN, 0.9))
+        k.put(vx2, vy + n + 3, "[1 9 3 8]", _mix(_C.GREEN, 0.95) if row >= n - 1 else _ui(0.3))
 
 
 def epicycles(k, t: float) -> None:
@@ -631,51 +715,140 @@ def epicycles(k, t: float) -> None:
                     k.put(px2, py2, "\u2022", _mix(_C.RED, lv))
 
 
-def hearts9(k, t: float) -> None:
-    """**One** heart curve, big - "心形曲线可以只画1个大的".
+#: The classic parametric heart, `x = 16 sin³t`, `y = 13 cos t − 5 cos 2t − 2 cos 3t − cos 4t`.
+#:
+#: **Not the implicit `(x²+y²−1)³ = x²y³`.** That equation is used elsewhere in this project
+#: (`school_courses.ai_diffusion` fills its diffusion panels with it) and it is the usual "implicit
+#: heart", but `_dev/probe_heart_shape.py` scanned it cell by cell and it is **not a heart**: its
+#: x-interval is still `±1.00` at the very top row, so the two lobes never separate and there is
+#: **no notch at all** — it rasterises to a rounded blob. A shape with no cusp cannot read as a
+#: heart, and a blob is not a fix for "looks hollow".
+#:
+#: This curve does have the two lobes and the cusp at the top, and it is the same heart whose Fourier
+#: coefficients `epicycles` already derives and draws (`想法.md`'s own formula list), so the two
+#: hearts in this file agree on the shape instead of disagreeing.
+HEART_T_STEPS = 2880
+#: The curve's extent in its own units: `x ∈ [-16, 16]`, `y ∈ [-17, +12]`. The cusp reaches only +12
+#: while the point reaches -17, so it is **not** symmetric about `y = 0`; dividing both sides by 17
+#: (the first version) put the cusp at +0.71 instead of +1.0 and squashed the top.
+HEART_X_MAX = 16.0
+HEART_Y_MIN = -17.0
+HEART_Y_MAX = 12.0
+#: height : width in the curve's own units.
+HEART_RATIO = (HEART_Y_MAX - HEART_Y_MIN) / (2.0 * HEART_X_MAX)
 
-    This was nine: `想法.md` lists five heart formulae and asks for nine, so it drew a 3x3 contact sheet
-    of tiny dotted loops with nine equations printed over them. The user's note at this batch is
-    "有些演出太复杂导致图像精细度不够，可以进行简化，重点放在细节刻画（比如心形曲线可以只画1个大的）", and
-    they are right about the cause: at a band's height each cell of that sheet had three rows, so every
-    heart was a dash and the equations overlapped. Nine shapes at three rows each is not nine times the
-    information, it is no information - what the sheet was for ("同一个形状，九个方程") survives as one
-    line of text under one heart that can actually be seen.
 
-    The curve is `r = 1 - sin θ`: the one polar heart everybody recognises, with the cusp at the top and
-    the point at the bottom. It is drawn at the band's own size with the cell aspect divided out, so it is
-    a heart rather than a squashed heart, and with a second contour inside it at 0.82 - two passes are
-    what give a curve *weight* at terminal resolution. The whole thing breathes, so the pane's clock
-    (`_dev/clock_probe.py`) sees it move.
+def _heart_outline(steps: int = HEART_T_STEPS) -> list:
+    """The parametric heart as `(x, y)` in the curve's own units, **cusp at the top**.
+
+    `y` is negated so the cusp (raw `+12`) becomes the smallest value, i.e. the top in screen
+    coordinates where y grows downward.
     """
-    k.section(k.by0, "\u5fc3\u5f62\u66f2\u7ebf r = 1 \u2212 sin \u03b8", 0.28)
-    if k.bw < 14 or k.bh < 5:
+    pts = []
+    for i in range(steps):
+        t = 2.0 * math.pi * i / steps
+        x = HEART_X_MAX * math.sin(t) ** 3
+        y = 13.0 * math.cos(t) - 5.0 * math.cos(2 * t) - 2.0 * math.cos(3 * t) - math.cos(4 * t)
+        pts.append((x, -y))
+    return pts
+
+
+def heart_cells(w: int, h: int) -> set:
+    """The parametric heart as a set of `(x, y)` cells inside a `w` x `h` box, **solid**.
+
+    Solid is the point: the reference repo's prompt document asks for "这些❤️不要有这种空洞" (item 21),
+    with items 22/24 adding "是这个部分，有三个" / "后面这里也有三个凹陷".
+
+    **Even-odd scanline fill, not `min..max`.** The first version filled every cell between the
+    leftmost and rightmost crossing, which fills *across the cusp*: on the rows above the notch the
+    two lobes are separate, and spanning between them put a bridge over the gap. The raster then read
+    as a round crown instead of two lobes - `_dev/probe_heart.py` printed it, and the width profile in
+    `_dev/probe_heart_notch.py` made it explicit (the notch-depth line came out 0.00 rows). Counting
+    crossings and filling between odd/even pairs is the standard scanline fill and gets the cusp right
+    for free.
+
+    "No holes" is then checkable rather than asserted: `_dev/probe_heart.py` counts enclosed holes two
+    different ways (four-neighbour, and flood fill from outside) at five sizes.
+    """
+    if w < 3 or h < 3:
+        return set()
+    pts = _heart_outline()
+    x_lo, x_hi = -HEART_X_MAX, HEART_X_MAX
+    y_lo, y_hi = HEART_Y_MIN, HEART_Y_MAX        # screen y already negated in `pts`
+    out = set()
+    for gy in range(h):
+        uy = y_lo + (y_hi - y_lo) * (gy + 0.5) / h
+        xs = []
+        for i in range(len(pts)):
+            x0p, y0p = pts[i]
+            x1p, y1p = pts[(i + 1) % len(pts)]
+            if (y0p - uy) * (y1p - uy) > 0.0:
+                continue
+            if y1p == y0p:
+                continue                          # a horizontal edge contributes nothing to parity
+            xs.append(x0p + (uy - y0p) / (y1p - y0p) * (x1p - x0p))
+        if len(xs) < 2:
+            continue
+        xs.sort()
+        for k in range(0, len(xs) - 1, 2):
+            a, b = xs[k], xs[k + 1]
+            for gx in range(w):
+                ux = x_lo + (x_hi - x_lo) * (gx + 0.5) / w
+                if a <= ux <= b:
+                    out.add((gx, gy))
+    return out
+
+
+def hearts9(k, t: float) -> None:
+    """**One** heart, big and **solid** - "心形曲线可以只画1个大的" + "这些❤️不要有这种空洞".
+
+    This was nine: `想法.md` lists five heart formulae and asks for nine, so it drew a 3x3 contact
+    sheet of tiny dotted loops with nine equations printed over them. The user's note is "有些演出太
+    复杂导致图像精细度不够，可以进行简化，重点放在细节刻画（比如心形曲线可以只画1个大的）" - at a band's
+    height each cell of that sheet had three rows, so every heart was a dash.
+
+    **Batch 90 replaced both the curve and the fill**, on the reference repo's prompt document:
+
+      * item 21 "这些❤️不要有这种空洞", items 22/24 "是这个部分，有三个" / "后面这里也有三个凹陷". The old
+        drawing was **two dotted contours** of `r = 1 - sin θ`, which is a **cardioid**: one cusp at
+        the top and a round bottom, with the whole middle empty. A cardioid has one lobe, not two, so
+        at this resolution its single notch read as a dent and the empty middle read as a hole.
+        Neither is something a fill can fix - the shape itself was wrong.
+      * It is now the **parametric heart** (see `heart_cells`), **filled**, with the rim drawn one
+        shade brighter so the outline survives the fill. A flat filled blob at fourteen cells across
+        is not a heart either - the rim is what carries the two lobes.
+
+    The whole thing still breathes on `t`, so the pane's clock probe sees it move.
+    """
+    k.section(k.by0, "\u5fc3\u5f62\u66f2\u7ebf x=16sin\u00b3t, y=13cost\u22125cos2t\u22122cos3t\u2212cos4t", 0.28)
+    if k.bw < 8 or k.bh < 5:
         return
-    # The heart hangs *below* its cusp: `r = 1 - sin θ` is 0 at the top (the notch) and 2 at the bottom
-    # (the point), so `cy` is the top of the drawing rather than its middle - the first version centred
-    # `cy` and clipped the point off the bottom of every box. Both radii come from what is left: the width
-    # is `2 rx` and the height `2 ry`, and a cell is `_CA` times taller than it is wide.
-    cx = k.bx0 + k.bw // 2
-    cy = k.by0 + 2
-    room = max(4, (k.by1 - cy) - 1)
-    ry = max(3, min(room // 2, int((k.bw // 2 - 2) / _CA)))
-    rx = max(5, int(ry * _CA))
+    # The heart's box keeps the curve's own proportion **after** dividing out the cell aspect: a cell
+    # is `_CA` times taller than it is wide, so a box of `w` cells by `h` cells shows a shape of true
+    # proportion when `h / w = HEART_RATIO / _CA`. Getting this wrong is what makes a heart look
+    # squashed or like a lollipop, and at fourteen cells across it is not a subtle difference.
+    want = HEART_RATIO / max(0.1, _CA)
+    top = k.by0 + 2
+    avail_h = (k.by1 - top) - 1
+    avail_w = k.bw - 2
+    if avail_h < 4 or avail_w < 8:
+        return
+    h = min(avail_h, max(5, int(round(avail_w * want))))
+    w = max(8, min(avail_w, int(round(h / want))))
+    h = max(4, min(avail_h, int(round(w * want))))
+    x0 = k.bx0 + max(0, (k.bw - w) // 2)
+    y0 = top + max(0, (avail_h - h) // 2)
+    cells = heart_cells(w, h)
+    if not cells:
+        return
     beat = 0.62 + 0.38 * abs(math.sin(t * 1.9))
-    for i in range(0, 360, 2):
-        th = math.radians(i)
-        r = 1.0 - math.sin(th)
-        x = cx + int(rx * r * math.cos(th))
-        y = cy - int(ry * r * math.sin(th))
-        k.put(x, y, "\u00b7", _mix(_C.RED, beat))
-        if i % 6 == 0:                              # every third sample again, brighter: the contour
-            k.put(x, y, "\u2022", _mix(_C.RED, min(1.0, beat + 0.25)))
-    for i in range(0, 360, 3):                      # the inner contour, the curve's own body
-        th = math.radians(i)
-        r = (1.0 - math.sin(th)) * 0.82
-        k.put(cx + int(rx * r * math.cos(th)), cy - int(ry * r * math.sin(th)),
-              "\u00b7", _mix(_C.VIOLET, 0.34 + 0.2 * beat))
-    k.put(k.bx0, k.by1, "\u540c\u4e00\u4e2a\u5f62\u72b6\uff0c\u4e5d\u4e2a\u65b9\u7a0b\uff1a"
-                        "\u6ca1\u6709\u54ea\u4e2a\u662f\u201c\u5bf9\u201d\u7684", _ui(0.5))
+    for (x, y) in cells:
+        edge = ((x - 1, y) not in cells or (x + 1, y) not in cells
+                or (x, y - 1) not in cells or (x, y + 1) not in cells)
+        k.put(x0 + x, y0 + y, "\u2588",
+              _mix(_C.RED, min(1.0, beat + (0.28 if edge else 0.0))))
+    k.put(k.bx0, k.by1, "\u540c\u4e00\u4e2a\u5f62\u72b6\uff0c\u4e00\u4e2a\u65b9\u7a0b\uff1a"
+                        "\u91cc\u9762\u662f\u5b9e\u7684", _ui(0.5))
 
 
 def fork_bomb(k, t: float) -> None:
@@ -728,18 +901,43 @@ def fork_bomb(k, t: float) -> None:
                         "\u5df1\uff0c\u5341\u4e8c\u4ee3\u7ffb\u5230 4096", _ui(0.55))
 
 
-def sine(k, t: float) -> None:
-    """`sin x` and its tangent envelope, drawn.
+#: `if I approach infinity` 的歌词时刻。这一行 pane 跨**三句词**，而它们要的是两种图，
+#: 所以切换点必须按歌词来。`school_panels` 里这一行是 36.77-41.92，覆盖：
+#:   * `If I'm a sine wave`（36.77-40.36）        → sin x 与切线包络
+#:   * **`If I approach infinity`（40.36-41.92）** → sin x / x
+#:   * **`Then you can be my limitations`（41.92 起）** → 仍然是 `sin x / x`（见下）
+#: 用户批 111："sin x / x 动画出现的位置不仅是 if I approach infinity，还有接下来一句的
+#: then you can be my limitations，删掉你放在这里的 F-M 动画"。
+#: 也就是说 41.92 之后一直到这一行 pane 结束（`pane_exchange` 的 41.92 起那一段）都要是 `sin x / x`，
+#: 而原来那里是**电磁换向（F→M）**的动画。所以这里只留一个切换点：40.36 之前是 sin x，之后是 sin x / x。
+LIMITATIONS_UNTIL = 45.52          # `Switch my current`（44.04）之前；这一行 pane 到 45.52 结束
+APPROACH_INFINITY_AT = 40.36
 
-    The user's note for this batch: "动图部分以视觉效果优先，比如优先画 sin(x) 的函数图像而不是写表达式
-    f=sin(x)". This is that note taken literally - the motif *is* the plot, and the only text on it is
-    the axis. `想法.md` asks for "sin θ 与切线包络" in the 定义 section, so the envelope is drawn too:
-    the two lines y=±1 that the curve touches, and the tangent at the point that is moving, which is
-    where the word "envelope" comes from.
+
+def sine(k, t: float) -> None:
+    """两句词、两张图：`sin x` 与它的切线包络，然后 `sin x / x`（批 109 修正）。
+
+    **批 107 我改错了**：用户说的是"歌词 `if I approach infinity` 处改为 `sin x / x`"，
+    而我把整个 `sine` 换掉了——于是 `If I'm a sine wave`（36.77-40.36）那一句原本的
+    **正弦 + 切线包络**也没了。用户："你把 if I'm sine wave 歌词处原本的 sinx 包络改了"。
+
+    现在按 `APPROACH_INFINITY_AT`（40.36）分成两段，各画各的：
+
+    * `t < 40.36`（`If I'm a sine wave`）：**原来的 sin x + 切线包络**（两条 y=±1 的线 + 动点上的切线）；
+    * `t >= 40.36`（`If I approach infinity`）：**`sin x / x`**——x 从 1 起、原点在左、右端 `→`，
+      包络 ±1/x，框内写 `lim x->∞ sin x / x = 0` 与`（这不是洛必达！）`。
+
+    两段都用 `k.section` 写自己的小标题，所以抬头也跟着换。
     """
+    if t >= APPROACH_INFINITY_AT:
+        _sine_over_x(k, t)
+        return
     k.section(k.by0, "sin x \u4e0e\u5207\u7ebf\u5305\u7edc", 0.28)
     n = max(20, k.bw - 6)
-    hi, lo = k.by0 + 2, k.by1 - 3
+    # **图占满可用高度**（批 114）：原来 `hi = by0 + 2`（让开小标题）、`lo = by1 - 3`
+    # （给最下面两行说明留位）。现在小标题仍留一行，但**最下面那两行说明去掉了**
+    # （用户："去掉最下方的文字说明"），所以下半部整个给曲线。
+    hi, lo = k.by0 + 2, k.by1
     if lo - hi < 4:
         return
     mid = (hi + lo) // 2
@@ -769,8 +967,49 @@ def sine(k, t: float) -> None:
             k.put(k.bx0 + i, y, "\u2500", _mix(_C.AMBER, 0.55))
     y0 = mid - int(amp * math.sin(ph0))
     k.put(k.bx0 + i0, max(hi, min(lo, y0)), "\u25cf", _mix(_C.RED, 0.95))
-    k.put(k.bx0, k.by1, "\u66f2\u7ebf\u78b0\u5230\u7684\u4e24\u6761\u76f4\u7ebf\uff0c\u5c31\u662f\u5b83\u7684"
-                        "\u5305\u7edc", _ui(0.5))
+
+
+def _sine_over_x(k, t: float) -> None:
+    """`y = sin x / x`：衰减振荡，**坐标轴原点在左侧**，所以右边展示的 x 越来越大。
+
+    这是"approach infinity"那一句的字面图像（用户："请改为函数 sin x / x（动态效果展示，
+    坐标轴原点向左移，即展示的 x 越来越大），并在框内进行文字说明：lim x->∞ sin x / x = 0
+    （这不是洛必达！）"）。包络用 ±1/x 而不是 ±1——它才是"为什么趋于 0"的说明。
+    """
+    k.section(k.by0, "sin x / x", 0.28)
+    n = max(20, k.bw - 8)
+    # **图占满可用高度**（批 114，用户："sin x 和 sin x / x 的图像有点小了"）：原来
+    # `lo = by1 - 3` 是给最下面两行说明（`lim …` 与"这不是洛必达"）留位；那两行去掉后
+    # 整个下半部归曲线。
+    hi, lo = k.by0 + 2, k.by1
+    if lo - hi < 4:
+        return
+    mid = (hi + lo) // 2
+    amp = max(2, (lo - hi) // 2 - 1)
+    # **x 轴**：原点在左（`k.bx0 + 2`），右端一个箭头表示 x 增大
+    x0_ax = k.bx0 + 2
+    k.hline(x0_ax, mid, k.bx0 + n + 1, BOX_H, _ui(0.18))
+    k.put(k.bx0 + n + 2, mid, "\u2192", _ui(0.35))
+    k.put(x0_ax, mid + 1, "0", _ui(0.45))
+    # **x 从 1 起**：sin x / x 在 x=0 是 1（可去奇点），画出来会有一个假的尖峰
+    for i in range(n):
+        x = 1.0 + (i / max(1, n - 1)) * 24.0          # x 从 1 走到 25
+        y = math.sin(x * 1.15 + t * 0.9) / x
+        yy = mid - int(amp * y * 2.4)
+        k.put(x0_ax + i, max(hi, min(lo, yy)), "\u2022", _mix(_C.BLUE, 0.9))
+    # 包络 ±k/x：它才是"为什么趋于 0"的说明
+    for i in range(n):
+        x = 1.0 + (i / max(1, n - 1)) * 24.0
+        e = min(1.0, 2.4 / x)
+        for sgn in (-1, 1):
+            yy = mid - int(amp * sgn * e)
+            if hi <= yy <= lo:
+                k.put(x0_ax + i, yy, "\u00b7", _mix(_C.GREEN, 0.42))
+    # **只留一条关键说明**（批 114，用户："去掉最下方的文字说明"）：原来最下面两行是
+    # `lim x->∞ sin x / x = 0` 与`（这不是洛必达！）`。`lim` 这一条是用户点名要的
+    # （"在框内进行文字说明：lim x->∞ sin x / x = 0"），所以**保留它、去掉 `（这不是洛必达！）`**
+    # 那一行——它只是个口头注解，占掉的一行归曲线。
+    k.put(k.bx0, k.by1, "lim x->\u221e  sin x / x = 0", _mix(_C.AMBER, 0.95))
 
 
 def chladni(k, t: float) -> None:
@@ -900,7 +1139,15 @@ def galaxy(k, t: float) -> None:
                 k.put(x, y, "\u00b7" if i % 3 else "\u2022",
                       _mix((120, 180, 255) if arm == 0 else ((255, 200, 120) if arm == 1
                                                              else (140, 240, 200)), lv))
-    k.put(cx - 2, cy, "\u25cf", _mix(_C.AMBER, 0.95))
+    # **中心是笑脸**（批 124，清单第 37 条："动画三旋臂中心的点改为笑脸纹样（和歌词
+    # if I can make you happy 对应）"）。原来只有一颗 `●`。
+    # **批 139 重做**（用户："现在的效果不太好"）：原来那个是 4x2 的 `( • • ) / (   _ )`，
+    # 两行的括号对不齐、眼睛和嘴挤在一起，在 4 格的宽度里读不出是一张脸。
+    # 换成 **ASCII 颜文字 `(^_^)`**：5 格一行、四个字体里都**确定有**（`_dev/glyph_probe.py`
+    # 的 kaomoji 白名单里），而且与 `pane_yolo` 那四个颜文字是同一套语言。
+    face_txt = "(^_^)"
+    fx0 = cx - len(face_txt) // 2
+    k.put(fx0, cy, face_txt, _mix(_C.AMBER, 0.98))
     # the labels sit *outside* the round galaxy, in the room the wide band leaves
     k.put(k.bx0 + 2 * rx + 4, cy - 2, "\u822a\u7a7a \u00b7 \u822a\u5929 \u00b7 \u822a\u6d77", _ui(0.7))
     k.put(k.bx0 + 2 * rx + 4, cy - 1, "r = a\u00b7e^{b\u03b8}\uff1a\u81c2\u4e0d\u662f\u76f4\u7684", _ui(0.5))
@@ -1232,11 +1479,20 @@ def binary(k, t: float) -> None:
     for. The quarter-power law is kept: widening it early and rushing at the end is the physics the
     caption names.
     """
-    at, end = _row_span("pane_motif_binary")
+    # **并合钉在"最后一个同名行的起点"**（批 134）：双星排成 58.65-60.57 与 60.57-62.41 两行，
+    # 用户要的是"在 simulations 歌词时停止"——那就是 **60.57**（第二行的起点）。
+    # 所以相位从并集窗口的起点算，但**总时长只到 60.57**，之后 `ph` 恒为 1（并合后的残骸）。
+    # 我第一版用 `_row_here`（当前这一行），于是第二行从头重新起相位、61.5 还在转（实测 ph=0.345）。
+    at, end = _row_window("pane_motif_binary")
+    try:
+        import school_panels as _SPb
+        _ats = [float(r["at"]) for r in _SPb.shot_rows()
+                if r.get("name") == "pane_motif_binary"]
+        merge_at = max(_ats) if _ats else end
+    except Exception:
+        merge_at = end
     k.section(k.by0, "\u53cc\u661f\u65cb\u8fd1 a \u221d (t_c\u2212t)^\u00bc", 0.28)
-    # the row's first ~0.45 s is its transition, which moves the whole column; timing the merger to the
-    # *visible* part keeps the inspiral out from under a page turn
-    span = max(0.8, end - at)
+    span = max(0.8, merge_at - at)
     vis = max(0.5, span - 0.45)
     ph = max(0.0, min(1.0, (t - at - 0.45) / vis))
     cx = k.bx0 + min(30, k.bw // 2)
@@ -1247,6 +1503,29 @@ def binary(k, t: float) -> None:
     a = max(1.0, rmax * min(1.0, max(0.0, 1.0 - ph)) ** 0.25)
     turns = 1.0 * ph + 1.6 * ph ** 3                          # orbits seen, accelerating toward merger
     ang = 2 * math.pi * turns
+    # ---- **并合之后**（批 134，用户："双星旋进的动画也要改，其在 simulations 歌词时停止"）。
+    # `ph` 到 1 就是在 `Give you all the simulations` 上——两颗星合成一颗，**转就不再转了**
+    # （用户要的"停止"），但**不是定格**：残骸随拍一涨一缩，外面有一圈正在扩散的并合环。
+    # 一个完全静止的画面正是用户上次抱怨过的"基本就停了"，所以这里留住"还在响"的那一点动。
+    if ph >= 1.0:
+        # **这个模块里没有 `_beat`**（那是 `school_scenes` 的）：用同一屏别处（第 844 行）
+        # 已经在用的自足式脉动，免得为一个亮度去引一层依赖。
+        beat = 0.62 + 0.38 * abs(math.sin(t * 1.9))
+        r0 = max(4, min(14, rmax))
+        for i in range(72):
+            th = 2 * math.pi * i / 72
+            rr = r0 * (0.55 + 0.45 * ((t * 0.55) % 1.0))
+            x = int(cx + rr * math.cos(th))
+            y = int(cy + max(2, ry * 0.55) * (rr / max(1, r0)) * math.sin(th))
+            if k.bx0 <= x <= k.bx1 and k.by0 <= y <= k.by1:
+                k.put(x, y, "\u00b7", _mix(_C.BLUE, 0.30 + 0.35 * (1.0 - (t * 0.55) % 1.0)))
+        k.put(cx, cy, "\u25cf", _mix(_C.AMBER, 0.75 + 0.25 * beat))
+        for dx, dy in ((0, -1), (0, 1), (-1, 0), (1, 0)):
+            k.put(cx + dx, cy + dy, "\u00b7", _mix(_C.AMBER, 0.55 + 0.40 * beat))
+        if k.bh >= 6:
+            k.put(k.bx0, k.by1, "\u5df2\u5e76\u5408\uff1a\u4e24\u9897\u661f\u53ea\u5269\u4e00\u9897 \u00b7 \u73af\u5728\u6269\u6563",
+                  _mix(_C.GREEN, 0.75))
+        return
     # ---- the orbit itself: without a drawn ellipse two dots are two dots
     steps = 96
     for i in range(steps):

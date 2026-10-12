@@ -502,6 +502,9 @@ def digit_cells(name: str, cols: int, rows: int, phase: float = 0.0, field: bool
 # nothing from it. The lettering is the school's own name, it is a logo rather than a photograph, and it
 # carries at any size. The supplied art is used as the *stencil* - the letterforms are the user's - and
 # the cells are filled solid, because the art's own `| / \ _` strokes at double size read as a fence.
+#: 清单第 48 条："动画孤立框内加上字符画 isolation（目前只有点的纹样，有点单调）"。
+#: **`isolation` 不进这张表**：这里放的是校园里的实物（何尊 / 猫学长 / NWPU 字标）的资产，
+#: 而 `isolation` 就是那九个字母本身——它自己写在 `isolation_art.py` 里，不走资产管线。
 BANNER = {"NWPU": "NWPU_\u5b57\u7b26\u753b.txt"}
 BANNER_FOR = {"sword": "NWPU"}
 

@@ -35,6 +35,7 @@ cost.
 from __future__ import annotations
 
 import math
+import os
 from functools import lru_cache
 from pathlib import Path
 
@@ -1704,10 +1705,26 @@ def _cuts():
     them": raising it to a full beat brought the two 0.435 s rows under the line as well.)
     """
     import school_panels as SP
+    import tui_live as T
     rows = SP.shot_rows()
     out = {}
+    prev = None
     for i, row in enumerate(rows):
         at = row["at"]
+        # **同一张画被排成多行时，行边界没有转场**（批 126，用户："双星旋进动画内部有个
+        # 切换特效，删掉"）。双星是 58.65 与 60.57 两行、都叫 `pane_motif_binary`——画的是同一
+        # 张画在继续演，中间那次 `slide` 就成了"动画内部的切换特效"。
+        # 这一层（`school_fx.transition`）与 `tui_live.fx_cut`（揭幕）、`school_panels.school_cuts`
+        # （横向拉开）是**三层**，都要挡；我第一版只挡了中间那层，
+        # `_dev/block_writer_trace.py` 才抓到是这一层的 `_carry` 在写 `█`。
+        #
+        # 判据用 `T._pane_id`（**含 `panel`**），不是只用 `name`：`pane_exchange` 的五个面板
+        # 同名但 `panel` 不同，那五处**是**切点（用户点名要的"互换"演出）。
+        # 第一版只用 `name`，把 41.92/45.52/47.27/49.11/50.95/52.99 那六个边界也跳过了。
+        same_pane = prev is not None and T._pane_id(prev) == T._pane_id(row)
+        prev = row
+        if same_pane:
+            continue
         span = float(row.get("end", at) or at) - at
         if span and span < TRANS_DUR:
             continue
@@ -2191,14 +2208,30 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     #     歼-20 on "From AM to PM" (93.52): the one line in the song that is literally about crossing the
     #     sky, and the aircraft that a NWPU student is meant to read as this school's own. A real diagonal
     #     (dy 0.45, climbing left-to-right) rather than the shallow rail it was.
-    (91.60, 93.80, fly, dict(name="j20", y=0.62, rows_n=13, size=0, body=4, dy=-0.45)),
+    #
+    #     **基准行 0.62 → 0.34**（批 103，用户："歼20飞过时会被music panel遮挡，调整一下飞行轨迹"）：
+    #     音游面板占左列最下 6 行（y=42..47），而这架飞机的**前 60% 航程横跨左列**（x=1..98），
+    #     底行深到 44+，于是它正好从面板上穿过去。横向轨迹一个数没动（还是 dy -0.45 的斜向爬升），
+    #     只改了基准高度——`_fly_at` 是 `int(rows * y + dy * ...)`，**`rows * y` 越大越靠下，
+    #     所以"抬高"是减 `y`**（我先按加号改了一版，`_dev/j20_path_probe.py` 立刻把交集从
+    #     12/21 量成 26/41）。现在这条轨迹与面板矩形（左列 × 行 42..47）的**交集是 0/81**。
+    #     `y=0.34` 也是这条斜线能取的最低值：再大 0.02 就有点碰到面板的顶边（0.36 → 2/81）。
+    (91.60, 93.80, fly, dict(name="j20", y=0.34, rows_n=13, size=0, body=4, dy=-0.45)),
     # --- 总师文化: the five firsts, on the line that claims uniqueness. **No picture.** It was the gate
     #     again (70x22, then 139x44), and the user's note is that the gate and the crest each appear once
     #     - "校门、校徽的大图出现了多次，仅保留第一次". The line is carried by the right column, which has
     #     had `pane_landmark_dialogue` on it since 84.60, and by the ops ticker ("总师摇篮 · 第一架小型
     #     无人机" is the row's own `ops`, so nothing is lost with the caption).
     # --- "Challenging your God": the sword, over everything
-    (125.50, 128.20, flash, dict(name="sword", cols_n=76, rows_n=24)),
+    # **`topmost`**（批 131，清单第 50 条）：用户："学校部分快结束时，屏幕中央出现的铸剑雕塑，
+    # 在部分帧没有置于顶层，修改一下"。成因是**那一行自己的切点**：
+    #   * `school_cuts()` 在 125.4019 有一次学校切点 ⇒ `fx_school_wipe` 在 125.40-125.70 跑，
+    #     它做的事就是"把右栏的**旧格**贴回来"；
+    #   * `_cuts()` 在 125.33 也有一次转场 ⇒ `transition` 跑 125.33-125.79（`TRANS_DUR`）。
+    # 铸剑的窗口从 125.50 开始，与这两段重叠 **125.50-125.79 ≈ 7 帧**——那几帧里雕塑的右半被
+    # 旧格/转场的搬运盖住。标上 `topmost` 就排到 `fx_school_wipe`、`fx_apply`、`transition`
+    # 之后（`tui_live.draw` 末尾那一趟），这几帧也就在最上层了。
+    (125.50, 128.20, flash, dict(name="sword", cols_n=76, rows_n=24, topmost=True)),
     # --- "If I can, if I can": 航小天 打篮球 is **not on this list**. It covers the chat window, so it is
     #     drawn by the layer that owns that window (`WINDOW_EVENTS`, below) - see the note in `dunk` for
     #     why that is a layering fix and not a tidy-up. The score is unchanged: 58.65 is the first line,
@@ -2219,8 +2252,13 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     #     it is behind them by construction rather than by a redraw afterwards. It is a keyed cut-out, so
     #     the cells where the photograph has no ink stay transparent and the dialogue is only covered
     #     where the building actually is.
-    (193.50, 197.50, flash, dict(name="library", fill=0.62, x=0.0, y=0.78, behind=True, dim=0.62,
-                                 contrast=1.1)),
+    #     `behind` **取消**（批 106，用户："学院部分图书馆动画被 stdout panel 遮盖了一点，
+    #     应置于最上图层"）。`behind=True` 的语义是"垫在台词下面"，于是它在左列最下与 stdout 栏
+    #     重叠的那几行会被栏子自己的清屏盖掉（台词、ops、exec 都画在那之后）。这一处用户要的是
+    #     **插画**而不是底纹，所以走第二趟（`behind` 为假 ⇒ 与 crest / stand 同批，画在台词之后），
+    #     并且保留 `dim=0.62` 的压暗——它仍然是一张夜景照片，不该抢字的对比。
+    (193.50, 197.50, flash, dict(name="library", fill=0.62, x=0.0, y=0.78, behind=False,
+                                 dim=0.62, contrast=1.1, topmost=True)),
     # --- the whole body, once, on the last line of the song: he has been a face in the window for three
     #     and a half minutes and this is the only place the film shows that he has legs. He stands on the
     #     **right**, which is the chat window's side after the 02:16.9 swap - the user asked for the left
@@ -2268,6 +2306,33 @@ AIRCRAFT = ("y20", "arj21", "z20", "j20")
 AIRCRAFT_ON = [False]
 
 
+def _snap(a: float, b: float) -> tuple[float, float]:
+    """把一次整屏事件的窗口**整体挪到最近的拍**上（批 97，Q2 = 最高力度）。
+
+    为什么挪窗口而不是挪"画什么"：事件本身的时长是设计好的（飞机掠过 4 s、篮球一整圈 2.29 s…），
+    要改的只是**它什么时候开始**。整窗平移保持时长与内部动画的相位不变，确定性也不变
+    （网格是拟合出来的常量）。`PV_FX_BEAT=0` 可以关掉，用来做前后对照。
+    """
+    if not _BEAT[0] or os.environ.get("PV_FX_BEAT", "").strip() in ("0", "false", "no"):
+        return a, b
+    try:
+        import tui_live as _T
+        if not getattr(_T, "BEAT_SYNC", False):
+            return a, b
+        _k, bt = _T.beat(a)
+        if _k < 0:
+            return a, b
+        off = bt - a
+        if abs(off) > _T.BEAT_SNAP:
+            return a, b
+        return a + off, b + off
+    except Exception:
+        return a, b
+
+
+_BEAT: list = [True]
+
+
 def draw(s, cols: int, rows: int, t: float, words=None) -> int:
     AIRCRAFT_ON[0] = any(getattr(fn, "__name__", "") and name in AIRCRAFT
                         for a, b, fn, kw in EVENTS if a <= t < b
@@ -2297,17 +2362,47 @@ def draw(s, cols: int, rows: int, t: float, words=None) -> int:
     n = 0
     behind = False
     for start, end, fn, kw in EVENTS:
-        if kw.get("behind") and start <= t < end:
-            _run(s, cols, rows, t, start, end, fn, kw)
+        if kw.get("topmost"):
+            continue                      # 走 `draw_top`（整帧最后那一趟）
+        a, b = _snap(start, end) if _BEAT[0] else (start, end)
+        if kw.get("behind") and a <= t < b:
+            _run(s, cols, rows, t, a, b, fn, kw)
             n += 1
             behind = True
     if behind and words is not None:
         words()
     for start, end, fn, kw in EVENTS:
-        if not kw.get("behind") and start <= t < end:
-            _run(s, cols, rows, t, start, end, fn, kw)
+        if kw.get("topmost"):
+            continue
+        a, b = _snap(start, end) if _BEAT[0] else (start, end)
+        if not kw.get("behind") and a <= t < b:
+            _run(s, cols, rows, t, a, b, fn, kw)
             n += 1
     # the character art is not on the event list: it is printed when its own pane is up
+    return n
+
+
+def draw_top(s, cols: int, rows: int, t: float) -> int:
+    """**最顶那一趟**：只跑标了 `topmost` 的事件，由 `tui_live.draw` 在整帧最后调用。
+
+    为什么另开一趟（清单第 56 条）：用户："学院部分图书馆动画被 stdout panel 遮盖了一点，
+    应置于最上图层"。图书馆（193.50-197.50）是 `fill=0.62, x=0.0, y=0.78` 的一张夜景照片，
+    它的矩形正盖在左下那个 `exec` 面板上；而 `exec` 面板的**框线**是 `_band_restore`
+    （`behind` 照片与其余事件之间那一趟）画出来的——照片压在它上面，暗处（被 `_key_out_paper`
+    抠掉的纸色）就把框线露出来，看起来就是"被 stdout panel 遮住一点"。
+
+    放在 `draw` 外面单独一趟，是因为它要排在**所有**层之后：`fx_apply` 的后期、IF/THEN 框、
+    卡在 99% 的进度条、以及 `_repaint_pane` 那些"该置顶的 pane"。`draw` 自己跑在
+    `draw_body` 之后但早于这几步，所以标 `topmost` 的事件不能留在 `draw` 里。
+    """
+    n = 0
+    for start, end, fn, kw in EVENTS:
+        if not kw.get("topmost"):
+            continue
+        a, b = _snap(start, end) if _BEAT[0] else (start, end)
+        if a <= t < b:
+            _run(s, cols, rows, t, a, b, fn, kw)
+            n += 1
     return n
 
 
@@ -2320,6 +2415,10 @@ def _run(s, cols: int, rows: int, t: float, start: float, end: float, fn, kw: di
     explain it. `_BROKEN` keeps it to one line per event rather than one per frame at 24 fps.
     """
     try:
+        # `topmost` 只是**路由键**（这一趟由 `draw_top` 跑），不是事件的参数——不剥掉的话
+        # `flash() got an unexpected keyword argument 'topmost'`，整幅照片就不画了（实测那一次
+        # `exec` 框完整露出来，等于图书馆没上屏）。
+        kw = {k: v for k, v in kw.items() if k != "topmost"}
         fn(s, cols, rows, t, (t - start) / max(1e-6, end - start), **kw)
     except Exception as exc:
         if fn not in _BROKEN:
