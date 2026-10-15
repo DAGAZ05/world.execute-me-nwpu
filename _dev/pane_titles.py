@@ -34,7 +34,7 @@ def boot():
     return d, eng
 
 
-def header_at(d, eng, t):
+def header_at(d, eng, t, row_at):
     """把这一行演到 `t`，读右侧动画框里"副标题"与"框内小标题"两行。
 
     **布局不写死行号**（不同 pane 的抬头行不一样，实测 `pane_protection` 就不在 10 行），
@@ -49,7 +49,9 @@ def header_at(d, eng, t):
     T.fx_clear(T.Screen(197, 52))
     s = T.Screen(197, 52)
     sink = io.StringIO()
-    back = min(0.6, max(0.05, t))
+    # 回看**不超过行首**：短行（0.6 s）按中点采样时 `t - 0.6` 已经退到**上一行**去了，
+    # 读到的抬头是上一格的。这里把回看限制在这行已经演过的时长之内。
+    back = min(0.6, max(0.05, t - row_at))
     for k in range(int(back * 24)):
         T.draw(s, d, eng, t - back + k / 24.0, True, 24.0)
         s.render_diff(sink)
@@ -80,8 +82,10 @@ def main() -> None:
            "| 时刻 | 对应歌词 | 动画框 | 框内小标题 | 副标题（抬头） | ops |",
            "|---|---|---|---|---|---|"]
     for r in rows:
-        mid = (r["at"] + r["end"]) / 2.0
-        sub, sect = header_at(d, eng, mid)
+        # **75% 处采样**（批 167）：中点常常正赶上转场（二进制雨 / 色块盖住抬头行），
+        # 那时读到的"标题"其实是那一行上别的内容的碎片。
+        t_s = r["at"] + (r["end"] - r["at"]) * 0.75
+        sub, sect = header_at(d, eng, t_s, r["at"])
         args = r.get("args") or {}
         pane = r["name"] + (("(" + ",".join("%s=%s" % kv for kv in args.items()) + ")")
                             if args else "")
