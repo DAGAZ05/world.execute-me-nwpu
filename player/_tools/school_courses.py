@@ -254,6 +254,20 @@ class _Kit:
             s.put(x1 - len(tag) - 1, y0, tag, _mix(self.colour, 0.55 + 0.45 * p))
         avail = max(0, (x1 - len(tag) - 2 if tag else x1 - 1) - (x0 + 2) + 1)
         sub = PANE_SUB[0]
+        # **sub 开头与标题重复时去掉那一段**（批 175）。用户："学院部分有很多抬头含重复的，
+        # 比如'特征图'就重复了2次（类似的还有很多，学院部分基本都有重的部分）"。
+        #
+        # 根因：pane 的**标题**里已经写了这一格画的是什么（`卷积神经网络 · 特征图`），
+        # 而行的 **sub** 又常以同一个词开头（`特征图 · 卷积核扫一遍，认出这段回忆`）——
+        # 两段拼起来就成了 `卷积神经网络 · 特征图 · 特征图 · 卷积核扫一遍…`。
+        # 在**拼接处**统一去重，比逐条改 80 多个 sub 稳（改漏一个就漏一个）。
+        #
+        # 只在"sub 的第一段确实出现在标题里"时才去掉，所以 `EXPLAIN 与 B+ 树 · 一次执行：…`
+        # 这种（标题是 `数据结构`）不受影响。
+        if sub and title:
+            _first, _sep, _rest = sub.partition(" \u00b7 ")
+            if _sep and _first.strip() and _first.strip() in title and _rest.strip():
+                sub = _rest.strip()
         sub_txt = ("\u00b7 " + sub) if sub else ""
         # **标题优先**（批 168 改；原来是"说明先占满、标题拿剩下的"）。
         #
