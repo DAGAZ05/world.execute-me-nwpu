@@ -990,7 +990,7 @@ def pane_sw_project(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     # '软件项目管理/软件开发综合训练'"): they are one line of the college's 培养方案 - the theory and the
     # course-long project that runs beside it - and this pane draws both of them, a sprint's ceremonies and
     # the board the project is worked on.
-    k = _kit(s, x0, y0, x1, y1, 0, "\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406 / \u8f6f\u4ef6\u5f00\u53d1"
+    k = _kit(s, x0, y0, x1, y1, 0, "\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406  / \u8f6f\u4ef6\u5f00\u53d1\u7efc\u5408\u8bad\u7ec3"
                                     "\u7efc\u5408\u8bad\u7ec3")
     if k is None or k.bw < 40 or k.bh < 8:
         return
@@ -2000,7 +2000,7 @@ def pane_yolo(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     颜文字用 ASCII 拼（`(^_^)` `(o_O)` `(>_<)` `(T_T)`），渲染字体里都有。
     """
     import school_courses as _C
-    k = _kit(s, x0, y0, x1, y1, 0, "YOLO \u00b7 \u6253\u6807")
+    k = _kit(s, x0, y0, x1, y1, 0, "YOLO")
     if k is None or k.bh < 7 or k.bw < 40:
         return
     # 候选：颜文字 + 类别 + 本命（`satisfaction` 是这一句歌词要框住的那一个）。
@@ -2251,7 +2251,7 @@ def pane_spinoza(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     **不做擦除**（批 118 的硬规矩）：每一步只是把该行**画出来**，不亮的那几行不画。
     """
     import school_courses as _C
-    k = _kit(s, x0, y0, x1, y1, 0, "Spinoza \u00b7 E! 1")
+    k = _kit(s, x0, y0, x1, y1, 0, "Spinoza")
     if k is None or k.bh < 8 or k.bw < 40:
         return
     steps = (
@@ -2328,7 +2328,7 @@ def pane_supervisory(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     轮到 M 时把"M 选的那一列"点亮，两个角色的名字一起变亮，让人看出是谁在动。
     """
     import school_courses as _C
-    k = _kit(s, x0, y0, x1, y1, 0, "\u76d1\u5bdf\u535a\u5f08 \u00b7 S / M")
+    k = _kit(s, x0, y0, x1, y1, 0, "\u76d1\u5bdf\u535a\u5f08")
     if k is None or k.bh < 10 or k.bw < 46:
         return
     lt0 = lt if lt is not None else 0.0
@@ -2500,7 +2500,7 @@ def pane_hyper(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     # **抬头去掉"校徽里的一部分"**（批 163，清单2 第 14 条点名）：用户："超椭圆动画抬头去掉
     # '校徽里的一部分'"。那句话是这一格**还没独立出来**时候的来历（它原本是"替换一部分校徽动画"），
     # 观众看的是超椭圆本身，不是校徽的零件。改成描述它**实际在动什么**：n 从 1 走到 6。
-    k = _kit(s, x0, y0, x1, y1, 0, "\u8d85\u692d\u5706 \u00b7 n \u4ece 1 \u5230 6")
+    k = _kit(s, x0, y0, x1, y1, 0, "\u8d85\u692d\u5706")
     if k is None or k.bh < 7:
         return
     # `lt/dur` 也传下去：超椭圆的"完整缩涨"由这一行的进度驱动（见 `_ex_hyper` 的说明）。
@@ -2525,7 +2525,7 @@ def pane_fourier(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     同一秒永远同一幅，拉动进度条不会看到两种画面。
     """
     import school_courses as _C
-    k = _kit(s, x0, y0, x1, y1, 0, "\u5085\u91cc\u53f6\u5206\u6790 \u00b7 \u97f3\u4e50\u5206\u89e3")
+    k = _kit(s, x0, y0, x1, y1, 0, "\u5085\u91cc\u53f6\u5206\u6790")
     if k is None or k.bh < 8 or k.bw < 40:
         return
     lt0 = lt if lt is not None else 0.0
@@ -3087,7 +3087,7 @@ def pane_isolation(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     exists to catch).
     """
     import school_courses as _C
-    k = _kit(s, x0, y0, x1, y1, 0, "\u5b64\u7acb \u00b7 in isolation")
+    k = _kit(s, x0, y0, x1, y1, 0, "\u5b64\u7acb")
     if k is None:
         return
     # **框内加一幅 `ISOLATION` 字符画**（批 128/129，清单第 48 条："动画孤立框内加上字符画
@@ -3196,7 +3196,7 @@ def pane_fragments(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     `pane_ai_diffusion`'s denoise here would have spent it twice.
     """
     import school_courses as _C
-    k = _kit(s, x0, y0, x1, y1, 0, "\u5220\u9664 \u00b7 erase fragments")
+    k = _kit(s, x0, y0, x1, y1, 0, "\u5220\u9664")
     if k is None or k.bw < 12 or k.bh < 5:
         return
     k.section(k.by0, "\u65e0\u610f\u4e49\u7684\u788e\u7247", 0.25)
