@@ -4711,6 +4711,17 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
         chat_x0, chat_x1 = x0, lx
         pane_x0, pane_x1 = lx + 1, x1
     PANE_BOX[:] = [pane_x0, top, pane_x1, bottom]      # see the note on PANE_BOX
+    # **动画框也"切干净"**（批 157，清单2 第 13 条）：用户："13s 附近的动画框字符仍较杂乱"。
+    #
+    # `CLEAR` 是"可读文本区、不留鬼影、不上暗角"的矩形表（见第 795 行那张表的说明）——
+    # 原来里面只有**聊天窗**（4132 行）和 **DSH 窗**（4782 行）。**动画框不在里面**，
+    # 于是 `fx_trail` 会把上一镜的字符以 `TRAIL = 0.42` 的亮度留在动画框里、逐帧衰减。
+    #
+    # 实测（批 155/157）：12.5-14.0 s 的动画框里有 46-53 个上一镜的拉丁字母/数字散着；
+    # 停掉 `fx_apply` 之后 13.6 s 从 47 掉到 3。查过四个候选层（画本身、`pane_countdown`、
+    # 底噪、`school_fx` 事件与 draw、运-20），**全都不是**；`_C.dust` 只画 `·`/`o`、也不画字母。
+    # 真凶就是这里没把动画框登记进 `CLEAR`。
+    CLEAR.append((pane_x0, top, pane_x1, bottom))
     sp_bottom = min(top + 8, bottom - 4)      # border + 7 bands
 
     # The figure's pane, above the stdout band, when the column can hold a legible portrait - 航小天's
