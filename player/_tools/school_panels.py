@@ -564,15 +564,18 @@ LANDMARK_ROWS: list[dict] = [
     # 前一句 91.44 原来落在那条量化行里。`panel=clock` 由 93.52 的钉子钉上（见 `THEME_PINS`）。
     dict(at=91.44, name="pane_motif_chladni", lyric="From AM to PM",
          ops=["CHLADNI", "节点"], mascot=False, sub="频率一换，节点就换一组"),
-    dict(at=95.28, name="pane_motif_fork_bomb", lyric="Oh, switch my role",
-         ops=["FORK", "角色"], mascot=False, end=97.32, sub="换个角色就指数膨胀"),
-    # **`To S, to M`（97.32）→ 监察博弈**（清单第 31 条："oh, switch my role, to s to m 歌词处改为
-    # 博弈论监察博弈（supervisory game）的支付矩阵，博弈中的两个角色（委托人 S，代理人 M）交替闪烁"）。
-    # 原来这一处钉的是 `pane_exchange`/`letters`（"S 与 M：一个字的两个身份，来回翻"）——那是字形
-    # 互换、不是博弈；那条钉子已撤。**切开 95.28 那一行**（把它的 `end` 改成 97.32、这里新起一行），
-    # 不是新插一条同 `at` 的行（那会造出零长行）。
-    dict(at=97.32, name="pane_supervisory", lyric="To S, to M",
-         ops=["S", "M", "支付矩阵"], mascot=False,
+    # **两句都归监察博弈**（批 150，清单2 第 8 条）：用户："目前歌词 Oh, switch my role 对应
+    # fork炸弹动画，去掉该动画，改为歌词 Oh, switch my role, to S to M **两句歌词均对应监察博弈
+    # 动画**（相应播放速度、SM字符交替闪烁要调整）"。
+    #
+    # 所以原来这一行的 `pane_motif_fork_bomb` 撤掉、并进下一行，`pane_supervisory` 从 97.32
+    # **提前到 95.28**，一行 95.28-98.93（**3.65 s**，原来它只有 1.61 s）。
+    # fork 炸弹没有删代码，按用户要求**转移到学院部分**（见 167.75 那一行）。
+    #
+    # `pane_supervisory` 里的 S/M 交替闪烁与双方换选是写死 0.8 s / 1.6 s 的，行长了之后
+    # 会显得碎——已改成按行时长铺开（见 `pane_supervisory`）。
+    dict(at=95.28, name="pane_supervisory", lyric="Oh, switch my role",
+         ops=["S", "M", "支付矩阵"], mascot=False, end=98.93,
          sub="委托人 S 选行 · 代理人 M 选列"),
     dict(at=98.93, name="pane_motif_lattice", lyric="So we can enter",
          ops=["LATTICE", "TRANCE"], mascot=False, sub="向消失点收缩，入口在深处"),
@@ -599,8 +602,19 @@ LANDMARK_ROWS: list[dict] = [
     # than to a share of the time.
     dict(at=162.23, name="pane_converge", lyric="If I can, if I can",         ops=["DFD", "ER", "\u6d3b\u52a8\u56fe", "\u72b6\u6001\u56fe", "\u2192", "CLASS"], mascot=False, sub="四张图收进一个类"),
     # Euclid I.47 was a plate about proof on a line about *selection*; this is the selection (batch 34)
-    dict(at=166.05, name="pane_motif_one_path", lyric="Be your only execution",
-         ops=["ONE PATH", "唯一执行"], mascot=False, sub="十六个分支，只亮一条路"),
+    # **学院部分再拆一次**（批 150，清单2 第 8 条）：用户："fork炸弹动画转移到学院部分，
+    # 当前动画 one path 对应歌词 then I can then I can, be your only execution，现在改为
+    # 歌词 then I can then I can 对应动画 one path，歌词 be your only execution 对应 fork炸弹"。
+    #
+    # 原来这一行 166.05-169.61 是 `pane_motif_one_path`，但它一句盖住了两句歌词
+    # （`Then I can, then I can` 在 166.05、`Be your only execution` 在 167.75）。
+    # 在 **167.75** 切开：前半留给 one path，后半换成 fork 炸弹（从学校段 95.28 挪过来的那个）。
+    dict(at=166.05, name="pane_motif_one_path", lyric="Then I can, then I can",
+         ops=["ONE PATH", "唯一执行"], mascot=False, end=167.75,
+         sub="十六个分支，只亮一条路"),
+    dict(at=167.75, name="pane_motif_fork_bomb", lyric="Be your only execution",
+         ops=["FORK", "角色"], mascot=False, end=169.61,
+         sub="同一个函数调用自己：一次变两个、两个变四个"),
     dict(at=169.61, name="pane_backlog", lyric="If I can have you back",
          ops=["SCRUM", "TODO", "DOING", "DONE"], mascot=False, sub="把你从 DONE 挪回 TODO"),
     # The four AI motifs. They are laid out around `shot_collapse` (174.90-177.50), which the TUI draws

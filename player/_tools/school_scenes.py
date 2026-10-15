@@ -2312,10 +2312,22 @@ def pane_supervisory(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     if k is None or k.bh < 10 or k.bw < 46:
         return
     lt0 = lt if lt is not None else 0.0
-    turn = int(lt0 / 0.8) % 2                       # 0 = 轮到 S，1 = 轮到 M
+    # **节奏按行时长铺开**（批 150，清单2 第 8 条）：用户："Oh, switch my role, to S to M 两句
+    # 歌词均对应监察博弈动画（**相应播放速度、SM字符交替闪烁要调整**）"。
+    #
+    # 原来写死 `turn` 每 0.8 s 换、双方换选每 1.6 s——那是按 **1.61 s** 的行配的（当时这一行
+    # 只有 `To S, to M` 一句）。现在这一行 95.28-98.93 = **3.65 s**，写死的节奏会让 S/M 闪烁
+    # 变得又碎又重复（4 次交替、2 次换选，和画面里那张矩阵对不上拍）。
+    #
+    # 改成**按一行里有几次**来定：S/M 交替 **3 次**、每一方换一次选择（即 2 段），
+    # 并给周期一个下限，行很短时不会闪成一片。
+    _d = dur if (dur and dur > 0.6) else 1.6
+    turn_per = max(0.50, _d / 3.0)
+    pick_per = max(0.80, _d / 2.0)
+    turn = int(lt0 / turn_per) % 2                  # 0 = 轮到 S，1 = 轮到 M
     # 当前"被选中的那一路"——两个角色都还没定，所以先各按奇数帧轮着走
-    row_pick = int(lt0 / 1.6) % 2                   # S 先试监督、再试不监督
-    col_pick = int(lt0 / 1.6 + 0.5) % 2             # M 同理
+    row_pick = int(lt0 / pick_per) % 2              # S 先试监督、再试不监督
+    col_pick = int(lt0 / pick_per + 0.5) % 2        # M 同理
     DIM, HOT = 0.55, 1.0
     s_name = "\u59d4\u6258\u4eba S"                  # 委托人 S
     m_name = "\u4ee3\u7406\u4eba M"                  # 代理人 M
