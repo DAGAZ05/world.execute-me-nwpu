@@ -1652,11 +1652,17 @@ def _ev_food(k, t: float, u: float) -> None:
     n = len(stages)
     cur = int(t * 1.1) % n                     # 当前走到哪一段（两边共用，所以是同步的）
     bw = max(6, min(9, k.bw - 6))
-    step = max(5, (k.bh - 4) // n)
+    # **步长要保证四段都放得下**（批 160 修）：原来写 `max(5, (k.bh - 4) // n)`，在 197x52 上
+    # 是 `max(5, 4) = 5`、四段正好落得下；但**抽屉矮一点**（用户的窗口比探针的小）第 4 段就会
+    # 撞上 `if y > k.by1 - 4: break` 而被整段丢掉——用户截图里只剩"口腔/胃/小肠"就是这个。
+    # 现在按**真正可用的行数**反算步长，并给一个 3 行的下限（一个六边形占 3 行）；
+    # 同时把 break 的判据放宽到"六边形的底边还在抽屉里"。
+    avail = max(4, k.by1 - 3 - (k.by0 + 2))
+    step = max(3, min(10, avail // n))
     from school_courses import hexagon
     for i, (nm, what, product) in enumerate(stages):
         y = k.by0 + 2 + i * step
-        if y > k.by1 - 4:
+        if y + 2 > k.by1 - 1:                  # 连六边形都放不下才放弃这一段
             break
         on = i == cur
         hexagon(k, k.bx0 + bw // 2 + 1, y + 1, 1,
@@ -1665,11 +1671,12 @@ def _ev_food(k, t: float, u: float) -> None:
         k.put(k.bx0 + bw + 3 + len(nm) * 2 + 2, y + 1, what, _ui(0.45))
         k.put(k.bx0 + bw + 3, y + 2, "\u2192 " + product,
               _mix(_C.GREEN, 0.92) if on else _ui(0.55))
-        if i < n - 1:
+        # 连线只在**放得下**的时候画（步长降到 3 时中间没有空格可放 ▼ 与走过的亮段）
+        if i < n - 1 and step >= 5:
             k.vline(k.bx0 + bw // 2 + 1, y + 3, y + step - 1, "\u2502", _ui(0.3))
             k.put(k.bx0 + bw // 2 + 1, y + step - 1, "\u25bc", _mix(_C.RED, 0.7))
         # 走过的线段亮一档，没走到的暗着——这就是"路径在推进"
-        if i < cur:
+        if i < cur and i < n - 1 and step >= 5:
             k.vline(k.bx0 + bw // 2 + 1, y + 3, y + step - 1, "\u2502", _mix(_C.GREEN, 0.6))
     k.put(k.bx0, k.by1, "\u6bcf\u4e00\u6bb5\u90fd\u5728\u88ab\u62c6\u5f00\uff1a"
                         "\u4e00\u6839\u8304\u5b50\u5230\u6700\u540e\u53ea\u5269\u4e00\u70b9\u6b8b\u6e23", _ui(0.5))

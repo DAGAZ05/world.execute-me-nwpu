@@ -750,17 +750,44 @@ POWER_GLYPHS: dict[str, tuple[str, ...]] = {
 POWER_W, POWER_H = 4, 5
 
 
-def draw_power_solid(s, t: float, col, dim, appear_at: float) -> int:
-    """结尾屏**最上方**的 `2^10 = 1024`，实心块字模，与分数屏的 LED 段式是两套设计。
+#: `2^10 = 1024` 的**四段配色**（批 160）。用户原话："结尾 2^10=1024 的颜色有区分，
+#: **2^10、=、10、24 分别 1 种颜色**，同时与分数显示屏的颜色不同"，随后又强调
+#: "**10 和 24 的颜色也要不一样**"。
+#:
+#: 这四段正好铺满 `2^10=1024` 的 9 个非空字符：`2^10`(0-3) | `=`(5) | `10`(7-8) | `24`(9-10)。
+#: 我第一版只做了三段（把 `1024` 整段当一段），漏掉了用户点名要的 `10` 与 `24` 之分。
+#:
+#: 分数屏用的是 `lit=(255,246,190)` 的暖白 + `dim=(120,140,190)`（见 `draw_final` 的调用），
+#: 所以这里刻意选四个**不同色相**、且都远离暖白的：橙 / 品红 / 青 / 绿。
+POWER_SEG_COLOURS = ((255, 150, 70), (230, 120, 220), (90, 215, 235), (150, 225, 120))
+
+
+def _power_seg(i: int) -> int:
+    """字符下标 → 用第几段颜色。空格不着色（调用处直接跳过）。
+
+    `2^10 = 1024`
+    0123456789  ← 下标
+    """
+    if i <= 3:
+        return 0        # `2^10`
+    if i == 5:
+        return 1        # `=`
+    if i <= 8:
+        return 2        # `10`（1024 的前两位）
+    return 3            # `24`（1024 的后两位）
+
+
+def draw_power_solid(s, t: float, colours=POWER_SEG_COLOURS, dim=None, appear_at: float = 0.0) -> int:
+    """结尾屏**最上方**的 `2^10 = 1024`，实心块字模，三段各一种颜色。
 
     `appear_at`（`tui_live.BLACK_START`）之后 1.2 s 渐显，避免和打字机的"在铸剑吗？"同时出来。
+    `dim` 给底色即可（实心块只有"亮"这一种状态，不像 LED 那样需要暗底）。
     """
     k = (t - appear_at) / 1.2
     if k <= 0.0:
         return 0
     k = min(1.0, k)
     f = 0.35 + 0.65 * k
-    lit = (int(col[0] * f), int(col[1] * f), int(col[2] * f))
     gap = 1
     total = len(POWER_TEXT) * (POWER_W + gap) - gap
     x0 = max(0, getattr(s, "cols", 197) // 2 - total // 2)
@@ -769,6 +796,8 @@ def draw_power_solid(s, t: float, col, dim, appear_at: float) -> int:
         g = POWER_GLYPHS.get(ch)
         if g is None:
             continue
+        base = colours[_power_seg(i)]
+        lit = (int(base[0] * f), int(base[1] * f), int(base[2] * f))
         bx = x0 + i * (POWER_W + gap)
         for r in range(POWER_H):
             for c in range(POWER_W):

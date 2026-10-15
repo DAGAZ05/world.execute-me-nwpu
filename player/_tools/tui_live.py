@@ -5426,8 +5426,9 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
     if t >= BLACK_START:
         try:
             import school_rhythm as _R
-            # `dim` 给它等于底色的暗色：实心块只有"亮"这一种状态，不像 LED 那样需要暗底。
-            _R.draw_power_solid(s, t, (255, 246, 190), BG, BLACK_START)
+            # 三段各一种颜色（批 160）：`2^10` 橙 / `=` 品红 / `1024` 青，
+            # 都远离分数屏那套暖白 LED（`(255,246,190)` + `(120,140,190)`）。
+            _R.draw_power_solid(s, t, appear_at=BLACK_START)
         except Exception:
             pass
     # **...and the counted number goes on last** (batch 68). It belongs to the stdout box, but it is
