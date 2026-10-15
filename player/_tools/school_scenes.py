@@ -2641,7 +2641,7 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
         # `lim x→∞ sin x / x = 0（这不是洛必达！）`——同一张图两段两个说法。现在两段同一个。
         try:
             import school_courses as _CC
-            _CC.PANE_SUB[0] = ("lim x\u2192\u221e sin x / x = 0"
+            _CC.PANE_SUB[0] = ("\u8d8b\u4e8e\u65e0\u7a77\u5927\u65f6\u6781\u9650\u4e3a 0"
                                "\uff08\u8fd9\u4e0d\u662f\u6d1b\u5fc5\u8fbe\uff01\uff09")
         except Exception:
             pass
@@ -3571,7 +3571,7 @@ def draw_pane(name: str, s, x0: int, y0: int, x1: int, y1: int, t: float,
     if name == "pane_motif_sine":
         try:
             import school_motifs as _M
-            _frame_sub = ("lim x \u2192 \u221e  sin x / x = 0"
+            _frame_sub = ("\u8d8b\u4e8e\u65e0\u7a77\u5927\u65f6\u6781\u9650\u4e3a 0"
                           if t >= _M.APPROACH_INFINITY_AT
                           else "sin x \u4e0e\u5b83\u7684\u5207\u7ebf\u5305\u7edc")
         except Exception:
