@@ -2236,9 +2236,15 @@ def pane_spinoza(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     # 一步一步亮；四步走完剩下的时间把结论**留着**（不再变化）。
     # **`int(...)+1` 要夹在 `len(steps)+1`**（批 128）：第一版夹在 `len(steps)`，于是
     # "四步都走完"这个状态永远取不到，底部那句结论一次都没画出来。
-    # **步子 0.30 s**：这一行只有 1.61 s（84.60→86.21），0.26 s 时第 ④ 步要到 1.30 s 才亮、
-    # 结论（第 5 个状态）要到 1.56 s——只剩 0.05 s，等于没有。0.30 s 让结论有 0.4 s。
-    step = min(len(steps) + 1, int((lt if lt is not None else 0.0) / 0.30) + 1)
+    #
+    # **步子按行时长铺开**（批 148，清单2 第 5 条）：用户要 `If I'm the only God` 与
+    # `Then you're the proof of my existence` **两句都归斯宾诺莎**，于是这一行从 1.61 s
+    # 变成 **3.74 s**。原来写死 0.30 s，四步 1.20 s 就完了，**后面 2.2 s 静止**——用户说的
+    # "注意展示速度要调"就是这个。现在把 `len(steps)+1` 个状态铺在行长的 **82%** 上
+    # （留 18% 让结论停住一会儿，读得完），并且给步长一个下限，行很短时不会快到看不清。
+    _dur = dur if (dur and dur > 0.4) else 1.8
+    _per = max(0.16, (_dur * 0.82) / (len(steps) + 1))
+    step = min(len(steps) + 1, int((lt if lt is not None else 0.0) / _per) + 1)
     col = _mix(_C.AMBER, 0.92)
     for i, (num, text) in enumerate(steps):
         if i >= step:

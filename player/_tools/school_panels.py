@@ -468,8 +468,17 @@ LANDMARK_ROWS: list[dict] = [
     # between them. **Act 3 - the star alone - is its own row at 84.60**, on the lyric `02b §3.3` pins
     # it to; it used to be the tail of this row, which put "只剩那颗星" under `If I can, if I can` at
     # ~57 s. See `pane_landmark_dialogue`.
+    # **拆成两句**（批 148，清单2 第 5 条）：用户："目前歌词 And we can unite, so deeply so deeply
+    # 对应的动画为对话雕塑。现在修改为：歌词 And we can unite 对应对话雕塑，so deeply so deeply
+    # 对应动画调整为衍射星芒"。
+    # 原来这一行 54.74-58.65 一句 `pane_landmark_dialogue` 盖住了两句歌词，现在在 56.79
+    # （`So deeply, so deeply` 的时刻）切开：前一句留雕塑，后一句给星芒。
     dict(at=54.74, name="pane_landmark_dialogue", lyric="And we can unite",
-         ops=["UNITE", "\u5bf9\u8bdd"], mascot=False, args=dict(max_phase=1), sub="两只手将触未触：这就是「合」"),
+         ops=["UNITE", "\u5bf9\u8bdd"], mascot=False, end=56.79,
+         args=dict(max_phase=1), sub="两只手将触未触：这就是「合」"),
+    dict(at=56.79, name="pane_motif_stardiff", lyric="So deeply, so deeply",
+         ops=["DIFFRACT", "星芒"], mascot=False, end=58.65,
+         sub="同一个点的光，摊开成一片"),
     # **The binary stars had 1.43 s and that was not enough to watch** (batch 56, the user: "双星旋进的时间
     # 太短了，适当加点"). The row is what the drawing reads for its own clock (`school_motifs._row_span`),
     # so lengthening the row *is* lengthening the inspiral: 60.57-64.29 is 3.72 s, of which 0.45 s is the
@@ -533,11 +542,14 @@ LANDMARK_ROWS: list[dict] = [
     # 一闪而过对话雕塑，请删除，这段歌词对应的动画改为 斯宾诺莎对于上帝为唯一实体（∃!）的证明"。
     # 那一闪而过的就是这条 `pane_landmark_dialogue` 的 `phase=2`（"手放下了，只剩那颗星"）。
     # `pane_landmark_dialogue` 本身没删——它还在 54.74 那一行演"两只手"。
+    # **两句都归斯宾诺莎**（批 148，清单2 第 5 条）：用户："原来衍射星芒动画删除（当前对应歌词
+    # then you're the proof of my existence），改为歌词 If I'm the only god, then you're the
+    # proof of my existence **两句均对应斯宾诺莎证明的动画**（注意展示速度要调）"。
+    # 所以 86.21 那一行的 `pane_motif_stardiff` 删掉，并进这一行（84.60-88.34，3.74 s）；
+    # `pane_spinoza` 里的步长原本按 1.61 s 配的，也一并按行时长铺开（见 `pane_spinoza`）。
     dict(at=84.60, name="pane_spinoza", lyric="If I'm the only God",
-         ops=["E!", "SUBSTANCE"], mascot=False,
+         ops=["E!", "SUBSTANCE"], mascot=False, end=88.34,
          sub="\u53ea\u6709\u4e00\u4e2a\u5b9e\u4f53\uff1a\u5c5e\u6027\u4e0d\u540c\u3001\u6837\u5f0f\u4e0d\u540c\uff0c\u4e24\u6761\u90fd\u4e0d\u6210\u7acb"),
-    dict(at=86.21, name="pane_motif_stardiff", lyric="Then you're the proof of my existence",
-         ops=["STAR", "衍射"], mascot=False, sub="你在，就是我在的证据"),
     # **`switch my gender` + `to F, to M` 两句 = 集合 F 与 M 的文氏图**（批 146，清单2 第 6 条）。
     # 用户："To F, to M的前一句是 switch my gender，我要求的是文氏图对应 switch my gender,
     # to F to M 两句，和 switch my current 没有任何关系"。
