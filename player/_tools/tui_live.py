@@ -5426,9 +5426,12 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
     if t >= BLACK_START:
         try:
             import school_rhythm as _R
-            # 三段各一种颜色（批 160）：`2^10` 橙 / `=` 品红 / `1024` 青，
+            # 三段各一种颜色（批 160）：`2^10` 橙 / `=` 品红 / `10` 青 / `24` 绿，
             # 都远离分数屏那套暖白 LED（`(255,246,190)` + `(120,140,190)`）。
-            _R.draw_power_solid(s, t, appear_at=BLACK_START)
+            # **`dim` 必须显式传 `BG`**：`draw_power_solid` 的默认值是 `None`，
+            # 而 `set_cell(..., lit, None)` 会在 Screen 里下标 `None` 直接抛
+            # `TypeError: 'NoneType' object is not subscriptable`——`ansi_probe` 就是这样抓到的。
+            _R.draw_power_solid(s, t, dim=BG, appear_at=BLACK_START)
         except Exception:
             pass
     # **...and the counted number goes on last** (batch 68). It belongs to the stdout box, but it is
