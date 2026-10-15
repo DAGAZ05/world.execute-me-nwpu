@@ -306,11 +306,11 @@ SHOT_ROWS: list[dict] = [
     # crest(0.03) -> power_on(1.33) -> protection(3.58) -> class(5.16), which is also the order the
     # lyric puts them in: the protection line comes *before* "object creation", not after it.
     dict(at=1.33, name="pane_power_on", lyric="Remember to put on protection",
-         ops=["POWER_ON", "VCC", "GND", "5V"], mascot=False, sub="\u5148\u63a5\u5730\u7ebf\uff0c\u518d\u901a  VCC \u4e0e  5V"),
+         ops=["POWER_ON", "VCC", "GND", "5V"], mascot=False, sub="\u5148\u63a5\u5730\u7ebf\uff0c\u518d\u901a VCC \u4e0e 5V"),
     dict(at=3.58, name="pane_protection", lyric="Lay down your pieces",
          ops=["ESD", "STRAP", "FUSE"], mascot=False, sub="\u8155\u5e26\u3001\u5730\u7ebf\u4e0e\u4fdd\u62a4\u4e1d\uff0c\u62a4\u4f4f\u81ea\u5df1"),
     dict(at=5.16, name="pane_class", lyric="And let's begin object creation",
-         ops=["CLASS", "OBJECT", "INIT"], mascot=False, sub="\u5199\u4e0b  class\uff0c\u9020\u51fa\u7b2c\u4e00\u4e2a\u5bf9\u8c61"),
+         ops=["CLASS", "OBJECT", "INIT"], mascot=False, sub="\u5199\u4e0b class\uff0c\u9020\u51fa\u7b2c\u4e00\u4e2a\u5bf9\u8c61"),
     dict(at=7.19, name="pane_parameters", lyric="Fill in my data parameters",
          ops=["PARAM", "SET", "COMMIT"], mascot=False, sub="\u4e00\u884c\u884c\u586b\u53c2\u6570\uff0c\u9f50\u4e86\u624d COMMIT"),
     dict(at=9.75, name="pane_motif_he_init", lyric="Initialization",
@@ -557,9 +557,9 @@ LANDMARK_ROWS: list[dict] = [
     dict(at=73.53, name="pane_everything_point", lyric="If I'm an eggplant",
          ops=["\u53e3\u8154", "\u80c3", "\u5c0f\u80a0", "\u5927\u80a0"], mascot=False,
          args=dict(panel="food"),
-         sub="\u4e00\u6839\u8304\u5b50\u7ecf\u4eba\u4f53\u6d88\u8017\uff0c\u80fd\u91cf\u9010\u7ea7\u51cf\u5c11"),
+         sub="\u4e00\u6839\u8304\u5b50\u7ecf\u4eba\u4f53\u6d88\u5316\uff0c\u80fd\u91cf\u9010\u7ea7\u51cf\u5c11"),
     dict(at=77.16, name="pane_everything_point", lyric="If I'm a tomato",
-         ops=["444nm", "472nm", "503nm"], mascot=False, args=dict(panel="tomato"), sub="\u756a\u8304\u5438\u6536  444/472/503 nm"),
+         ops=["444nm", "472nm", "503nm"], mascot=False, args=dict(panel="tomato"), sub="\u756a\u8304\u5438\u6536 444/472/503 nm"),
     dict(at=80.93, name="pane_landmark_cat", lyric="If I'm a tabby cat",
          ops=["\u732b\u5b66\u957f", "\u5b57\u7b26\u753b", "\u53e0\u52a0\u6001"], mascot=False, sub="\u53c8\u751f\u53c8\u6b7b\u7684\u53e0\u52a0\u6001"),
     # 84.6-110.4 is the last verse's "only God / switch my gender / trance" run: the switch lines belong to
@@ -737,12 +737,17 @@ LANDMARK_ROWS: list[dict] = [
     # `2^53 · IEEE-754 double 的边界 · 你的记忆已超上限`"）。
     # 批 161 把 `pane_memory` 的后半段换成了 `2^53` 的量化（`MEMORY_FULL_AT = 113.75`），
     # 但这两行的抬头还写着 MEMORY 的那句——抬头和内容对不上了。现在改成用户给的那句。
+    # **抬头 = pane 标题 + 这行的 sub**（批 174）。批 164 我改过这两行的 sub，但**批 165 的批量套用
+    # 把它覆盖回去了**——那一次是拿"你当时的表"整体套用，而那张表是批 164 之前生成的，
+    # 里面这两行还是 `你走一次，就多叠一层`。所以你在成片里看到的一直是 MEMORY 那句。
+    # 现在：pane 的标题在 `MEMORY_FULL_AT` 之后切成 `2^53`（见 `pane_memory`），
+    # 这里的 sub 只留后半截，拼起来正好是你要的那一整句。
     dict(at=113.75, name="pane_memory", lyric="You have left",
          ops=["2^53", "IEEE-754"], mascot=False, args=dict(layers=5),
-         sub="\u4f60\u8d70\u4e00\u6b21\uff0c\u5c31\u591a\u53e0\u4e00\u5c42"),
+         sub="IEEE-754 double \u7684\u8fb9\u754c \u00b7 \u4f60\u7684\u8bb0\u5fc6\u5df2\u8d85\u4e0a\u9650"),
     dict(at=114.75, name="pane_memory", lyric="You have left",
          ops=["2^53", "IEEE-754"], mascot=False, args=dict(layers=6),
-         sub="\u4f60\u8d70\u4e00\u6b21\uff0c\u5c31\u591a\u53e0\u4e00\u5c42"),
+         sub="IEEE-754 double \u7684\u8fb9\u754c \u00b7 \u4f60\u7684\u8bb0\u5fc6\u5df2\u8d85\u4e0a\u9650"),
     # "You have left me in isolation": the field emptying, one point left
     dict(at=115.90, name="pane_isolation", lyric="You have left me in isolation",
          ops=["ISOLATION", "\u4e00\u4e2a\u70b9"], mascot=False, sub="in isolation \xb7 \u53ea\u5269\u4e00\u4e2a\u70b9\uff0c\u5b64\u7acb\u4e8e\u8bb0\u5fc6\u7684\u89d2\u843d"),
@@ -957,8 +962,8 @@ THEME_PINS: list[tuple[float, str, str, str]] = [
     # **时间线**（清单第 29 条）："scene 20 当前为超椭圆，改为时间线，歌词 if we can travel 展示
     # 时间线西工大校史，to ad to bc 展示西工大所在西安的公元前后历史"。两个 pane 行分别钉，
     # `_ex_timeline` 按时刻自己切两段内容——**不合并成一行**（批 119 的教训：一行演两张画会叠）。
-    (50.95, "pane_exchange", "timeline", "一条路走到今天：1938 → 1957 → 1970 → 2006"),
-    (52.99, "pane_exchange", "timeline", "同一块地方，换了三个名字：汉长安 → 唐长安 → 西安"),
+    (50.95, "pane_exchange", "timeline", "\u5982\u679c\u80fd\u56de\u52301938"),
+    (52.99, "pane_exchange", "timeline", "\u4ece\u53e4\u90fd\u56de\u7738\u5f80\u4e8b\u6570\u5343\u5e74"),
     # 角色 S/M：字形互换 —— 与 F→M 是同一台机器上的另一次翻位。
     # **批 133 撤掉了这条钉子**（清单第 31 条）：`To S, to M`(97.32) 改成**监察博弈支付矩阵**
     # （新 pane `pane_supervisory`），不再是"一个字的两个身份"。钉子留着会把新 pane 顶掉。

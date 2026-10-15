@@ -3264,7 +3264,13 @@ def pane_memory(s, x0, y0, x1, y1, t, lt, dur, u, layers: int = 1, ghost: float 
     grows with the layer index so that six layers read as a smear and two read as a doubled word.
     """
     import school_courses as _C
-    k = _C._Kit(s, x0, y0, x1, y1, "MEMORY", 0, 0, u)
+    # **标题也要随时间切**（批 174，用户："2^53动画处的抬头仍然是 memory，我给你说过改成
+    # `2^53 · IEEE-754 double 的边界 · 你的记忆已超上限`"）。
+    # 抬头是 `pane 自己的标题 · 排期行的 sub` 拼出来的；批 164 我只改了**行的 sub**，
+    # 而 pane 的标题还写死 `MEMORY`，于是渲染成 `MEMORY · 2^53 · IEEE-754 …`——多了一截。
+    # 现在标题在 `MEMORY_FULL_AT` 之后换成 `2^53`，行的 sub 也相应去掉开头那截。
+    _title = "2\u2075\u00b3" if t >= MEMORY_FULL_AT else "MEMORY"
+    k = _C._Kit(s, x0, y0, x1, y1, _title, 0, 0, u)
     # **后半段换成 `2^53` 的量化动画**（批 161，用户："memory 动画是 Though you have left you have left
     # ... 那长段歌词对应的动画" / "可以把 memory 动画的后半部分替换为 2^53 的动画，寓意为'记忆已经
     # 填满'，与后面的擦除很好地衔接"）。
