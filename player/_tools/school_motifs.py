@@ -1203,9 +1203,22 @@ def galaxy(k, t: float) -> None:
     # ...and what a galaxy is *in*: the arms can only be `2 * ry` wide because a face-on disc is round, so
     # half the box they are given is sky. Filling it with stars is not decoration here - it is the other
     # half of the picture, and it is drawn on blank cells, so it can never touch the arms or the labels.
-    if k.bh > 8 and k.bw > 40:
-        _C.dust(k.s, k.bx0, k.by0 + 1, k.bx1, k.by1 - 1, t, max(24, k.bw * k.bh // 14), seed=5,
-                colour=(150, 190, 255), spread=0.5)
+    #
+    # **这一段在批 156 按用户要求删掉了**（清单2 第 10 条："三旋臂动画……中间都有换场特效，删掉"）。
+    # 用户给的定位是 **1:08**；查下来那一带 `school_cuts`、`school_fx.EVENTS`、时间常量**全是空的**，
+    # 唯一的效果就是这里：
+    #
+    #     _C.dust(k.s, k.bx0, k.by0 + 1, k.bx1, k.by1 - 1, t,
+    #             max(24, k.bw * k.bh // 14), seed=5, colour=(150, 190, 255), spread=0.5)
+    #
+    # `bw=95, bh=44` 代入 `max(24, 95*44//14)` = **298 个星尘点**，铺满整个动画框、随 `t` 明灭——
+    # 在 95x44 的框里就是一片四散的亮点，读起来就是一次"换场"。原注释的用意（"银河只占半张画，
+    # 另一半是天空"）没有错，但 298 个点太密，效果盖过了画本身。
+    #
+    # **只删了 galaxy 这一处**：同一个 `dust` 在 `stardiff`（1209 行附近之外，第 1467 行）也用了，
+    # 用户点名删的是"1:08 的那个"、没有要求动星芒，所以那一处保留。
+    #
+    # `_C.dust` 本身没删，别处还在用。
 
 
 def fragmentation(k, t: float) -> None:
