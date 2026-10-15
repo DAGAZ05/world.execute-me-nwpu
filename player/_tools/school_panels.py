@@ -466,7 +466,7 @@ LANDMARK_ROWS: list[dict] = [
     # 时间线"。
     dict(at=50.95, name="pane_exchange", lyric="Oh, we can travel",
          ops=["1938", "1957", "1970", "2006"], mascot=False, args=dict(panel="timeline"),
-         sub="\u5982\u679c\u80fd\u56de\u5230 1938"),
+         sub="\u5982\u679c\u80fd\u56de\u52301938"),
     dict(at=52.99, name="pane_exchange", lyric="To AD, to BC",
          ops=["BC 202", "AD 618", "\u4eca"], mascot=False, args=dict(panel="timeline"),
          sub="\u4ece\u53e4\u90fd\u56de\u7738\u5f80\u4e8b\u6570\u5343\u5e74"),
