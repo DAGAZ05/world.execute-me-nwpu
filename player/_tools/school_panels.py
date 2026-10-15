@@ -312,7 +312,7 @@ SHOT_ROWS: list[dict] = [
     dict(at=5.16, name="pane_class", lyric="And let's begin object creation",
          ops=["CLASS", "OBJECT", "INIT"], mascot=False, sub="\u5199\u4e0b  class\uff0c\u9020\u51fa\u7b2c\u4e00\u4e2a\u5bf9\u8c61"),
     dict(at=7.19, name="pane_parameters", lyric="Fill in my data parameters",
-         ops=["PARAM", "SET", "COMMIT"], mascot=False, sub="一行行填参数，齐了才 COMMIT"),
+         ops=["PARAM", "SET", "COMMIT"], mascot=False, sub="\u4e00\u884c\u884c\u586b\u53c2\u6570\uff0c\u9f50\u4e86\u624d COMMIT"),
     dict(at=9.75, name="pane_motif_he_init", lyric="Initialization",
          ops=["He 初始化", "REPLACE"], mascot=False, sub="\u4e16\u754c\u7531\u65e0\u5e8f\u53d8\u6709\u5e8f"),
     # **13 s 附近那个倒计时删掉**（批 164，用户："13s附近，动画框有个倒计时，左下角 sim.start 框中

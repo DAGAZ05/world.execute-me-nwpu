@@ -2000,7 +2000,7 @@ def pane_yolo(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     颜文字用 ASCII 拼（`(^_^)` `(o_O)` `(>_<)` `(T_T)`），渲染字体里都有。
     """
     import school_courses as _C
-    k = _kit(s, x0, y0, x1, y1, 0, "YOLO")
+    k = _kit(s, x0, y0, x1, y1, 0, "YOLO \u6253\u6807")
     if k is None or k.bh < 7 or k.bw < 40:
         return
     # 候选：颜文字 + 类别 + 本命（`satisfaction` 是这一句歌词要框住的那一个）。
@@ -2629,7 +2629,7 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
              "timeline": "\u65f6\u95f4\u7ebf",
              # **`venn` 的抬头**（批 146）：这一格画的是两个集合的关系，抬头写 `F → M · 3 位`
              # 是 `bits` 的名字，和里面的文氏图对不上（抬头必须和里面画的东西一致——批 98e 的规矩）。
-             "venn": "F \u2229 M \u00b7 \u96c6\u5408",
+             "venn": "F \u2229 M \u96c6\u5408",
              "letters": "S \u2192 M \u00b7 \u5b57\u5f62\u7ffb\u4f4d"}
     # **抬头要和里面画的东西一致**（批 98e 的规矩，批 111 又用到一次）：40.36-45.52 这一段
     # 里面画的是 `sin x / x`（见下），所以抬头这时不能还写 `F → M · 3 位`——那是 `panel="bits"`
@@ -3196,7 +3196,7 @@ def pane_fragments(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     `pane_ai_diffusion`'s denoise here would have spent it twice.
     """
     import school_courses as _C
-    k = _kit(s, x0, y0, x1, y1, 0, "\u5220\u9664")
+    k = _kit(s, x0, y0, x1, y1, 0, "\u5220\u9664 erase fragments")
     if k is None or k.bw < 12 or k.bh < 5:
         return
     k.section(k.by0, "\u65e0\u610f\u4e49\u7684\u788e\u7247", 0.25)
