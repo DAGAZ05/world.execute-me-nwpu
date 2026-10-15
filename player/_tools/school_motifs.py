@@ -1440,14 +1440,27 @@ def stardiff(k, t: float) -> None:
         return
     spin = t * 0.18
     blades = 6
+    # **让这颗星"闪"起来**（批 162）。用户："衍射星芒动画（歌词 so deeply so deeply）可以增加视觉特效
+    # （**比如更加闪烁**）"。原来 12 条射线的亮度只随半径衰减、彼此**完全同步**，所以整颗星是"稳"的，
+    # 只有慢转。加两件事，都是加法、不改变图形本身：
+    #
+    #   * **每条射线自己的明灭相位**：`tw` 按射线的序号错开，12 条此起彼伏地亮暗，
+    #     整颗星就有了"闪"的呼吸；原来那个 `(1 - step/r)**1.6` 的衰减曲线没动；
+    #   * **一圈从中心往外跑的高亮点**：`sp` 是这一帧跑到哪儿，走到哪儿哪一格换成实心 `●`，
+    #     看着就是光沿着射线往外走——衍射星芒本来就是"光从中心散出去"。
     for i in range(blades * 2):
         a = spin + i * math.pi / blades
+        tone = _C.AMBER if i % 2 else _C.BLUE
+        tw = 0.45 + 0.55 * abs(math.sin(t * 3.1 + i * 1.7))
+        sp = int((t * 5.0 + i * 1.9) % max(1, r))
         for step in range(r):
             x = int(cx + step * math.cos(a))
             y = int(cy + step * math.sin(a) * 0.5)
-            lv = 0.95 * (1 - step / r) ** 1.6
+            lv = 0.95 * (1 - step / r) ** 1.6 * tw
             k.put(x, y, "\u2022" if step < r * 0.4 else "\u00b7",
-                  _mix(_C.AMBER if i % 2 else _C.BLUE, 0.15 + lv))
+                  _mix(tone, min(1.0, 0.15 + lv)))
+            if step == sp:
+                k.put(x, y, "\u25cf", _mix(tone, 1.0))
     for i in range(blades):
         a = spin + i * 2 * math.pi / blades
         for s2 in range(2, r):

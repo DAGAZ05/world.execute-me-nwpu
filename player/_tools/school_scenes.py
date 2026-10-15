@@ -2398,8 +2398,13 @@ def pane_supervisory(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     }
     gw, gh = len(GLYPH["S"][0]), len(GLYPH["S"])
     total = gw * 2 + 3
-    gx0 = k.bx0 + max(0, (k.bw - total) // 2)
-    gy0 = y_note + 6
+    # **位置改成"矩阵右边那块空处"**（批 162）。用户："监察博弈动画在**矩阵旁**空旷处增加交替闪烁的
+    # S/M 字符画"。这套 5x7 点阵批 135 就有了，但它原来画在**矩阵正下方、水平居中**
+    # （`gx0 = k.bx0 + (k.bw - total)//2`、`gy0 = y_note + 6`）；而矩阵只用到
+    # `x_c1 + 18 = k.bx0 + 60`，右边还有约 35 列是空的——用户指的正是那块。
+    # 现在贴到矩阵右侧、与表头齐平，两个大字就"站在矩阵旁边"。
+    gx0 = min(max(k.bx0, k.bx1 - total - 1), x_c1 + 22)
+    gy0 = y_hdr + 1
     if gy0 + gh + 2 <= k.by1:
         for idx, (gname, grows) in enumerate(GLYPH.items()):
             on = idx == turn                          # 轮到谁，谁亮
