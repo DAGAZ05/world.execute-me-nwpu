@@ -851,7 +851,12 @@ def hearts9(k, t: float) -> None:
                         "\u91cc\u9762\u662f\u5b9e\u7684", _ui(0.5))
 
 
-def fork_bomb(k, t: float) -> None:
+#: 需要"这一行的进度"的画法（批 151）：这些 `fn` 的签名是 `(k, t, lt, dur)`，
+#: 其余的是 `(k, t)`。由 `school_scenes` 的 motif 调度器查这张表决定怎么调。
+ROW_CLOCK: set = {"fork_bomb"}
+
+
+def fork_bomb(k, t: float, lt: float = None, dur: float = None) -> None:
     """The fork bomb, drawn as the doubling it actually is: one process, then two, then 4096.
 
     `想法.md` asks for `:(){ :|:& };:` growing under 处决, and the doubling is the whole drawing - what
@@ -861,6 +866,14 @@ def fork_bomb(k, t: float) -> None:
     "never reaches the generation its title names"). Past ~32 children a row can no longer hold one dot
     per process, so those generations are drawn as a bar whose length is the generation - the count on
     the right is what carries the number, and it *is* the number.
+
+    **`lt/dur` 是批 151 加的**（清单2 第 8 条的后续）：用户把 fork 炸弹从学校段（2.04 s）挪到学院段
+    （1.86 s）之后说"因为时长变短，演出效果不太好，你先调一下动画播放速度"。
+    根因是 `gen` 原来由 **`t`** 驱动（锯齿波周期 `1/0.35 ≈ 2.86 s`）：行只有 1.86 s 时
+    **走不完一轮、最后一次翻倍永远到不了**，而且行从周期的哪一段开始是随机的。
+    改成按**这一行自己的进度**铺开：0 → `depth` 走在行长的 **85%** 上，剩下 15% 停在 4096 上，
+    所以无论这一行多长，都看得完一次完整的指数增长、并且结尾停得住。
+    `lt/dur` 缺省时（学院课程 pane 那条路径）仍退回按 `t` 走。
     """
     k.section(k.by0, "fork \u70b8\u5f39 \u00b7 1 \u2192 4096", 0.28)
     depth = max(1, min(12, k.by1 - k.by0 - 1))
@@ -870,7 +883,16 @@ def fork_bomb(k, t: float) -> None:
     # ...and it *rolls* on the song clock as well, which it did not have to while this was a band: as a
     # pane it has to move for `_dev/clock_probe.py`, whose samples pin `u` and vary `t`, and a fork bomb
     # that keeps re-forking every couple of seconds is what the drawing is about anyway.
-    gen = int(min(depth, ((t * 0.35) % 1.0) * (depth + 1)))
+    #
+    # **但优先用 `lt/dur`**（批 151）：`clock_probe` 变的是 `t` **和 `lt`**，所以按 `lt/dur` 走它照样
+    # 判为"在动"；而按 `t` 的锯齿波周期（2.86 s）比行（1.86 s）长，就会"走不完一轮"。
+    # 0 → depth 走在行长的 85% 上，余下 15% 停在 4096，结尾读得完。
+    _d = dur if (dur and dur > 0.3) else 0.0
+    if _d and lt is not None:
+        _prog = min(1.0, (float(lt) / _d) / 0.85)
+    else:
+        _prog = (t * 0.35) % 1.0
+    gen = int(min(depth, _prog * (depth + 1)))
     w = k.bw - 22
     if w < 12:
         return

@@ -3315,7 +3315,14 @@ def _motif(name: str):
         if k is None or k.bh < 5:
             return
         band = max(4, min(k.bh - 2, _M.BAND_MAX.get(name, 99)))
-        fn(k.sub(k.bx0, k.by0 + 1, k.bx1, k.by0 + band), t)
+        sub = k.sub(k.bx0, k.by0 + 1, k.bx1, k.by0 + band)
+        # **少数画法要"这一行的进度"**（批 151）：`fork_bomb` 的指数增长必须在一行之内走完。
+        # 用一个**显式名单**，不用 `try/except TypeError`——后者会把函数内部的 TypeError 也吞掉、
+        # 变成"悄悄退回没有行时钟"，那正是要避免的静默失败。
+        if name in _M.ROW_CLOCK:
+            fn(sub, t, lt, dur)
+        else:
+            fn(sub, t)
 
     pane.__name__ = "pane_motif_" + name
     return pane
