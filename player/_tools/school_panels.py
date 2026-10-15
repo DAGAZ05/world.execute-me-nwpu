@@ -466,10 +466,10 @@ LANDMARK_ROWS: list[dict] = [
     # 时间线"。
     dict(at=50.95, name="pane_exchange", lyric="Oh, we can travel",
          ops=["1938", "1957", "1970", "2006"], mascot=False, args=dict(panel="timeline"),
-         sub="\u5018\u82e5\u80fd\u56de\u5230 1938"),
+         sub="\u5982\u679c\u80fd\u56de\u5230 1938"),
     dict(at=52.99, name="pane_exchange", lyric="To AD, to BC",
          ops=["BC 202", "AD 618", "\u4eca"], mascot=False, args=dict(panel="timeline"),
-         sub="\u4ece\u53e4\u90fd\u56de\u671b\u6570\u5343\u5e74"),
+         sub="\u4ece\u53e4\u90fd\u56de\u7738\u5f80\u4e8b\u6570\u5343\u5e74"),
     # **`If I can, if I can`（58.65）起放双星旋进**（批 124，清单第 33 条："歌词第一次
     # if I can, if I can 开始就放双星旋进动画"）。
     # **这个 pane 本来就有**：`pane_motif_binary`（`school_motifs.binary`，抬头就是"双星旋进"），
