@@ -255,7 +255,18 @@ class _Kit:
         avail = max(0, (x1 - len(tag) - 2 if tag else x1 - 1) - (x0 + 2) + 1)
         sub = PANE_SUB[0]
         sub_txt = ("\u00b7 " + sub) if sub else ""
-        title_room = avail if not sub else max(6, avail - _cells(sub_txt) - 2)
+        # **标题优先**（批 168 改；原来是"说明先占满、标题拿剩下的"）。
+        #
+        # 原式 `max(6, avail - _cells(sub_txt) - 2)` 的下限是 **6 格 = 3 个汉字**，
+        # 于是只要说明文字够长，标题就被截成三个字——实测 `pane_exec_*` 那 16 行
+        # （它们还额外占着右端的 `EXEC nn/16` 计数器）出来是 `软件工`、`数据结`、`计算机`。
+        #
+        # 现在反过来：**标题要多少给多少**（上限 = "给说明留 10 格"），说明文字拿剩下的、
+        # 该截就截。理由：标题是这一格**叫什么**，说明是照应歌词的一句话；标题短、说明长，
+        # 让短的那个先站稳才对。原来的理由（"说明是用户点名要的那一行"）在说明和标题
+        # **都**要能读之后就不成立了。
+        need_title = _cells(title)
+        title_room = avail if not sub else max(6, min(need_title, max(10, avail - 10)))
         shown = _clip(title, title_room)
         s.put(x0 + 2, y0, shown, _ui(0.92))
         if sub:
