@@ -1983,21 +1983,45 @@ def pane_yolo(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     k = _kit(s, x0, y0, x1, y1, 0, "YOLO \u00b7 \u6253\u6807")
     if k is None or k.bh < 7 or k.bw < 40:
         return
-    # 候选：颜文字 + 类别 + 本命（`satisfaction` 是这一句歌词要框住的那一个）
+    # 候选：颜文字 + 类别 + 本命（`satisfaction` 是这一句歌词要框住的那一个）。
+    #
+    # **批 147 从四个加到六个**（清单2 第 4 条跟进）：用户："yolo动画还是有点空旷，再在原来4个
+    # 标签基础上加2个，注意不要和已有的重了（表情颜文字可以 web search）"。
+    # 新增的两个是 `(*_*)` starstruck 与 `(-_-)` bored——**与已有的四个在形状和语义上都不重**：
+    #   * `(^_^)` satisfaction / `(o_O)` just so so / `(>_<)` nervous / `(T_T)` disheartened
+    #   * 新加的是这段情感刻度的**两端**：比 satisfaction 更亮的 starstruck、比 so so 更平的 bored
+    #     （候选里 `(O_O)` 与 `(o_O)`、`(^o^)` 与 `(^_^)`、`(=_=)` 与 `(-_-)` 都太像，没选）。
+    # 只用了 `*` 与 `-` 两个新字符，都是纯 ASCII，`*` 本来就被 `_motes` 用着。
     faces = (("(^_^)", "satisfaction", _C.AMBER, True),
              ("(o_O)", "just so so", _C.BLUE, False),
              ("(>_<)", "nervous", _C.VIOLET, False),
-             ("(T_T)", "disheartened", _C.GREEN, False))
-    # 摆位：两行两列。**列间距要放得下"标签最长的那个"**（`disheartened 0.48` = 16 格），
+             ("(T_T)", "disheartened", _C.GREEN, False),
+             ("(*_*)", "starstruck", _C.RED, False),
+             ("(-_-)", "bored", _C.COPPER, False))
+    # 摆位：**两列三行**（原来两列两行）。六个之后两行太扁、下半部还是空的；三行占
+    # `by0+2 .. by0+14`，正好停在下方那个 YOLO 标注框（`by1-4`）之上。
+    #
+    # **列间距要放得下"标签最长的那个"**（`disheartened 0.48` = 16 格），
     # 第一版 `slot_w = max(16, (bw-4)//2)` 正好等于 16、于是第 2 列的标签压在第 3 个颜文字上。
     slot_w = max(20, (k.bw - 3) // 2)
+    # 抽屉矮的时候只放前两行：第三行的框底是 `by0+14`，不能压到标注框（`by1-4`）。
+    rows_fit = 3 if k.by0 + 15 <= k.by1 - 5 else 2
     pos = []
     for i, (face, lab, tone, star) in enumerate(faces):
+        row = i // 2
+        if row >= rows_fit:
+            break
         fx = k.bx0 + 1 + (i % 2) * slot_w
-        fy = k.by0 + 2 + (i // 2) * 5          # 行距 5：留出框（框占 3 行）与标签各一行
+        # **纵向从 `by0 + 3` 起**（批 147 修的第二个碰撞）：原来 `by0 + 2`，于是第一行的**标签行**
+        # （`fy - 1`）正好是 `by0`——**那是抬头行**，检测标签把 `YOLO · 打标` 整个盖掉了。
+        # 下移一行之后标签在 `by0 + 1`，抬头露出来。
+        fy = k.by0 + 3 + row * 5            # 行距 5：留出框（框占 3 行）与标签各一行
         pos.append((fx, fy, face, lab, tone, star))
         k.put(fx, fy, face, _mix(tone, 0.92))
-        k.put(fx + len(face) + 1, fy, lab, _mix(tone, 0.70))
+        # **标签从 `fx + len(face) + 2` 起**（批 147 修的第一个碰撞）：框是
+        # `bx .. bx + bw_` = `fx - 1 .. fx + len(face) + 1`，右边框落在 `fx + len(face) + 1`；
+        # 原来标签正好也从这一格起画，于是首字母被框吃掉（实测 `┆atisfaction`）。
+        k.put(fx + len(face) + 2, fy, lab, _mix(tone, 0.70))
     # ---- 三拍（**按这一行的绝对秒数**，不按比例）
     # 比例分拍不行：行的头 0.9 s 是 `fx_reveal` 的转场（上一屏的字符还在），按比例的话
     # "搜寻"整段被转场吃掉、看不到框在动。
