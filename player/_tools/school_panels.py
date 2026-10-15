@@ -437,8 +437,8 @@ LANDMARK_ROWS: list[dict] = [
     # **原来是 `hyper`（超椭圆），已改成 `timeline`**：这份清单第 29 条就是"当前为超椭圆，改为
     # 时间线"。
     dict(at=50.95, name="pane_exchange", lyric="Oh, we can travel",
-         ops=["1938", "1957", "1970", "2026"], mascot=False, args=dict(panel="timeline"),
-         sub="\u4e00\u6761\u8def\u8d70\u5230\u4eca\u5929\uff1a1938 \u2192 1957 \u2192 1970 \u2192 2026"),
+         ops=["1938", "1957", "1970", "2006"], mascot=False, args=dict(panel="timeline"),
+         sub="\u4e00\u6761\u8def\u8d70\u5230\u4eca\u5929\uff1a1938 \u2192 1957 \u2192 1970 \u2192 2006"),
     dict(at=52.99, name="pane_exchange", lyric="To AD, to BC",
          ops=["BC 202", "AD 618", "\u4eca"], mascot=False, args=dict(panel="timeline"),
          sub="\u540c\u4e00\u5757\u5730\u65b9\uff0c\u6362\u4e86\u4e09\u4e2a\u540d\u5b57\uff1a\u6c49\u957f\u5b89 \u2192 \u5510\u957f\u5b89 \u2192 \u897f\u5b89"),
@@ -917,7 +917,7 @@ THEME_PINS: list[tuple[float, str, str, str]] = [
     # **时间线**（清单第 29 条）："scene 20 当前为超椭圆，改为时间线，歌词 if we can travel 展示
     # 时间线西工大校史，to ad to bc 展示西工大所在西安的公元前后历史"。两个 pane 行分别钉，
     # `_ex_timeline` 按时刻自己切两段内容——**不合并成一行**（批 119 的教训：一行演两张画会叠）。
-    (50.95, "pane_exchange", "timeline", "一条路走到今天：1938 → 1957 → 1970 → 2026"),
+    (50.95, "pane_exchange", "timeline", "一条路走到今天：1938 → 1957 → 1970 → 2006"),
     (52.99, "pane_exchange", "timeline", "同一块地方，换了三个名字：汉长安 → 唐长安 → 西安"),
     # 角色 S/M：字形互换 —— 与 F→M 是同一台机器上的另一次翻位。
     # **批 133 撤掉了这条钉子**（清单第 31 条）：`To S, to M`(97.32) 改成**监察博弈支付矩阵**
