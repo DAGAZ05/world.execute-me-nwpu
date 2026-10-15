@@ -372,9 +372,15 @@ SHOT_ROWS: list[dict] = [
     # `If I'm a sine wave`（36.77-40.36）与 **`If I approach infinity`（40.36-41.92）**。
     # 后半段画的是 `sin x / x`（用户："请改为函数 sin x / x…并在框内进行文字说明"），
     # 所以抬头不能再写"波与它的全部切线"，ops 也不能再写 ENVELOPE。
+    #
+    # **批 163（清单2 第 14 条点名）**：用户："**sin x 包络抬头去掉 sinx/x 的描述**"。
+    # 框内实际画的是 `sin x 与切线包络`（`school_motifs.py` 的 `k.section`），
+    # 而这一行的 `sub` 原来写的是 `sin x / x：振荡在衰减，极限是 0`——**那是另一个动画**
+    # （sinc，见 `pane_motif_sinc`）。抬头和内容说的不是一件事，按批 98e 的规矩要一致。
+    # `ops` 里的 `"sin x / x"` 与 `"趋近 0"` 同样是 sinc 的，一并换掉。
     dict(at=36.77, name="pane_motif_sine", lyric="If I'm a sine wave",
-         ops=["正弦", "sin x / x", "趋近 0"], mascot=False,
-         sub="sin x / x：振荡在衰减，极限是 0"),
+         ops=["\u6b63\u5f26", "\u5e45\u503c 1", "\u5207\u7ebf\u5305\u7edc"], mascot=False,
+         sub="sin x \u4e0e\u5b83\u7684\u5207\u7ebf\u5305\u7edc\uff1a\u6bcf\u4e00\u70b9\u90fd\u5207\u4e00\u6b21"),
     # The overlay stops at the end of P1 and the film's own 97-shot table takes the column back from
     # here to the end of the song. That is not a gap left by accident: a school pane only exists where
     # the school content exists, and the alternative - holding the last pane on screen for 166 seconds
