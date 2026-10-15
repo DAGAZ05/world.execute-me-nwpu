@@ -1621,62 +1621,75 @@ def pane_everything_point(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> 
 
 
 def _ev_food(k, t: float, u: float) -> None:
-    """The aubergine as a flow diagram: field, packer, truck, kitchen, and the losses at each joint."""
+    """茄子**在人体内的分解路径与产物**，右侧是各段剩余能量。
+
+    清单2 第 11 条（批 159）。用户："茄子动画的营养流向，从田间-加工-运输的路径，改为茄子
+    **在人体内分解的路径及产物**，右侧柱状图为**各阶段所含能量（应该是逐级递减的）**，要动态展示"。
+
+    所以两处都换了：
+
+    * **左边**从"田间 / 加工 / 运输 / 餐桌"（一条物流链）换成"**口腔 / 胃 / 小肠 / 大肠**"
+      （一条消化链），每一格旁边不再只写名字，而是写**这一段发生了什么**和**产物是什么**——
+      "产物"正是用户点名要的东西：多肽 → 脂肪酸·甘油·氨基酸·葡萄糖 → 短链脂肪酸。
+    * **右边**原来画的是 `各段损耗与到达`，四根柱子 8 / 14 / 20 / **63%**——最后一根是
+      **回升**的（"剩下"比前面每一次"损耗"都高），所以它**不是逐级递减**。现在换成
+      **各段剩余能量**：100 → 92 → 40 → 8，单调递减（沿途被吸收掉，越往下剩得越少）。
+    * **动态**：左侧每一格按行内的时钟轮流点亮（`cur`），右侧柱高按同一时刻呼吸、
+      当前那一段的柱子最亮——两边同步，看着就是"能量沿着这条路一段段少下去"。
+    """
     import school_courses as _C
-    k.section(k.by0, "\u8304\u5b50 \u00b7 \u8425\u517b\u6d41\u5411", 0.25)
-    names = ("\u7530\u95f4", "\u52a0\u5de5", "\u8fd0\u8f93", "\u9910\u684c")
+    k.section(k.by0, "\u8304\u5b50 \u00b7 \u4f53\u5185\u5206\u89e3", 0.25)
+    # (阶段, 这一段做了什么, 产物)
+    stages = (
+        ("\u53e3\u8154", "\u5480\u56bc\uff1a\u53ea\u6709\u673a\u68b0\u7834\u788e", "\u7ec6\u80de\u58c1\u7834\u5f00"),
+        ("\u80c3", "\u80c3\u9178 + \u80c3\u86cb\u767d\u9176", "\u591a\u80bd"),
+        ("\u5c0f\u80a0", "\u80f0\u8102\u80aa\u9176 + \u80c6\u6c41", "\u8102\u80aa\u9178 \u00b7 \u7518\u6cb9 \u00b7 \u6c28\u57fa\u9178 \u00b7 \u8461\u8404\u7cd6"),
+        ("\u5927\u80a0", "\u83cc\u7fa4\u53d1\u9175", "\u77ed\u94fe\u8102\u80aa\u9178 \u00b7 \u6c34 \u00b7 \u65e0\u673a\u76d0"),
+    )
+    #: 各段**剩余能量**（占入口的百分比）。**单调递减**是这一条的要求：
+    #: 沿途被吸收掉，越往下剩得越少。原来那组 8/14/20/**63** 的最后一根是回升的。
+    energy = (100, 92, 40, 8)
+    n = len(stages)
+    cur = int(t * 1.1) % n                     # 当前走到哪一段（两边共用，所以是同步的）
     bw = max(6, min(9, k.bw - 6))
-    step = max(4, (k.bh - 4) // len(names))
-    # hexagons rather than rectangles: the user allows non-rectangular panels, and a flow diagram is the
-    # one place in this film where the *nodes* are the thing being looked at. `school_courses.hexagon` is
-    # the shared primitive, so the shape is the same one the embedded course uses.
+    step = max(5, (k.bh - 4) // n)
     from school_courses import hexagon
-    for i, nm in enumerate(names):
+    for i, (nm, what, product) in enumerate(stages):
         y = k.by0 + 2 + i * step
-        if y > k.by1 - 3:
+        if y > k.by1 - 4:
             break
-        # one character inside the hex, the full name beside it: at r=1 the cell's middle row is five cells
-        # wide and a two-character label runs over its own right edge. The fill breathes on the pane's
-        # clock, so the flow reads as flowing - and the falling dot below only exists when the wire is long
-        # enough to hold one, which is why the pulse is here rather than there.
+        on = i == cur
         hexagon(k, k.bx0 + bw // 2 + 1, y + 1, 1,
-                _mix(_C.BLUE, 0.62 + 0.12 * math.sin(t * 1.7 - i)), nm[:1])
-        k.put(k.bx0 + bw + 3, y + 1, nm, _ui(0.7))
-        if i < len(names) - 1:
+                _mix(_C.AMBER if on else _C.BLUE, 0.95 if on else 0.55), nm[:1])
+        k.put(k.bx0 + bw + 3, y + 1, nm, _mix(_C.AMBER, 0.95) if on else _ui(0.7))
+        k.put(k.bx0 + bw + 3 + len(nm) * 2 + 2, y + 1, what, _ui(0.45))
+        k.put(k.bx0 + bw + 3, y + 2, "\u2192 " + product,
+              _mix(_C.GREEN, 0.92) if on else _ui(0.55))
+        if i < n - 1:
             k.vline(k.bx0 + bw // 2 + 1, y + 3, y + step - 1, "\u2502", _ui(0.3))
             k.put(k.bx0 + bw // 2 + 1, y + step - 1, "\u25bc", _mix(_C.RED, 0.7))
-            k.put(k.bx0 + bw + 3, y + step - 1, f"-{8 + i * 6}%", _mix(_C.RED, 0.6))
-            # what is being lost, falling down the wire: one dot per joint, on the pane's clock, and
-            # the pane kept *some* motion after its reveal without this - but a flow diagram whose only
-            # moving part is a caption is a diagram, and the caption is not what is flowing. Only drawn
-            # when the wire is long enough to have a free cell between the hexagon and its arrow.
-            if step >= 6:
-                drop = y + 4 + (int(t * 4.0) + i * 3) % (step - 5)
-                k.put(k.bx0 + bw // 2 + 1, drop, "\u25cf", _mix(_C.RED, 0.9))
-    # the numbers on the wires are 8 %, 14 % and 20 %, so what arrives is 0.92*0.86*0.80 = 63 % - the
-    # caption said "只剩一半" and the audit read the two against each other (batch 31, A-7)
-    k.put(k.bx0, k.by1, "\u6bcf\u4e00\u6bb5\u90fd\u5728\u6389\uff1a"
-                        "\u4ece\u5730\u91cc\u5230\u7897\u91cc\u53ea\u5269\u516d\u6210", _ui(0.5))
-    # **...and the right two thirds of the box** (batch 53, the user: "茄子营养那里比较空旷"). The flow is
-    # nine cells of hexagon and a label, so seventy columns of a ninety-five column pane were black. What
-    # goes there is the same numbers as a waterfall - the three losses and what arrives - which is the one
-    # thing this diagram is about that it was only saying in prose.
-    free_x0 = k.bx0 + bw + 14
+        # 走过的线段亮一档，没走到的暗着——这就是"路径在推进"
+        if i < cur:
+            k.vline(k.bx0 + bw // 2 + 1, y + 3, y + step - 1, "\u2502", _mix(_C.GREEN, 0.6))
+    k.put(k.bx0, k.by1, "\u6bcf\u4e00\u6bb5\u90fd\u5728\u88ab\u62c6\u5f00\uff1a"
+                        "\u4e00\u6839\u8304\u5b50\u5230\u6700\u540e\u53ea\u5269\u4e00\u70b9\u6b8b\u6e23", _ui(0.5))
+    # ---- 右边：**各段剩余能量**，单调递减，当前那一段最亮
+    free_x0 = k.bx0 + bw + 30
     span = k.bx1 - free_x0
-    if span >= 30:
+    if span >= 26:
         xr = free_x0 + max(0, (span - 26) // 2)
         base = k.by1 - 4
         high = max(4, (k.by1 - k.by0) // 2)
-        k.put(xr, k.by0 + 1, "\u5404\u6bb5\u635f\u8017\u4e0e\u5230\u8fbe", _ui(0.55))
-        for j, (pc, nm, col) in enumerate(((8, "\u52a0\u5de5", _C.RED), (14, "\u8fd0\u8f93", _C.RED),
-                                           (20, "\u9910\u684c", _C.RED), (63, "\u5269\u4e0b", _C.AMBER))):
+        k.put(xr, k.by0 + 1, "\u5404\u6bb5\u5269\u4f59\u80fd\u91cf", _ui(0.55))
+        for j, pc in enumerate(energy):
             x = xr + j * 6
-            h = max(1, int(high * pc / 70.0))
+            h = max(1, int(high * pc / 100.0))
+            col = _C.AMBER if j == cur else (_C.GREEN if j < cur else _C.BLUE)
             for yy in range(base - h, base):
                 k.put(x, yy, "\u2588", _mix(col, 0.55 + 0.30 * math.sin(t * 1.4 - j)))
-            k.put(x, base + 1, f"{pc}%", _mix(col, 0.85))
-            k.put(x, base + 2, nm, _ui(0.45))
-    _motes(k, "o\u00b7", t, n=max(20, k.bw * k.bh // 22), level=0.28, seed=5)
+            k.put(x, base + 1, f"{pc}%", _mix(col, 0.9))
+            k.put(x, base + 2, stages[j][0][:2], _ui(0.45))
+    _motes(k, "o\u00b7", t, n=max(14, k.bw * k.bh // 30), level=0.24, seed=5)
 
 
 def _ev_tomato(k, t: float, u: float) -> None:

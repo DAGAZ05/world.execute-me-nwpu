@@ -523,8 +523,13 @@ LANDMARK_ROWS: list[dict] = [
     # 那个光谱界面占了过长时间，和左侧歌词都不对应了"): the spectrum was still on screen while the words
     # had moved on to the cat. Now each panel gets its own couplet, and the cat - which had the wrong row
     # entirely - gets the two lines about a tabby.
+    # **抬头随内容一起改**（批 159，清单2 第 11 条）：这一格从"田间-加工-运输"的物流链改成了
+    # "茄子在人体内分解的路径及产物"，而抬头原来还写着"茄子的营养：从土壤一路到餐桌"——
+    # 那句话描述的是**已经不存在的那张图**（批 98e 的规矩：抬头必须和里面画的东西一致）。
     dict(at=73.53, name="pane_everything_point", lyric="If I'm an eggplant",
-         ops=["USDA", "\u8425\u517b\u6d41\u5411"], mascot=False, args=dict(panel="food"), sub="茄子的营养：从土壤一路到餐桌"),
+         ops=["\u53e3\u8154", "\u80c3", "\u5c0f\u80a0", "\u5927\u80a0"], mascot=False,
+         args=dict(panel="food"),
+         sub="\u4e00\u6839\u8304\u5b50\u88ab\u4e00\u6bb5\u6bb5\u62c6\u5f00\uff0c\u5269\u4e0b\u7684\u8d8a\u6765\u8d8a\u5c11"),
     dict(at=77.16, name="pane_everything_point", lyric="If I'm a tomato",
          ops=["444nm", "472nm", "503nm"], mascot=False, args=dict(panel="tomato"), sub="番茄吸收 444/472/503 nm"),
     dict(at=80.93, name="pane_landmark_cat", lyric="If I'm a tabby cat",
