@@ -721,32 +721,62 @@ def draw_big_number(s, text: str, cy: int, cx: int, lit, dim, bg) -> int:
 #: 增加以下字符画：$2^{10}=1024$"。
 POWER_TEXT = "2^10 = 1024"
 
-#: 它在哪一行起画。**量出来的**：那一屏 t=208.6 / 209.9 / 210.2 三次实测，有内容的行只有
-#: `{0}`（标题栏）、`41-45`（"在铸剑吗？"与两个数）、`48-51`（进度框与状态行），**第 1-43 行
-#: 整片是空的**。所以空旷处就是那里，5 行高的数字块摆在它的纵向中段：`(43 - 5) // 2 = 19`。
-POWER_ROW = 19
+#: 它在哪一行起画。
+#:
+#: **第一版放在第 19 行，和分数屏完全重叠**（批 145 更正）。用户："结尾 2^10=1024 和分数显示屏重了"。
+#: 算一下就明白：`draw_final` 的 `cy = (avail - block_h)//2 + 1`，`avail = 52-5 = 47`、
+#: `block_h = _DH + 5 = 10`，所以 **`cy = 19`** —— 分数块正是第 19-28 行。我上一批采样时
+#: 探针里没跑音游（`Game` 是空的），`draw_final` 没画，于是"第 1-43 行全空"这个观测是对的、
+#: 结论是错的：真实播放时那块地方被分数占着。
+#:
+#: 现在按用户的要求**移到最上方**：第 1 行是标题栏，所以从第 2 行起（占 2-6 行），
+#: 与分数块（19-28）、"在铸剑吗？"（41-45）、进度框（48-51）都不碰。
+POWER_ROW = 2
+
+#: `2^10 = 1024` 的**实心块**字模：5 行 × 4 列，`#` = 实心。
+#:
+#: **与分数屏不是一套设计**（用户："其字符画采用和分数显示屏不一样的设计"）：分数用的是
+#: `DIGIT_SEG` 七段表 + `░` 暗底 + `█` 亮段（一块"LED 面板"）。这里没有暗底、字形是实心连笔，
+#: 读起来是刻出来的字，不是点亮的段。
+POWER_GLYPHS: dict[str, tuple[str, ...]] = {
+    "2": ("###.", "#..#", "..#.", ".#..", "####"),
+    "^": (".#..", "#..#", "....", "....", "...."),
+    "1": (".#..", "##..", ".#..", ".#..", "###."),
+    "0": ("###.", "#..#", "#..#", "#..#", "###."),
+    "4": ("#..#", "#..#", "####", "...#", "...#"),
+    "=": ("....", "####", "....", "####", "...."),
+    " ": ("....", "....", "....", "....", "...."),
+}
+POWER_W, POWER_H = 4, 5
 
 
-def draw_power_of_ten(s, t: float, lit, dim, bg, appear_at: float) -> int:
-    """结尾屏空旷处的 `2^10 = 1024`，用与总分同一套"LED 段式"画法。
+def draw_power_solid(s, t: float, col, dim, appear_at: float) -> int:
+    """结尾屏**最上方**的 `2^10 = 1024`，实心块字模，与分数屏的 LED 段式是两套设计。
 
-    **为什么用同一套画法**：这一屏上旁边就是总分的电子屏数字，两个都在这块空处；换一套字形
-    会读成两个来源。`^` 与 `=` 是本批给 `_digit_cells` 新加的两个字形。
-
-    `appear_at`（`tui_live.BLACK_START`）之后渐显：前 1.2 s 由暗到亮，避免和打字机的
-    "在铸剑吗？"同时挤出来。
+    `appear_at`（`tui_live.BLACK_START`）之后 1.2 s 渐显，避免和打字机的"在铸剑吗？"同时出来。
     """
     k = (t - appear_at) / 1.2
     if k <= 0.0:
         return 0
     k = min(1.0, k)
-
-    def _fade(col):
-        f = 0.30 + 0.70 * k
-        return (int(col[0] * f), int(col[1] * f), int(col[2] * f))
-
-    return draw_big_number(s, POWER_TEXT, POWER_ROW, getattr(s, "cols", 197) // 2,
-                           _fade(lit), _fade(dim), bg)
+    f = 0.35 + 0.65 * k
+    lit = (int(col[0] * f), int(col[1] * f), int(col[2] * f))
+    gap = 1
+    total = len(POWER_TEXT) * (POWER_W + gap) - gap
+    x0 = max(0, getattr(s, "cols", 197) // 2 - total // 2)
+    drawn = 0
+    for i, ch in enumerate(POWER_TEXT):
+        g = POWER_GLYPHS.get(ch)
+        if g is None:
+            continue
+        bx = x0 + i * (POWER_W + gap)
+        for r in range(POWER_H):
+            for c in range(POWER_W):
+                if g[r][c] != "#":
+                    continue
+                s.set_cell(bx + c, POWER_ROW + r, "\u2588", lit, dim)
+                drawn += 1
+    return drawn
 
 
 def draw_final(s, x0: int, y0: int, x1: int, y1: int, t: float, g: Game,

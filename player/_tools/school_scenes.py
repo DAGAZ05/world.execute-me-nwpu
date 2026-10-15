@@ -2498,7 +2498,10 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
         # 空白格很多，`_motes` 会把 `+# < * : }^ ;` 这类字符直接落在花上，那就是"框内有文字"。
         # **`gate` 也不要**（批 121）：它是一张线路图（晶体管＋真值表），撒点是"字符杂乱"
         # ——清单第 7 条点名的就是这件事。
-        if panel not in ("phyllo", "gate", "timeline"):
+        # **`clock` 也不要**（批 145）：钟面在这一批里补上了数字刻度、时针、分针、24 小时外圈，
+        # 已经是一件"满"的图；再撒 `o·` 只是在读图上加噪（用户："感觉太单调了"要的是内容，
+        # 不是撒点）。原来 `clock` 的装饰串正是 `"o·"`。
+        if panel not in ("phyllo", "gate", "timeline", "clock"):
             _motes(k, {"bits": "01", "clock": "o\u00b7", "braid": "/\\",
                        "hyper": "o\u00b7\u00b7", "letters": "S M \u00b7"}.get(panel, "\u00b7"),
                    t, level=0.34, seed=13)
@@ -2612,61 +2615,95 @@ def _rowprog(u, lt, dur) -> float:
     return max(0.0, min(1.0, float(u)))
 
 
+def _hand(k, cx: int, cy: int, r: int, vr: int, ang: float, frac: float, col) -> None:
+    """从圆心沿 `ang` 画一条指针，到 `frac` 倍半径为止。
+
+    方向决定线符：横向为主用 `─`、纵向为主用 `│`、斜的按"往右下还是往左下"分 `╲` / `╱`。
+    **不加这个函数就只能拿点凑指针**——那正是"只有一些点"的另一半原因。
+    """
+    dx = r * math.cos(ang)
+    dy = vr * math.sin(ang)
+    n = max(3, int(frac * max(abs(dx), abs(dy)) * 1.7))
+    for i in range(1, n + 1):
+        f = frac * i / n
+        x = int(round(cx + dx * f))
+        y = int(round(cy + dy * f))
+        if abs(dx) >= 2 * abs(dy):
+            ch = "\u2500"
+        elif abs(dy) >= 2 * abs(dx):
+            ch = "\u2502"
+        elif dx * dy > 0:
+            ch = "\u2572"
+        else:
+            ch = "\u2571"
+        k.put(x, y, ch, col)
+
+
 def _ex_clock(k, t: float, u: float, lt: float = None, dur: float = None) -> None:
-    """12 小时的钟面：**两圈才是一天，而钟面不告诉你这是哪一圈**。
+    """一天 24 小时走完一遍，而**表盘只转两圈**——这首歌说的就是这件事。
 
-    批 144 重做（清单2 第 7 条）。用户："时钟动画（对应歌词 And then do whatever, from AM to PM），
-    当前时钟太小了，去掉动画框内的文字（比如"两圈 = 一天"），将时钟画大并居中，体现从 am 到 pm
-    的过程"。
+    批 144 按清单2 第 7 条重做（画大、居中、去掉框内文字、画出 AM → PM）；
+    **批 145 又重做一次**，因为用户看完说"目前只有一些点，感觉太单调了"。
+    批 144 那一版把钟面做大了，但里面还是：一圈点 + 12 个点 + 两个弧上的点。
+    **钟该有的东西一个都没有**——没有数字刻度、没有指针。这一版把它们补上：
 
-    四处改动：
+    * **外圈 = 一整天**：24 个刻度，前 12 个是 **AM**（暖色）、后 12 个是 **PM**（蓝色），
+      一个 `●` 游标沿外圈走完 24 小时。这才是 "from AM to PM"。
+    * **内盘 = 12 小时**：12 个数字刻度（`12` 在正上，顺时针 `1`…`11`），
+      当前那一小时亮一档。
+    * **时针**走内盘，一天里**转两圈**——同一根针，上午指过 3 点，下午又指回 3 点。
+      "12 小时是 24 小时的二重覆盖"这句说明**不写出来，看这根针走两圈就懂了**。
+    * **分针**更长更细，走得快，让画面活着。
+    * 圆心 `⊕`。**没有别的文字**（批 144 已把原来那四行说明删掉）。
 
-    * **画大**：原来 `r = max(3, min(9, ...))` 是十一行的小带子留下的数——pane 变成 95×44 之后
-      钟面只占中间一小块。现在按抽屉本身取半径：横向 `bw//2 - 4`、纵向 `(by1-by0) - 6`。
-      终端一格约 1 宽 2 高，纵向半径是横向的一半，所以这两个数说的是同一个圆。
-    * **居中**：原来 `cx = bx0 + min(16, bw//2)` 偏在左边——那是当年右侧要放文字留的位。
-      现在取抽屉正中。
-    * **去掉框内文字**：原来钟面下有四行说明（"两圈 = 一天"、"表盘不告诉你哪一圈"、
-      "12h 是 24h 的二重覆盖"、"上午与下午是同一个位置"）**全删**——这件事要画出来，不是写出来。
-    * **画出 AM → PM**：上半圈是 **AM**（一个 `●` 在弧上从左走到右），下半圈是 **PM**
-      （一个 `○` 同样从左走到右）。用这一行自己的进度驱动，所以**一行之内从 AM 走到 PM 是一个
-      完整过程**。两端各留两个字 `AM` / `PM` 当这张图的坐标——那不是说明文字。
+    驱动量仍然是 `lt/dur`（`_rowprog`），理由同 `_ex_hyper`：`clock_probe` 传的 `u` 是常量。
     """
     import school_courses as _C
     p = _rowprog(u, lt, dur)
     cx = (k.bx0 + k.bx1) // 2
     cy = (k.by0 + k.by1) // 2
-    r = max(4, min(max(4, k.bw // 2 - 4), max(4, (k.by1 - k.by0) - 6)))
-    vr = max(2, r // 2)
-    # 钟面本身
+    r = max(6, min(max(6, k.bw // 2 - 6), max(6, (k.by1 - k.by0) - 8)))
+    vr = max(3, r // 2)                       # 终端一格约 1 宽 2 高，纵向半径减半才是圆
+    vr2 = max(3, (r + 3) // 2)
+    hour24 = p * 24.0
+
+    # --- 外圈：一整天 24 格。前 12 是 AM、后 12 是 PM；游标走到哪儿，那天就过到哪儿。
+    for i in range(24):
+        th = math.radians(270 + i * 15)
+        am = i < 12
+        passed = i <= hour24
+        k.put(int(round(cx + (r + 3) * math.cos(th))),
+              int(round(cy + vr2 * math.sin(th))),
+              "\u2022" if passed else "\u00b7",
+              _mix(_C.AMBER if am else _C.BLUE, 0.8 if passed else 0.20))
+    th_c = math.radians(270 + hour24 * 15)
+    k.put(int(round(cx + (r + 3) * math.cos(th_c))),
+          int(round(cy + vr2 * math.sin(th_c))),
+          "\u25cf", _mix(_C.GREEN, 1.0))
+
+    # --- 钟面本身
     for a in range(0, 360, 4):
         th = math.radians(a)
         k.put(int(round(cx + r * math.cos(th))), int(round(cy + vr * math.sin(th))),
-              "\u00b7", _ui(0.20))
-    # 12 个整点刻度；当前那一个小时亮一档
-    hour = int(p * 12.0) % 12
-    for i in range(12):
-        th = math.radians(90 - i * 30)
-        px = int(round(cx + r * math.cos(th)))
-        py = int(round(cy + vr * math.sin(th)))
-        k.put(px, py, "\u2022" if i != hour else "\u25cf",
-              _mix(_C.AMBER, 0.75 if i != hour else 1.0))
-    # AM：上半圈的一轮；PM：下半圈的一轮。两轮都在**同一张表盘**上，这正是这首歌在说的事。
-    s_am = min(1.0, p * 2.0)
-    s_pm = max(0.0, (p - 0.5) * 2.0)
-    th_am = math.pi + math.pi * s_am
-    ax = int(round(cx + r * math.cos(th_am)))
-    ay = int(round(cy + vr * math.sin(th_am)))
-    k.put(ax, ay, "\u25cf", _mix(_C.AMBER, 0.95))
-    th_pm = math.pi + math.pi * s_pm
-    mx = int(round(cx + r * math.cos(th_pm)))
-    my = int(round(cy - vr * math.sin(th_pm)))
-    if s_pm > 0.0:
-        k.put(mx, my, "\u25cb", _mix(_C.BLUE, 0.95))
-    k.put(cx, cy, "\u2295", _mix(_C.RED, 0.9))
-    # 两个端点标记（图的坐标，不是说明）
-    k.put(k.bx0 + 1, cy - vr - 1, "AM", _mix(_C.AMBER, 0.75))
-    k.put(k.bx0 + 1, cy + vr + 1, "PM", _mix(_C.BLUE, 0.75))
+              "\u00b7", _ui(0.18))
+
+    # --- 12 个数字刻度：`12` 在正上，顺时针 1…11
+    rr = r - 6
+    vrr = max(2, int(vr * rr / max(1, r)))
+    for h in range(12):
+        th = math.radians(270 + h * 30)
+        lab = "12" if h == 0 else str(h)
+        on = int(hour24 % 12) == h
+        k.put(int(round(cx + rr * math.cos(th))) - len(lab) // 2,
+              int(round(cy + vrr * math.sin(th))), lab,
+              _mix(_C.AMBER, 0.95) if on else _ui(0.40))
+
+    # --- 指针：时针在一天里转**两圈**（24 小时 ÷ 表盘 12 小时 = 2，这就是"二重覆盖"）
+    _hand(k, cx, cy, r, vr, math.radians(270 + (hour24 % 12) * 30), 0.60,
+          _mix(_C.AMBER, 1.0))
+    _hand(k, cx, cy, r, vr, math.radians(270 + (hour24 * 60 % 60) * 6), 0.90,
+          _mix(_C.BLUE, 0.85))
+    k.put(cx, cy, "\u2295", _mix(_C.RED, 0.95))
 
 
 def _ex_hyper(k, t: float, u: float, lt: float = None, dur: float = None) -> None:

@@ -5407,15 +5407,16 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
         # 方框的标题上（实测 `┌─ \ feat099%b██████░RUNNING───┐`）。抬头行是**第 10 行**
         # （`▏ 西北工业大学`），所以行号按实测钉住。
         draw_stuck_progress(s, 18, STUCK_BAR_ROW, 96, STUCK_BAR_ROW, t, align="left")
-    # **结尾屏空旷处的 `2^10 = 1024`**（批 144，清单2 第 1 条）：用户："最后面结尾处（即有
-    # '在铸剑吗'字样时）在空旷处增加以下字符画：$2^{10}=1024$"。
+    # **结尾屏最上方的 `2^10 = 1024`**（批 144 加、批 145 上移并换风格）：用户："最后面结尾处
+    # （即有'在铸剑吗'字样时）在空旷处增加以下字符画：$2^{10}=1024$"、"结尾 2^10=1024 和分数显示屏
+    # 重了，将 2^10=1024 移动至最上方，并且其字符画采用和分数显示屏不一样的设计"。
     # 挂钩点选在 `BLACK_START` 之后——那一屏的"在铸剑吗？"是**上游影片包**的打字机画的，
-    # 学校层要往上加东西只能在自己的这一趟里画。实测那一屏第 1-43 行整片是空的（只有标题栏、
-    # 第 41-45 行的文字、第 48-51 行的进度框），所以摆得下。
+    # 学校层要往上加东西只能在自己的这一趟里画。
     if t >= BLACK_START:
         try:
             import school_rhythm as _R
-            _R.draw_power_of_ten(s, t, (255, 246, 190), (120, 140, 190), BG, BLACK_START)
+            # `dim` 给它等于底色的暗色：实心块只有"亮"这一种状态，不像 LED 那样需要暗底。
+            _R.draw_power_solid(s, t, (255, 246, 190), BG, BLACK_START)
         except Exception:
             pass
     # **...and the counted number goes on last** (batch 68). It belongs to the stdout box, but it is
