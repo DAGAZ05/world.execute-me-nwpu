@@ -633,7 +633,7 @@ LANDMARK_ROWS: list[dict] = [
     # (02:41.5 to the end), which is where the last two panes above stop. They are the four moments
     # `02b_图像对位与可视化表达.md` §4.3-4.6 names, and each is pinned to the lyric it belongs to rather
     # than to a share of the time.
-    dict(at=162.23, name="pane_converge", lyric="If I can, if I can",         ops=["DFD", "ER", "\u6d3b\u52a8\u56fe", "\u72b6\u6001\u56fe", "\u2192", "CLASS"], mascot=False, sub="四张图收进一个类"),
+    dict(at=162.23, name="pane_converge", lyric="If I can, if I can",         ops=["DFD", "ER", "\u6d3b\u52a8\u56fe", "\u72b6\u6001\u56fe", "\u2192", "CLASS"], mascot=False, sub="多张图收进一个类"),
     # Euclid I.47 was a plate about proof on a line about *selection*; this is the selection (batch 34)
     # **学院部分再拆一次**（批 150，清单2 第 8 条）：用户："fork炸弹动画转移到学院部分，
     # 当前动画 one path 对应歌词 then I can then I can, be your only execution，现在改为
@@ -708,7 +708,7 @@ LANDMARK_ROWS: list[dict] = [
     # out of the MEMORY run, which had six rows of the same word. What the closing chapter needed instead
     # was the subject the software-engineering chapter is for; see `pane_sw_project` at 187.97.
     dict(at=187.97, name="pane_sw_project", lyric="Though you are free",
-         ops=["\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406", "\u8f6f\u4ef6\u5f00\u53d1\u7efc\u5408\u8bad\u7ec3"],
+         ops=["\u654f\u6377", "\u51b2\u523a", "\u770b\u677f"],
          mascot=False, sub="\u81ea\u7531\u65f6\u5149\u4e5f\u5f97\u6392\u8fdb\u7518\u7279\u56fe"),
     # MEMORY: one more layer on every "You have left", then down to one, then none.
     #
