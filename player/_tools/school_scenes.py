@@ -3229,6 +3229,15 @@ def pane_fragments(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
           _C._mix(_C.BLUE, 0.7))
 
 
+#: `pane_memory` 从这一刻起交给 `2^53` 的量化动画（批 161）。
+#:
+#: 那五行 `You have left` 是 **110.40 → 115.90**（5.5 s），取**正中偏后**的 113.75 为界：
+#: 前三行画 MEMORY 的层数（"在记"）、后两行画 `2^53`（"记满了"）。
+#: 取 113.75 而不是 113.15 是因为那个时刻正好是第四行的起点——**切在行边界上**，
+#: 不会让同一行里画到一半换内容（这条规矩来自清单1 的切点约定）。
+MEMORY_FULL_AT = 113.75
+
+
 def pane_memory(s, x0, y0, x1, y1, t, lt, dur, u, layers: int = 1, ghost: float = 0.42) -> None:
     """`MEMORY` - the graduation sculpture, drawn rather than characterised.
 
@@ -3248,6 +3257,26 @@ def pane_memory(s, x0, y0, x1, y1, t, lt, dur, u, layers: int = 1, ghost: float 
     """
     import school_courses as _C
     k = _C._Kit(s, x0, y0, x1, y1, "MEMORY", 0, 0, u)
+    # **后半段换成 `2^53` 的量化动画**（批 161，用户："memory 动画是 Though you have left you have left
+    # ... 那长段歌词对应的动画" / "可以把 memory 动画的后半部分替换为 2^53 的动画，寓意为'记忆已经
+    # 填满'，与后面的擦除很好地衔接"）。
+    #
+    # 这一段歌词是连着五行的 `You have left`（110.40 / 111.98 / 112.89 / 113.75 / 114.75 → 115.90），
+    # 是一条"记忆在一层层叠上去"的长段。**前半段仍然画 MEMORY 的层数**（那是"在记"），
+    # **后半段交给 `2^53` 的量化**：`2^53` 是双精度能**精确**表示的最大整数，再往上就
+    # "记不清了"——正是"记忆已经填满"这件事，而且紧接着 119.81 那一行就是
+    # `Erase all the pointless fragments`，衔接得上。
+    #
+    # 用**绝对时刻**切，不用行内进度：这五行是同一段歌词，按行内切会变成每 1 秒切一次。
+    # 顺带解决了另一件事：`2^53` 的 `quantize` 在第 9 条之后**没有任何排期行引用它**
+    # （当时为了文氏图把 `Switch my gender` 那一行改掉了），现在它又回到片子里了。
+    if t >= MEMORY_FULL_AT:
+        try:
+            import school_motifs as _M
+            _M.quantize(k, t)
+        except Exception:
+            pass
+        return
     word = "MEMORY"
     cell_w = 6                                     # one block letter is 6 cells wide, 5 rows tall
     total = len(word) * cell_w

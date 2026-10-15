@@ -627,7 +627,7 @@ def matrix(k, t: float) -> None:
         k.put(vx2, vy + n + 3, "[1 9 3 8]", _mix(_C.GREEN, 0.95) if row >= n - 1 else _ui(0.3))
 
 
-def epicycles(k, t: float) -> None:
+def epicycles(k, t: float, lt: float = None, dur: float = None) -> None:
     """Fourier epicycles: circles on circles drawing a heart, and the coefficients that do it.
 
     The one motif in the list that is *both* the maths and the joke of this film: any curve is a sum of
@@ -668,7 +668,19 @@ def epicycles(k, t: float) -> None:
             x += amp * math.cos(harm * th + phs)
             y += amp * math.sin(harm * th + phs)
         path.append((x, y))
-    draw_to = int(len(path) * min(1.0, (t % 5.0) / 4.0))
+    # **心形必须在一行之内画完**（批 161）。用户："傅里叶本轮的动画（Finally be completion）播放
+    # 不太完整，调整下播放速度"。根因：原来写 `min(1.0, (t % 5.0) / 4.0)`——心形要 **4.0 s** 才画满，
+    # 而 `Finally be completion` 那一行（106.84-110.40）只有 **3.56 s**，所以**永远画不完**；
+    # 而且 `t % 5.0` 是**绝对时钟**，这一行从周期的哪一段开始是随机的（可能从 60% 起画、中途回卷）。
+    #
+    # 改成按**这一行自己的进度**铺开：0 → 1 走在行长的 85% 上，余下 15% 停在画满的心形上，
+    # 所以无论这一行多长都看得完整、结尾也停得住。`lt/dur` 缺省时仍退回按 `t` 走。
+    _d = dur if (dur and dur > 0.4) else 0.0
+    if _d and lt is not None:
+        _prog = min(1.0, (float(lt) / _d) / 0.85)
+    else:
+        _prog = min(1.0, (t % 5.0) / 4.0)
+    draw_to = int(len(path) * _prog)
     px = py = 0.0
     for amp, harm, phs in terms:
         th = harm * 2 * math.pi * (t * 0.5) + phs
@@ -853,7 +865,7 @@ def hearts9(k, t: float) -> None:
 
 #: 需要"这一行的进度"的画法（批 151）：这些 `fn` 的签名是 `(k, t, lt, dur)`，
 #: 其余的是 `(k, t)`。由 `school_scenes` 的 motif 调度器查这张表决定怎么调。
-ROW_CLOCK: set = {"fork_bomb"}
+ROW_CLOCK: set = {"fork_bomb", "epicycles"}
 
 
 def fork_bomb(k, t: float, lt: float = None, dur: float = None) -> None:
