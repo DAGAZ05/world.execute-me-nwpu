@@ -2502,11 +2502,11 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
             _motes(k, {"bits": "01", "clock": "o\u00b7", "braid": "/\\",
                        "hyper": "o\u00b7\u00b7", "letters": "S M \u00b7"}.get(panel, "\u00b7"),
                    t, level=0.34, seed=13)
-        # **`hyper` 要多收两个参数**（批 142，清单第 3 条）：它的"完整缩涨"必须由 `lt/dur`
-        # 驱动，而不是 `u`——`_dev/clock_probe.py` 调 pane 时 `u` 是常量 `1.0`、只有 `lt` 在变，
-        # 早先只认 `u` 的版本被它正确判成 `STILL / NEEDS A CLOCK`。`lt/dur` 是两边的公共量。
-        if panel == "hyper":
-            _ex_hyper(k, t, u, lt, dur)
+        # **`hyper` 与 `clock` 要多收两个参数**（批 142/144）：两者的"完整一轮"都必须由
+        # `lt/dur` 驱动，而不是 `u`——`_dev/clock_probe.py` 调 pane 时 `u` 是常量 `1.0`、
+        # 只有 `lt` 在变，只认 `u` 的版本被它正确判成 `STILL / NEEDS A CLOCK`。
+        if panel in ("hyper", "clock"):
+            one(k, t, u, lt, dur)
         else:
             one(k, t, u)
         return
@@ -2599,6 +2599,76 @@ def _ex_timeline(k, t: float, u: float) -> None:
     k.put(curx, y_lab + 2, "\u25b2", _mix(_C.RED, 0.9))
 
 
+def _rowprog(u, lt, dur) -> float:
+    """这一行演到哪儿了（0 → 1）。**用 `lt/dur`，不用 `u`。**
+
+    `u` 是"这一行走到哪儿"，但只有调用方老实传它才有效：`_dev/clock_probe.py` 调 pane 时传的是
+    **常量 `u = 1.0`、只让 `lt` 变**（批 142 实测），于是只认 `u` 的动画在探针眼里是静止的，
+    也被正确判成 `STILL / NEEDS A CLOCK`。`lt/dur`（这一行已经演了多久 / 这一行多长）
+    是播放器与探针的公共量，两个路径都对。
+    """
+    if dur and dur > 0.2 and lt is not None:
+        return max(0.0, min(1.0, float(lt) / float(dur)))
+    return max(0.0, min(1.0, float(u)))
+
+
+def _ex_clock(k, t: float, u: float, lt: float = None, dur: float = None) -> None:
+    """12 小时的钟面：**两圈才是一天，而钟面不告诉你这是哪一圈**。
+
+    批 144 重做（清单2 第 7 条）。用户："时钟动画（对应歌词 And then do whatever, from AM to PM），
+    当前时钟太小了，去掉动画框内的文字（比如"两圈 = 一天"），将时钟画大并居中，体现从 am 到 pm
+    的过程"。
+
+    四处改动：
+
+    * **画大**：原来 `r = max(3, min(9, ...))` 是十一行的小带子留下的数——pane 变成 95×44 之后
+      钟面只占中间一小块。现在按抽屉本身取半径：横向 `bw//2 - 4`、纵向 `(by1-by0) - 6`。
+      终端一格约 1 宽 2 高，纵向半径是横向的一半，所以这两个数说的是同一个圆。
+    * **居中**：原来 `cx = bx0 + min(16, bw//2)` 偏在左边——那是当年右侧要放文字留的位。
+      现在取抽屉正中。
+    * **去掉框内文字**：原来钟面下有四行说明（"两圈 = 一天"、"表盘不告诉你哪一圈"、
+      "12h 是 24h 的二重覆盖"、"上午与下午是同一个位置"）**全删**——这件事要画出来，不是写出来。
+    * **画出 AM → PM**：上半圈是 **AM**（一个 `●` 在弧上从左走到右），下半圈是 **PM**
+      （一个 `○` 同样从左走到右）。用这一行自己的进度驱动，所以**一行之内从 AM 走到 PM 是一个
+      完整过程**。两端各留两个字 `AM` / `PM` 当这张图的坐标——那不是说明文字。
+    """
+    import school_courses as _C
+    p = _rowprog(u, lt, dur)
+    cx = (k.bx0 + k.bx1) // 2
+    cy = (k.by0 + k.by1) // 2
+    r = max(4, min(max(4, k.bw // 2 - 4), max(4, (k.by1 - k.by0) - 6)))
+    vr = max(2, r // 2)
+    # 钟面本身
+    for a in range(0, 360, 4):
+        th = math.radians(a)
+        k.put(int(round(cx + r * math.cos(th))), int(round(cy + vr * math.sin(th))),
+              "\u00b7", _ui(0.20))
+    # 12 个整点刻度；当前那一个小时亮一档
+    hour = int(p * 12.0) % 12
+    for i in range(12):
+        th = math.radians(90 - i * 30)
+        px = int(round(cx + r * math.cos(th)))
+        py = int(round(cy + vr * math.sin(th)))
+        k.put(px, py, "\u2022" if i != hour else "\u25cf",
+              _mix(_C.AMBER, 0.75 if i != hour else 1.0))
+    # AM：上半圈的一轮；PM：下半圈的一轮。两轮都在**同一张表盘**上，这正是这首歌在说的事。
+    s_am = min(1.0, p * 2.0)
+    s_pm = max(0.0, (p - 0.5) * 2.0)
+    th_am = math.pi + math.pi * s_am
+    ax = int(round(cx + r * math.cos(th_am)))
+    ay = int(round(cy + vr * math.sin(th_am)))
+    k.put(ax, ay, "\u25cf", _mix(_C.AMBER, 0.95))
+    th_pm = math.pi + math.pi * s_pm
+    mx = int(round(cx + r * math.cos(th_pm)))
+    my = int(round(cy - vr * math.sin(th_pm)))
+    if s_pm > 0.0:
+        k.put(mx, my, "\u25cb", _mix(_C.BLUE, 0.95))
+    k.put(cx, cy, "\u2295", _mix(_C.RED, 0.9))
+    # 两个端点标记（图的坐标，不是说明）
+    k.put(k.bx0 + 1, cy - vr - 1, "AM", _mix(_C.AMBER, 0.75))
+    k.put(k.bx0 + 1, cy + vr + 1, "PM", _mix(_C.BLUE, 0.75))
+
+
 def _ex_hyper(k, t: float, u: float, lt: float = None, dur: float = None) -> None:
     """`|x|^n + |y|^n = r^n`, with the exponent breathing from a diamond to a rounded square.
 
@@ -2626,10 +2696,7 @@ def _ex_hyper(k, t: float, u: float, lt: float = None, dur: float = None) -> Non
     #
     # `0.5 - 0.5cos(2πp)` 在 p=0 与 p=1 都是 0、p=0.5 取 1，所以 `n` 恰好走完
     # **1（菱形）→ 6（圆角方框）→ 1（菱形）** 一整轮：涨和缩都完整，而**行的时间长度一点没动**。
-    if dur and dur > 0.2 and lt is not None:
-        prog = max(0.0, min(1.0, float(lt) / float(dur)))
-    else:
-        prog = max(0.0, min(1.0, float(u)))
+    prog = _rowprog(u, lt, dur)
     phase = 0.5 - 0.5 * math.cos(2 * math.pi * prog)
     n = 1.0 + 5.0 * phase
     for a in range(0, 360, 4):
@@ -2709,33 +2776,6 @@ def _ex_letters(k, t: float, u: float) -> None:
     if k.by1 - 1 > y0 + gh + 1:
         k.put(k.bx0, k.by1 - 1, "\u4e00\u4e2a\u5b57\u7684\u4e24\u4e2a\u8eab\u4efd", _ui(0.5))
         k.put(k.bx0, k.by1, "\u626e\u6f14 \u00b7 \u6027\u522b \u00b7 \u89d2\u8272", _mix(_C.GREEN, 0.7))
-
-
-def _ex_clock(k, t: float, u: float) -> None:
-    """The twelve-hour clock: two laps of the dial are one day, and the dial does not say which."""
-    import school_courses as _C
-    k.section(k.by0, "12 \u5c0f\u65f6 \u00b7 \u53cc\u91cd\u8986\u76d6", 0.25)
-    cx = k.bx0 + min(16, k.bw // 2)
-    cy = (k.by0 + k.by1) // 2
-    r = max(3, min(9, (k.by1 - k.by0) // 3, k.bw // 5))
-    for a in range(0, 360, 6):
-        th = math.radians(a)
-        k.put(int(cx + r * math.cos(th)), int(cy + r * math.sin(th) * 0.5), "\u00b7", _ui(0.3))
-    spin = (t * 0.8) % (2 * math.pi)
-    for lap in range(2):
-        th = spin + lap * math.pi
-        k.put(int(cx + r * math.cos(th)), int(cy + r * math.sin(th) * 0.5),
-              "\u25cf" if lap == 0 else "\u25cb", _mix(_C.AMBER if lap == 0 else _C.BLUE, 0.9))
-    k.put(cx - 1, cy, "\u2295", _mix(_C.RED, 0.9))
-    # the captions go *under* the dial, clipped to the column: beside it they ran into the next panel,
-    # which the pane probe cannot see (they are inside the pane, just in the wrong panel)
-    from school_courses import _clip
-    for i, line in enumerate(("\u4e24\u5708 = \u4e00\u5929", "\u8868\u76d8\u4e0d\u544a\u8bc9\u4f60\u54ea\u4e00\u5708",
-                              "12h \u662f 24h \u7684\u4e8c\u91cd\u8986\u76d6")):
-        y = cy + r // 2 + 1 + i
-        if y <= k.by1 - 1:
-            k.put(k.bx0, y, _clip(line, k.bw), _ui(0.55 - 0.05 * i))
-    k.put(k.bx0, k.by1, "\u4e0a\u5348\u4e0e\u4e0b\u5348\u662f\u540c\u4e00\u4e2a\u4f4d\u7f6e", _ui(0.5))
 
 
 def _ex_braid(k, t: float, u: float) -> None:

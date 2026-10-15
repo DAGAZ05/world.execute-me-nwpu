@@ -5407,6 +5407,17 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
         # 方框的标题上（实测 `┌─ \ feat099%b██████░RUNNING───┐`）。抬头行是**第 10 行**
         # （`▏ 西北工业大学`），所以行号按实测钉住。
         draw_stuck_progress(s, 18, STUCK_BAR_ROW, 96, STUCK_BAR_ROW, t, align="left")
+    # **结尾屏空旷处的 `2^10 = 1024`**（批 144，清单2 第 1 条）：用户："最后面结尾处（即有
+    # '在铸剑吗'字样时）在空旷处增加以下字符画：$2^{10}=1024$"。
+    # 挂钩点选在 `BLACK_START` 之后——那一屏的"在铸剑吗？"是**上游影片包**的打字机画的，
+    # 学校层要往上加东西只能在自己的这一趟里画。实测那一屏第 1-43 行整片是空的（只有标题栏、
+    # 第 41-45 行的文字、第 48-51 行的进度框），所以摆得下。
+    if t >= BLACK_START:
+        try:
+            import school_rhythm as _R
+            _R.draw_power_of_ten(s, t, (255, 246, 190), (120, 140, 190), BG, BLACK_START)
+        except Exception:
+            pass
     # **...and the counted number goes on last** (batch 68). It belongs to the stdout box, but it is
     # allowed to run past it - that is the user's own note - so it cannot be drawn *inside* the band's
     # own pass: the box is redrawn by `_band_restore` when a `behind` photograph goes down, and the

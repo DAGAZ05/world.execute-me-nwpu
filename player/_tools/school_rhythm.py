@@ -660,7 +660,22 @@ _DW, _DH = 4, 5                      # 一个数字 4 格宽、5 行高
 
 
 def _digit_cells(ch: str) -> list[list[bool]]:
-    """一个字符展开成 `_DH × _DW` 的点亮表。"""
+    """一个字符展开成 `_DH × _DW` 的点亮表。
+
+    **`^` 与 `=` 是批 144 加的**（清单2 第 1 条要在结尾屏上写 `2^10 = 1024`）：段式表里
+    只有 `a`-`g` 七个段，写不出这两个符号。它们不走七段模型、直接按格点：
+    `^` 是第 0 行中间两点加第 1 行两侧两点（一个尖），`=` 是第 1、3 行的中间两点（两道横）。
+    """
+    if ch == "^":
+        g = [[False] * _DW for _ in range(_DH)]
+        g[0][1] = g[0][2] = True
+        g[1][0] = g[1][3] = True
+        return g
+    if ch == "=":
+        g = [[False] * _DW for _ in range(_DH)]
+        g[1][1] = g[1][2] = True
+        g[3][1] = g[3][2] = True
+        return g
     on = DIGIT_SEG.get(ch, "")
     g = [[False] * _DW for _ in range(_DH)]
     if "a" in on:
@@ -700,6 +715,38 @@ def draw_big_number(s, text: str, cy: int, cx: int, lit, dim, bg) -> int:
                 s.set_cell(bx + 1, cy + r, "/", dim, bg)
                 drawn += 1
     return drawn
+
+
+#: 结尾那一屏上的字符画（清单2 第 1 条）。用户："最后面结尾处（即有'在铸剑吗'字样时）在空旷处
+#: 增加以下字符画：$2^{10}=1024$"。
+POWER_TEXT = "2^10 = 1024"
+
+#: 它在哪一行起画。**量出来的**：那一屏 t=208.6 / 209.9 / 210.2 三次实测，有内容的行只有
+#: `{0}`（标题栏）、`41-45`（"在铸剑吗？"与两个数）、`48-51`（进度框与状态行），**第 1-43 行
+#: 整片是空的**。所以空旷处就是那里，5 行高的数字块摆在它的纵向中段：`(43 - 5) // 2 = 19`。
+POWER_ROW = 19
+
+
+def draw_power_of_ten(s, t: float, lit, dim, bg, appear_at: float) -> int:
+    """结尾屏空旷处的 `2^10 = 1024`，用与总分同一套"LED 段式"画法。
+
+    **为什么用同一套画法**：这一屏上旁边就是总分的电子屏数字，两个都在这块空处；换一套字形
+    会读成两个来源。`^` 与 `=` 是本批给 `_digit_cells` 新加的两个字形。
+
+    `appear_at`（`tui_live.BLACK_START`）之后渐显：前 1.2 s 由暗到亮，避免和打字机的
+    "在铸剑吗？"同时挤出来。
+    """
+    k = (t - appear_at) / 1.2
+    if k <= 0.0:
+        return 0
+    k = min(1.0, k)
+
+    def _fade(col):
+        f = 0.30 + 0.70 * k
+        return (int(col[0] * f), int(col[1] * f), int(col[2] * f))
+
+    return draw_big_number(s, POWER_TEXT, POWER_ROW, getattr(s, "cols", 197) // 2,
+                           _fade(lit), _fade(dim), bg)
 
 
 def draw_final(s, x0: int, y0: int, x1: int, y1: int, t: float, g: Game,
