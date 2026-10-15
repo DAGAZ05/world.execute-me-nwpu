@@ -627,7 +627,7 @@ def matrix(k, t: float) -> None:
         k.put(vx2, vy + n + 3, "[1 9 3 8]", _mix(_C.GREEN, 0.95) if row >= n - 1 else _ui(0.3))
 
 
-def epicycles(k, t: float) -> None:
+def epicycles(k, t: float, lt: float = None, dur: float = None) -> None:
     """Fourier epicycles: circles on circles drawing a heart, and the coefficients that do it.
 
     The one motif in the list that is *both* the maths and the joke of this film: any curve is a sum of
@@ -668,7 +668,19 @@ def epicycles(k, t: float) -> None:
             x += amp * math.cos(harm * th + phs)
             y += amp * math.sin(harm * th + phs)
         path.append((x, y))
-    draw_to = int(len(path) * min(1.0, (t % 5.0) / 4.0))
+    # **心形必须在一行之内画完**（批 161）。用户："傅里叶本轮的动画（Finally be completion）播放
+    # 不太完整，调整下播放速度"。根因：原来写 `min(1.0, (t % 5.0) / 4.0)`——心形要 **4.0 s** 才画满，
+    # 而 `Finally be completion` 那一行（106.84-110.40）只有 **3.56 s**，所以**永远画不完**；
+    # 而且 `t % 5.0` 是**绝对时钟**，这一行从周期的哪一段开始是随机的（可能从 60% 起画、中途回卷）。
+    #
+    # 改成按**这一行自己的进度**铺开：0 → 1 走在行长的 85% 上，余下 15% 停在画满的心形上，
+    # 所以无论这一行多长都看得完整、结尾也停得住。`lt/dur` 缺省时仍退回按 `t` 走。
+    _d = dur if (dur and dur > 0.4) else 0.0
+    if _d and lt is not None:
+        _prog = min(1.0, (float(lt) / _d) / 0.85)
+    else:
+        _prog = min(1.0, (t % 5.0) / 4.0)
+    draw_to = int(len(path) * _prog)
     px = py = 0.0
     for amp, harm, phs in terms:
         th = harm * 2 * math.pi * (t * 0.5) + phs
@@ -851,7 +863,12 @@ def hearts9(k, t: float) -> None:
                         "\u91cc\u9762\u662f\u5b9e\u7684", _ui(0.5))
 
 
-def fork_bomb(k, t: float) -> None:
+#: 需要"这一行的进度"的画法（批 151）：这些 `fn` 的签名是 `(k, t, lt, dur)`，
+#: 其余的是 `(k, t)`。由 `school_scenes` 的 motif 调度器查这张表决定怎么调。
+ROW_CLOCK: set = {"fork_bomb", "epicycles"}
+
+
+def fork_bomb(k, t: float, lt: float = None, dur: float = None) -> None:
     """The fork bomb, drawn as the doubling it actually is: one process, then two, then 4096.
 
     `想法.md` asks for `:(){ :|:& };:` growing under 处决, and the doubling is the whole drawing - what
@@ -861,6 +878,14 @@ def fork_bomb(k, t: float) -> None:
     "never reaches the generation its title names"). Past ~32 children a row can no longer hold one dot
     per process, so those generations are drawn as a bar whose length is the generation - the count on
     the right is what carries the number, and it *is* the number.
+
+    **`lt/dur` 是批 151 加的**（清单2 第 8 条的后续）：用户把 fork 炸弹从学校段（2.04 s）挪到学院段
+    （1.86 s）之后说"因为时长变短，演出效果不太好，你先调一下动画播放速度"。
+    根因是 `gen` 原来由 **`t`** 驱动（锯齿波周期 `1/0.35 ≈ 2.86 s`）：行只有 1.86 s 时
+    **走不完一轮、最后一次翻倍永远到不了**，而且行从周期的哪一段开始是随机的。
+    改成按**这一行自己的进度**铺开：0 → `depth` 走在行长的 **85%** 上，剩下 15% 停在 4096 上，
+    所以无论这一行多长，都看得完一次完整的指数增长、并且结尾停得住。
+    `lt/dur` 缺省时（学院课程 pane 那条路径）仍退回按 `t` 走。
     """
     k.section(k.by0, "fork \u70b8\u5f39 \u00b7 1 \u2192 4096", 0.28)
     depth = max(1, min(12, k.by1 - k.by0 - 1))
@@ -870,7 +895,16 @@ def fork_bomb(k, t: float) -> None:
     # ...and it *rolls* on the song clock as well, which it did not have to while this was a band: as a
     # pane it has to move for `_dev/clock_probe.py`, whose samples pin `u` and vary `t`, and a fork bomb
     # that keeps re-forking every couple of seconds is what the drawing is about anyway.
-    gen = int(min(depth, ((t * 0.35) % 1.0) * (depth + 1)))
+    #
+    # **但优先用 `lt/dur`**（批 151）：`clock_probe` 变的是 `t` **和 `lt`**，所以按 `lt/dur` 走它照样
+    # 判为"在动"；而按 `t` 的锯齿波周期（2.86 s）比行（1.86 s）长，就会"走不完一轮"。
+    # 0 → depth 走在行长的 85% 上，余下 15% 停在 4096，结尾读得完。
+    _d = dur if (dur and dur > 0.3) else 0.0
+    if _d and lt is not None:
+        _prog = min(1.0, (float(lt) / _d) / 0.85)
+    else:
+        _prog = (t * 0.35) % 1.0
+    gen = int(min(depth, _prog * (depth + 1)))
     w = k.bw - 22
     if w < 12:
         return
@@ -991,20 +1025,45 @@ def _sine_over_x(k, t: float) -> None:
     k.hline(x0_ax, mid, k.bx0 + n + 1, BOX_H, _ui(0.18))
     k.put(k.bx0 + n + 2, mid, "\u2192", _ui(0.35))
     k.put(x0_ax, mid + 1, "0", _ui(0.45))
+    # **x 的跨度从 24 收到 11**（批 142，清单第 2 条：用户："sinx/x 的动画演示集中在动画框
+    # 左半边了，将坐标轴的单位刻度增大"）。
+    #
+    # 成因：`sin x / x` 的振幅是 `1/x`，x 一过 9 曲线就贴在零线上了。原来 x 从 1 走到 **25**、
+    # 横铺满整个 `n` 列，于是**所有看得见的振荡都落在左边约 35%**，右边 65% 是一条几乎笔直的
+    # 零线——那就是"集中在左半边"。跨度改成 `X_SPAN = 11`（x 从 1 走到 12）等于**把每单位 x
+    # 拉宽一倍多**：三次振荡铺满整幅，右端仍是"趋于 0"的那一段。
+    #
+    # 刻度按整数画短线、偶数标数字，让"单位刻度增大"这件事在画面上看得见。
+    X_SPAN = 11.0
+
+    def _x_at(i: int) -> float:
+        return 1.0 + (i / max(1, n - 1)) * X_SPAN
+
     # **x 从 1 起**：sin x / x 在 x=0 是 1（可去奇点），画出来会有一个假的尖峰
     for i in range(n):
-        x = 1.0 + (i / max(1, n - 1)) * 24.0          # x 从 1 走到 25
+        x = _x_at(i)
         y = math.sin(x * 1.15 + t * 0.9) / x
         yy = mid - int(amp * y * 2.4)
         k.put(x0_ax + i, max(hi, min(lo, yy)), "\u2022", _mix(_C.BLUE, 0.9))
     # 包络 ±k/x：它才是"为什么趋于 0"的说明
     for i in range(n):
-        x = 1.0 + (i / max(1, n - 1)) * 24.0
+        x = _x_at(i)
         e = min(1.0, 2.4 / x)
         for sgn in (-1, 1):
             yy = mid - int(amp * sgn * e)
             if hi <= yy <= lo:
                 k.put(x0_ax + i, yy, "\u00b7", _mix(_C.GREEN, 0.42))
+    # **刻度最后画**（批 142）：包络在右端收敛到零线附近，`amp*e` 还有两三格，会盖在 `mid+2`
+    # 那一行的刻度数字上——实测只剩 `2 4 6`，`8 10 12` 被 `····` 吃掉了。刻度是读图的尺子，
+    # 不能被数据盖掉，所以放到曲线与包络之后。
+    for xv in range(1, int(1 + X_SPAN) + 1):
+        tx = x0_ax + int(round((xv - 1) / X_SPAN * (n - 1)))
+        if tx > k.bx0 + n:
+            break
+        k.put(tx, mid + 1, "|" if xv % 2 else "+", _ui(0.34))
+        if xv % 2 == 0 and mid + 2 <= lo:
+            lab = str(xv)
+            k.put(tx - len(lab) // 2, mid + 2, lab, _ui(0.34))
     # **只留一条关键说明**（批 114，用户："去掉最下方的文字说明"）：原来最下面两行是
     # `lim x->∞ sin x / x = 0` 与`（这不是洛必达！）`。`lim` 这一条是用户点名要的
     # （"在框内进行文字说明：lim x->∞ sin x / x = 0"），所以**保留它、去掉 `（这不是洛必达！）`**
@@ -1156,9 +1215,22 @@ def galaxy(k, t: float) -> None:
     # ...and what a galaxy is *in*: the arms can only be `2 * ry` wide because a face-on disc is round, so
     # half the box they are given is sky. Filling it with stars is not decoration here - it is the other
     # half of the picture, and it is drawn on blank cells, so it can never touch the arms or the labels.
-    if k.bh > 8 and k.bw > 40:
-        _C.dust(k.s, k.bx0, k.by0 + 1, k.bx1, k.by1 - 1, t, max(24, k.bw * k.bh // 14), seed=5,
-                colour=(150, 190, 255), spread=0.5)
+    #
+    # **这一段在批 156 按用户要求删掉了**（清单2 第 10 条："三旋臂动画……中间都有换场特效，删掉"）。
+    # 用户给的定位是 **1:08**；查下来那一带 `school_cuts`、`school_fx.EVENTS`、时间常量**全是空的**，
+    # 唯一的效果就是这里：
+    #
+    #     _C.dust(k.s, k.bx0, k.by0 + 1, k.bx1, k.by1 - 1, t,
+    #             max(24, k.bw * k.bh // 14), seed=5, colour=(150, 190, 255), spread=0.5)
+    #
+    # `bw=95, bh=44` 代入 `max(24, 95*44//14)` = **298 个星尘点**，铺满整个动画框、随 `t` 明灭——
+    # 在 95x44 的框里就是一片四散的亮点，读起来就是一次"换场"。原注释的用意（"银河只占半张画，
+    # 另一半是天空"）没有错，但 298 个点太密，效果盖过了画本身。
+    #
+    # **只删了 galaxy 这一处**：同一个 `dust` 在 `stardiff`（1209 行附近之外，第 1467 行）也用了，
+    # 用户点名删的是"1:08 的那个"、没有要求动星芒，所以那一处保留。
+    #
+    # `_C.dust` 本身没删，别处还在用。
 
 
 def fragmentation(k, t: float) -> None:
@@ -1368,14 +1440,27 @@ def stardiff(k, t: float) -> None:
         return
     spin = t * 0.18
     blades = 6
+    # **让这颗星"闪"起来**（批 162）。用户："衍射星芒动画（歌词 so deeply so deeply）可以增加视觉特效
+    # （**比如更加闪烁**）"。原来 12 条射线的亮度只随半径衰减、彼此**完全同步**，所以整颗星是"稳"的，
+    # 只有慢转。加两件事，都是加法、不改变图形本身：
+    #
+    #   * **每条射线自己的明灭相位**：`tw` 按射线的序号错开，12 条此起彼伏地亮暗，
+    #     整颗星就有了"闪"的呼吸；原来那个 `(1 - step/r)**1.6` 的衰减曲线没动；
+    #   * **一圈从中心往外跑的高亮点**：`sp` 是这一帧跑到哪儿，走到哪儿哪一格换成实心 `●`，
+    #     看着就是光沿着射线往外走——衍射星芒本来就是"光从中心散出去"。
     for i in range(blades * 2):
         a = spin + i * math.pi / blades
+        tone = _C.AMBER if i % 2 else _C.BLUE
+        tw = 0.45 + 0.55 * abs(math.sin(t * 3.1 + i * 1.7))
+        sp = int((t * 5.0 + i * 1.9) % max(1, r))
         for step in range(r):
             x = int(cx + step * math.cos(a))
             y = int(cy + step * math.sin(a) * 0.5)
-            lv = 0.95 * (1 - step / r) ** 1.6
+            lv = 0.95 * (1 - step / r) ** 1.6 * tw
             k.put(x, y, "\u2022" if step < r * 0.4 else "\u00b7",
-                  _mix(_C.AMBER if i % 2 else _C.BLUE, 0.15 + lv))
+                  _mix(tone, min(1.0, 0.15 + lv)))
+            if step == sp:
+                k.put(x, y, "\u25cf", _mix(tone, 1.0))
     for i in range(blades):
         a = spin + i * 2 * math.pi / blades
         for s2 in range(2, r):
@@ -1685,6 +1770,17 @@ def resonance(k, t: float) -> None:
           _ui(0.5))
 
 
+#: `sine` 这一行的**标题随时间切**（批 172）。这一屏跨两句歌词：
+#: `If I'm a sine wave`（36.77-40.36）画 `sin x 与切线包络`，
+#: `If I approach infinity`（40.36-41.92）画 `sin x / x`（见 `APPROACH_INFINITY_AT`）。
+#: 批 171 已经把**排期**拆成两行、让两行的 **sub** 各归各的，但抬头里的**标题**来自
+#: `MOTIFS` 那个元组的第一个元素、两行共用一个 pane 所以共用同一个标题——
+#: 于是后半行渲染成 `sin 与包络 · 趋于无穷大时极限为 0…`，标题与画面还是不一致。
+#: 做成**可调用的标题**（派发处会带 `t` 调它），标题就和框内的 `k.section` 同步切了。
+def _sine_title(t: float) -> str:
+    return "sin x / x" if t >= APPROACH_INFINITY_AT else "sin \u4e0e\u5305\u7edc"
+
+
 MOTIFS = {
     "he_init": ("He \u521d\u59cb\u5316", he_init),
     "rectifier": ("\u6574\u6d41\u4e0e\u6ee4\u6ce2", rectifier),
@@ -1696,7 +1792,7 @@ MOTIFS = {
     "epicycles": ("\u672c\u8f6e", epicycles),
     "hearts9": ("\u4e5d\u79cd\u5fc3\u5f62", hearts9),
     "fork_bomb": ("fork \u70b8\u5f39", fork_bomb),
-    "sine": ("sin \u4e0e\u5305\u7edc", sine),
+    "sine": (_sine_title, sine),
     "chladni": ("\u514b\u62c9\u5c3c", chladni),
     "moire": ("\u83ab\u5c14\u6761\u7eb9", moire),
     "galaxy": ("\u4e09\u65cb\u81c2", galaxy),

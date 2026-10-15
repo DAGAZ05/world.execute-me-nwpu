@@ -38,8 +38,12 @@ ACT_ONE: list[tuple[float, str, str, str]] = [
      "\u5361\u5356\u7b14\u3002"),
     (1.33, "Remember to put on protection", "meta", "\u7528\u65f6 1.9 \u79d2|00:02"),
     (3.58, "Lay down your pieces", "user", "\u529f\u6210\u6c38\u9038\uff0c\u4e09\u5341\u4ebf\u85aa\uff1f\u5443\u2026\u2026\u8fd9\u662f\u2026\u2026\u6821\u5fbd\u5417\uff1f"),
-    (3.58, "Lay down your pieces", "ai", "\u662f\u30021938 \u5e74\u5230\u73b0\u5728\uff0c\u5b83\u6362\u8fc7\u4e24\u6b21\u3002"),
-    (3.58, "Lay down your pieces", "sub", "\u91cc\u9762\u90a3\u67b6\u98de\u673a\uff0c\u662f\u5b83\u4e00\u5f00\u59cb\u5c31\u6709\u7684\u3002"),
+    # **校徽那两句按用户给的文本改**（批 154）：原句是"是。1938 年到现在，它换过两次。"与
+    # "里面那架飞机，是它一开始就有的。"——**两处我都没能核实**（本会话没有 `web_fetch`，
+    # `web_search` 只给源列表、拿不到正文），所以上一批我没有凭猜改动、只报了上去。
+    # 用户据此给了替换文本："是的，校徽也会发生变化。" / "里面的飞机，已经存在很长时间了。"
+    (3.58, "Lay down your pieces", "ai", "\u662f\u7684\uff0c\u6821\u5fbd\u4e5f\u4f1a\u53d1\u751f\u53d8\u5316\u3002"),
+    (3.58, "Lay down your pieces", "sub", "\u91cc\u9762\u7684\u98de\u673a\uff0c\u5df2\u7ecf\u5b58\u5728\u5f88\u957f\u65f6\u95f4\u4e86\u3002"),
     (3.58, "Lay down your pieces", "meta", "\u7528\u65f6 1.6 \u79d2|00:05"),
     (5.16, "And let's begin object creation", "user", "1938 \u2014\u2014 \u90a3\u8fd9\u6240\u5b66\u6821\u662f\u600e\u4e48\u6765\u7684\uff1f"),
     (5.16, "And let's begin object creation", "ai", "\u56db\u6240\u5b66\u6821\u5728\u6c49\u4e2d\u5408\u5e76\uff0c\u90a3\u662f 1938 \u5e74\u3002"),
@@ -49,11 +53,15 @@ ACT_ONE: list[tuple[float, str, str, str]] = [
     (5.16, "And let's begin object creation", "meta", "\u7528\u65f6 2.4 \u79d2|00:06"),
     (7.19, "Fill in my data parameters", "user", "\u4f5c\u4e3a\u65b0\u751f\uff0c\u6709\u4ec0\u4e48\u6570\u5b57"
      "\u662f\u6211\u9700\u8981\u8bb0\u4f4f\u7684\uff1f"),
-    (7.19, "Fill in my data parameters", "ai", "\u56db\u4e2a\u3002\u4eca\u5929\u7684\u4e00\u4e2a\u662f\uff1a24 \u4e2a\u4e13\u4e1a\u5b66\u9662\uff0c72 \u4e2a\u672c\u79d1\u4e13\u4e1a\uff0c\u56db\u4e07\u4f59\u4eba\u3002"),
-    (7.19, "Fill in my data parameters", "code", "1938   \u6c49\u4e2d   \u56db\u6821\u5408\u5e76"),
-    (7.19, "Fill in my data parameters", "code", "1957   \u897f\u5b89   \u897f\u5317\u5de5\u5b66\u9662 + \u897f\u5b89\u822a\u7a7a\u5b66\u9662"),
+    # **第 9 条：对话里也印着"24 个专业学院"**（批 153）：用户原话是"去掉**所有** 24 院的表述
+    # （比如时间线中 24 院），因为很难说当前有多少学院，改为长安校区的建成时间"。
+    # 上一批我只改了时间线那一处，**没注意到对话这一处**——用户让我复核对话时才发现。
+    # `72 个本科专业 / 四万余人` 是同一类"数量很难说得准"的表述，一并去掉。
+    (7.19, "Fill in my data parameters", "ai", "\u56db\u4e2a\u3002\u6700\u540e\u4e00\u4e2a\u662f\uff1a2006 \u5e74\uff0c\u957f\u5b89\u6821\u533a\u542f\u7528\u3002"),
+    (7.19, "Fill in my data parameters", "code", "1938   \u6c49\u4e2d   \u56db\u6821\u5408\u5e76 \u2192 \u56fd\u7acb\u897f\u5317\u5de5\u5b66\u9662"),
+    (7.19, "Fill in my data parameters", "code", "1957   \u897f\u5b89   \u897f\u5317\u5de5\u5b66\u9662 + \u897f\u5b89\u822a\u7a7a\u5b66\u9662 \u2192 \u897f\u5317\u5de5\u4e1a\u5927\u5b66"),
     (7.19, "Fill in my data parameters", "code", "1970   \u54c8\u5c14\u6ee8\u5de5\u7a0b\u5b66\u9662\u822a\u7a7a\u5de5\u7a0b\u7cfb\u5e76\u5165"),
-    (7.19, "Fill in my data parameters", "code", "2026   24 \u4e2a\u4e13\u4e1a\u5b66\u9662 / 72 \u4e2a\u672c\u79d1\u4e13\u4e1a / \u56db\u4e07\u4f59\u4eba"),
+    (7.19, "Fill in my data parameters", "code", "2006   \u957f\u5b89\u6821\u533a\u542f\u7528"),
     (7.19, "Fill in my data parameters", "sub", "\u8fd9\u56db\u4e2a\u6570\u662f\u8fd9\u6240\u5b66\u6821\u7684"
      "\u9aa8\u67b6\u3002\u4f60\u6e38\u5386\u6821\u53f2\u9986\u65f6"
      "\u4e5f\u4f1a\u770b\u5230\u3002"),

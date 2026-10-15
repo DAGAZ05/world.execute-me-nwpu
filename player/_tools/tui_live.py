@@ -4711,6 +4711,17 @@ def draw_body(s: Screen, d: Data, eng: Engine | None, ent: dict | None, t: float
         chat_x0, chat_x1 = x0, lx
         pane_x0, pane_x1 = lx + 1, x1
     PANE_BOX[:] = [pane_x0, top, pane_x1, bottom]      # see the note on PANE_BOX
+    # **动画框也"切干净"**（批 157，清单2 第 13 条）：用户："13s 附近的动画框字符仍较杂乱"。
+    #
+    # `CLEAR` 是"可读文本区、不留鬼影、不上暗角"的矩形表（见第 795 行那张表的说明）——
+    # 原来里面只有**聊天窗**（4132 行）和 **DSH 窗**（4782 行）。**动画框不在里面**，
+    # 于是 `fx_trail` 会把上一镜的字符以 `TRAIL = 0.42` 的亮度留在动画框里、逐帧衰减。
+    #
+    # 实测（批 155/157）：12.5-14.0 s 的动画框里有 46-53 个上一镜的拉丁字母/数字散着；
+    # 停掉 `fx_apply` 之后 13.6 s 从 47 掉到 3。查过四个候选层（画本身、`pane_countdown`、
+    # 底噪、`school_fx` 事件与 draw、运-20），**全都不是**；`_C.dust` 只画 `·`/`o`、也不画字母。
+    # 真凶就是这里没把动画框登记进 `CLEAR`。
+    CLEAR.append((pane_x0, top, pane_x1, bottom))
     sp_bottom = min(top + 8, bottom - 4)      # border + 7 bands
 
     # The figure's pane, above the stdout band, when the column can hold a legible portrait - 航小天's
@@ -5407,6 +5418,22 @@ def draw(s: Screen, d: Data, eng: Engine | None, t: float, playing: bool, fps: f
         # 方框的标题上（实测 `┌─ \ feat099%b██████░RUNNING───┐`）。抬头行是**第 10 行**
         # （`▏ 西北工业大学`），所以行号按实测钉住。
         draw_stuck_progress(s, 18, STUCK_BAR_ROW, 96, STUCK_BAR_ROW, t, align="left")
+    # **结尾屏最上方的 `2^10 = 1024`**（批 144 加、批 145 上移并换风格）：用户："最后面结尾处
+    # （即有'在铸剑吗'字样时）在空旷处增加以下字符画：$2^{10}=1024$"、"结尾 2^10=1024 和分数显示屏
+    # 重了，将 2^10=1024 移动至最上方，并且其字符画采用和分数显示屏不一样的设计"。
+    # 挂钩点选在 `BLACK_START` 之后——那一屏的"在铸剑吗？"是**上游影片包**的打字机画的，
+    # 学校层要往上加东西只能在自己的这一趟里画。
+    if t >= BLACK_START:
+        try:
+            import school_rhythm as _R
+            # 三段各一种颜色（批 160）：`2^10` 橙 / `=` 品红 / `10` 青 / `24` 绿，
+            # 都远离分数屏那套暖白 LED（`(255,246,190)` + `(120,140,190)`）。
+            # **`dim` 必须显式传 `BG`**：`draw_power_solid` 的默认值是 `None`，
+            # 而 `set_cell(..., lit, None)` 会在 Screen 里下标 `None` 直接抛
+            # `TypeError: 'NoneType' object is not subscriptable`——`ansi_probe` 就是这样抓到的。
+            _R.draw_power_solid(s, t, dim=BG, appear_at=BLACK_START)
+        except Exception:
+            pass
     # **...and the counted number goes on last** (batch 68). It belongs to the stdout box, but it is
     # allowed to run past it - that is the user's own note - so it cannot be drawn *inside* the band's
     # own pass: the box is redrawn by `_band_restore` when a `behind` photograph goes down, and the

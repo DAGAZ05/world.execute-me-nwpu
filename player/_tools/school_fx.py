@@ -1043,8 +1043,15 @@ def emerge(s, cols: int, rows: int, t: float, u: float, name: str, caption: str 
     # thirds of the ring, the part with the university's own name on it, was being cut away, which is the
     # same defect `flash` had and fixed with `_fit_box` (its own docstring has the measurement). This is
     # the second and last caller that asked for a shape in cells rather than for the picture.
-    bw = max(4, int(cols * 0.19))
-    bh = max(2, int(rows * 0.26))
+    #
+    # **批 158 把这两个比例从 0.19x0.26 放大到 0.26x0.36**（清单2 第 12 条：用户说这一处的校徽
+    # "不太清晰"）。原因：校徽是**方形**，而 `cols*0.19 x rows*0.26` 在 197x52 上是 **37x13 格的扁框**，
+    # `_fit_box` 按高度收 → 实际只画到 **13x13 格**，环上那圈字全糊在一起。
+    # 放大后 51x18 格、实际约 18x18，面积约 2 倍。**仍然不是"大图"**：开场那张 `flash` 才是最大的一次，
+    # 用户的原话是"校门、校徽的大图出现了多次，仅保留第一次"——所以这里只要求"看得清"，
+    # 不是要求再来一次大图（0.34x0.44 那次到 67x23 格、与一次大图分不出来，才是问题）。
+    bw = max(4, int(cols * 0.26))
+    bh = max(2, int(rows * 0.36))
     fw, fh = _fit_box(name, bw, bh, 1.0)
     cw = max(1, int(fw * grow))
     ch = max(1, int(fh * grow))
@@ -2277,7 +2284,19 @@ EVENTS: list[tuple[float, float, object, dict]] = [
     #     '公诚勇毅，三实一新'"). The opening flash has carried the pair since batch 51; this one still said
     #     the 校训 alone, so the emblem's second appearance was the one place the school's motto was
     #     half-missing. Same separator as the opening plate and the closing pane.
-    (176.30, 178.20, emerge, dict(name="crest",
+    #
+    #     **批 158（清单2 第 12 条）两处修改**。用户："歌词 we are trapped, ah 后面有个屏幕中央的校徽，
+    #     该校徽不太清晰，并且似乎不是一直处于最上图层，请修改"。`We are trapped, ah` 在 **174.80**，
+    #     所以指的就是这一处。
+    #       * `topmost=True` —— 与铸剑雕塑（125.50）同一个修法：标上之后这一趟排在
+    #         `fx_school_wipe`、`fx_apply`、`transition` **之后**，不会被旧格或转场的搬运盖住。
+    #         这正是用户说的"不是一直处于最上图层"；
+    #       * 尺寸：`emerge` 原来按 `cols*0.19 x rows*0.26` 取（197x52 → 37x13 格），
+    #         而校徽是**方形**、`_fit_box` 按高度收，实际只有 **13x13 格**——太细，所以"不太清晰"。
+    #         放大到 `0.26 x 0.36`（→ 51x18 格，实际约 18x18），面积约 2 倍。
+    #         **注意**：批 51 用户说过"校门、校徽的大图出现了多次，仅保留第一次"，
+    #         所以这里只是**把它做清楚**，没有做成第三张大图（开场那张 flash 仍是最大的）。
+    (176.30, 178.20, emerge, dict(name="crest", topmost=True,
                                   caption="\u516c\u8bda\u52c7\u6bc5 \u00b7 \u4e09\u5b9e\u4e00\u65b0")),
     (203.00, 206.20, flash, dict(name="sword", cols_n=80, rows_n=26)),
 ]

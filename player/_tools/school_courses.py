@@ -254,8 +254,33 @@ class _Kit:
             s.put(x1 - len(tag) - 1, y0, tag, _mix(self.colour, 0.55 + 0.45 * p))
         avail = max(0, (x1 - len(tag) - 2 if tag else x1 - 1) - (x0 + 2) + 1)
         sub = PANE_SUB[0]
+        # **sub 开头与标题重复时去掉那一段**（批 175）。用户："学院部分有很多抬头含重复的，
+        # 比如'特征图'就重复了2次（类似的还有很多，学院部分基本都有重的部分）"。
+        #
+        # 根因：pane 的**标题**里已经写了这一格画的是什么（`卷积神经网络 · 特征图`），
+        # 而行的 **sub** 又常以同一个词开头（`特征图 · 卷积核扫一遍，认出这段回忆`）——
+        # 两段拼起来就成了 `卷积神经网络 · 特征图 · 特征图 · 卷积核扫一遍…`。
+        # 在**拼接处**统一去重，比逐条改 80 多个 sub 稳（改漏一个就漏一个）。
+        #
+        # 只在"sub 的第一段确实出现在标题里"时才去掉，所以 `EXPLAIN 与 B+ 树 · 一次执行：…`
+        # 这种（标题是 `数据结构`）不受影响。
+        if sub and title:
+            _first, _sep, _rest = sub.partition(" \u00b7 ")
+            if _sep and _first.strip() and _first.strip() in title and _rest.strip():
+                sub = _rest.strip()
         sub_txt = ("\u00b7 " + sub) if sub else ""
-        title_room = avail if not sub else max(6, avail - _cells(sub_txt) - 2)
+        # **标题优先**（批 168 改；原来是"说明先占满、标题拿剩下的"）。
+        #
+        # 原式 `max(6, avail - _cells(sub_txt) - 2)` 的下限是 **6 格 = 3 个汉字**，
+        # 于是只要说明文字够长，标题就被截成三个字——实测 `pane_exec_*` 那 16 行
+        # （它们还额外占着右端的 `EXEC nn/16` 计数器）出来是 `软件工`、`数据结`、`计算机`。
+        #
+        # 现在反过来：**标题要多少给多少**（上限 = "给说明留 10 格"），说明文字拿剩下的、
+        # 该截就截。理由：标题是这一格**叫什么**，说明是照应歌词的一句话；标题短、说明长，
+        # 让短的那个先站稳才对。原来的理由（"说明是用户点名要的那一行"）在说明和标题
+        # **都**要能读之后就不成立了。
+        need_title = _cells(title)
+        title_room = avail if not sub else max(6, min(need_title, max(10, avail - 10)))
         shown = _clip(title, title_room)
         s.put(x0 + 2, y0, shown, _ui(0.92))
         if sub:
@@ -3225,12 +3250,26 @@ DETAIL.update({
 
 
 def draw_ai(name: str, s, x0: int, y0: int, x1: int, y1: int,
-            t: float, lt: float, dur: float, u: float, run: int = 1) -> bool:
-    """Draw one of the four AI panes. False if `name` is not one of them."""
+            t: float, lt: float, dur: float, u: float, run: int = 0) -> bool:
+    """Draw one of the four AI panes. False if `name` is not one of them.
+
+    **`run` 默认从 0 改成"按 pane 在 `AI` 里的位置算"**（批 176）。用户："学院部分在各国语言
+    123456 后出现的动画抬头的 EXEC 一直是 EXEC 01/04，其数值没有更新"。
+
+    根因：这个参数原来的默认值是 **`1`**，而调用方（`school_panels.draw_scene_pane`）只给
+    `draw_course` / `draw_gauge` 传了 `run=_run_of(pane)`，**没给 `draw_ai` 传**——
+    于是四个 AI 格永远显示 `EXEC 01/04`。`_run_of` 也救不了它：它查的是 `EXEC_PANES`（十六门课），
+    AI 这四个不在里面，会返回 0（那就连 tag 都不画了）。
+
+    所以改成**由 `AI` 自己的顺序算**（1 起）：01/04 → 02/04 → 03/04 → 04/04。
+    调用方若显式传 `run`，仍然以传进来的为准。
+    """
     spec = AI.get(name)
     if spec is None:
         return False
     title, fn = spec
+    if not run:
+        run = list(AI).index(name) + 1
     k = _Kit(s, x0, y0, x1, y1, title, run, len(AI), u)
     fn(k, lt, dur)
     # the vocabulary goes in whatever the drawing left, found by looking at the buffer rather than by

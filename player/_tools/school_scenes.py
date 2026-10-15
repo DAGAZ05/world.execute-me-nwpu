@@ -990,7 +990,13 @@ def pane_sw_project(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     # '软件项目管理/软件开发综合训练'"): they are one line of the college's 培养方案 - the theory and the
     # course-long project that runs beside it - and this pane draws both of them, a sprint's ceremonies and
     # the board the project is worked on.
-    k = _kit(s, x0, y0, x1, y1, 0, "\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406 / \u8f6f\u4ef6\u5f00\u53d1"
+    # **`综合训练` 重复的根因（批 179）**：这是一个**跨两行的字面量**，第 993 行末尾 + 第 994 行的
+    # 续行拼起来才是完整标题。批 166 我把第 993 行末尾的 `软件开发` 改成了 `软件开发综合训练`，
+    # 却没有注意第 994 行还有一截 `"综合训练"` 的续行——于是拼出来成了
+    # `软件项目管理  /  软件开发综合训练综合训练`（截图里那两遍就是这么来的）。
+    # 现在第 993 行收在 `软件开发`，续行补上 `综合训练`，完整标题仍是
+    # `软件项目管理  /  软件开发综合训练`。
+    k = _kit(s, x0, y0, x1, y1, 0, "\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406  / \u8f6f\u4ef6\u5f00\u53d1"
                                     "\u7efc\u5408\u8bad\u7ec3")
     if k is None or k.bw < 40 or k.bh < 8:
         return
@@ -1621,62 +1627,82 @@ def pane_everything_point(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> 
 
 
 def _ev_food(k, t: float, u: float) -> None:
-    """The aubergine as a flow diagram: field, packer, truck, kitchen, and the losses at each joint."""
+    """茄子**在人体内的分解路径与产物**，右侧是各段剩余能量。
+
+    清单2 第 11 条（批 159）。用户："茄子动画的营养流向，从田间-加工-运输的路径，改为茄子
+    **在人体内分解的路径及产物**，右侧柱状图为**各阶段所含能量（应该是逐级递减的）**，要动态展示"。
+
+    所以两处都换了：
+
+    * **左边**从"田间 / 加工 / 运输 / 餐桌"（一条物流链）换成"**口腔 / 胃 / 小肠 / 大肠**"
+      （一条消化链），每一格旁边不再只写名字，而是写**这一段发生了什么**和**产物是什么**——
+      "产物"正是用户点名要的东西：多肽 → 脂肪酸·甘油·氨基酸·葡萄糖 → 短链脂肪酸。
+    * **右边**原来画的是 `各段损耗与到达`，四根柱子 8 / 14 / 20 / **63%**——最后一根是
+      **回升**的（"剩下"比前面每一次"损耗"都高），所以它**不是逐级递减**。现在换成
+      **各段剩余能量**：100 → 92 → 40 → 8，单调递减（沿途被吸收掉，越往下剩得越少）。
+    * **动态**：左侧每一格按行内的时钟轮流点亮（`cur`），右侧柱高按同一时刻呼吸、
+      当前那一段的柱子最亮——两边同步，看着就是"能量沿着这条路一段段少下去"。
+    """
     import school_courses as _C
-    k.section(k.by0, "\u8304\u5b50 \u00b7 \u8425\u517b\u6d41\u5411", 0.25)
-    names = ("\u7530\u95f4", "\u52a0\u5de5", "\u8fd0\u8f93", "\u9910\u684c")
+    k.section(k.by0, "\u8304\u5b50 \u00b7 \u4f53\u5185\u5206\u89e3", 0.25)
+    # (阶段, 这一段做了什么, 产物)
+    stages = (
+        ("\u53e3\u8154", "\u5480\u56bc\uff1a\u53ea\u6709\u673a\u68b0\u7834\u788e", "\u7ec6\u80de\u58c1\u7834\u5f00"),
+        ("\u80c3", "\u80c3\u9178 + \u80c3\u86cb\u767d\u9176", "\u591a\u80bd"),
+        ("\u5c0f\u80a0", "\u80f0\u8102\u80aa\u9176 + \u80c6\u6c41", "\u8102\u80aa\u9178 \u00b7 \u7518\u6cb9 \u00b7 \u6c28\u57fa\u9178 \u00b7 \u8461\u8404\u7cd6"),
+        ("\u5927\u80a0", "\u83cc\u7fa4\u53d1\u9175", "\u77ed\u94fe\u8102\u80aa\u9178 \u00b7 \u6c34 \u00b7 \u65e0\u673a\u76d0"),
+    )
+    #: 各段**剩余能量**（占入口的百分比）。**单调递减**是这一条的要求：
+    #: 沿途被吸收掉，越往下剩得越少。原来那组 8/14/20/**63** 的最后一根是回升的。
+    energy = (100, 92, 40, 8)
+    n = len(stages)
+    cur = int(t * 1.1) % n                     # 当前走到哪一段（两边共用，所以是同步的）
     bw = max(6, min(9, k.bw - 6))
-    step = max(4, (k.bh - 4) // len(names))
-    # hexagons rather than rectangles: the user allows non-rectangular panels, and a flow diagram is the
-    # one place in this film where the *nodes* are the thing being looked at. `school_courses.hexagon` is
-    # the shared primitive, so the shape is the same one the embedded course uses.
+    # **步长要保证四段都放得下**（批 160 修）：原来写 `max(5, (k.bh - 4) // n)`，在 197x52 上
+    # 是 `max(5, 4) = 5`、四段正好落得下；但**抽屉矮一点**（用户的窗口比探针的小）第 4 段就会
+    # 撞上 `if y > k.by1 - 4: break` 而被整段丢掉——用户截图里只剩"口腔/胃/小肠"就是这个。
+    # 现在按**真正可用的行数**反算步长，并给一个 3 行的下限（一个六边形占 3 行）；
+    # 同时把 break 的判据放宽到"六边形的底边还在抽屉里"。
+    avail = max(4, k.by1 - 3 - (k.by0 + 2))
+    step = max(3, min(10, avail // n))
     from school_courses import hexagon
-    for i, nm in enumerate(names):
+    for i, (nm, what, product) in enumerate(stages):
         y = k.by0 + 2 + i * step
-        if y > k.by1 - 3:
+        if y + 2 > k.by1 - 1:                  # 连六边形都放不下才放弃这一段
             break
-        # one character inside the hex, the full name beside it: at r=1 the cell's middle row is five cells
-        # wide and a two-character label runs over its own right edge. The fill breathes on the pane's
-        # clock, so the flow reads as flowing - and the falling dot below only exists when the wire is long
-        # enough to hold one, which is why the pulse is here rather than there.
+        on = i == cur
         hexagon(k, k.bx0 + bw // 2 + 1, y + 1, 1,
-                _mix(_C.BLUE, 0.62 + 0.12 * math.sin(t * 1.7 - i)), nm[:1])
-        k.put(k.bx0 + bw + 3, y + 1, nm, _ui(0.7))
-        if i < len(names) - 1:
+                _mix(_C.AMBER if on else _C.BLUE, 0.95 if on else 0.55), nm[:1])
+        k.put(k.bx0 + bw + 3, y + 1, nm, _mix(_C.AMBER, 0.95) if on else _ui(0.7))
+        k.put(k.bx0 + bw + 3 + len(nm) * 2 + 2, y + 1, what, _ui(0.45))
+        k.put(k.bx0 + bw + 3, y + 2, "\u2192 " + product,
+              _mix(_C.GREEN, 0.92) if on else _ui(0.55))
+        # 连线只在**放得下**的时候画（步长降到 3 时中间没有空格可放 ▼ 与走过的亮段）
+        if i < n - 1 and step >= 5:
             k.vline(k.bx0 + bw // 2 + 1, y + 3, y + step - 1, "\u2502", _ui(0.3))
             k.put(k.bx0 + bw // 2 + 1, y + step - 1, "\u25bc", _mix(_C.RED, 0.7))
-            k.put(k.bx0 + bw + 3, y + step - 1, f"-{8 + i * 6}%", _mix(_C.RED, 0.6))
-            # what is being lost, falling down the wire: one dot per joint, on the pane's clock, and
-            # the pane kept *some* motion after its reveal without this - but a flow diagram whose only
-            # moving part is a caption is a diagram, and the caption is not what is flowing. Only drawn
-            # when the wire is long enough to have a free cell between the hexagon and its arrow.
-            if step >= 6:
-                drop = y + 4 + (int(t * 4.0) + i * 3) % (step - 5)
-                k.put(k.bx0 + bw // 2 + 1, drop, "\u25cf", _mix(_C.RED, 0.9))
-    # the numbers on the wires are 8 %, 14 % and 20 %, so what arrives is 0.92*0.86*0.80 = 63 % - the
-    # caption said "只剩一半" and the audit read the two against each other (batch 31, A-7)
-    k.put(k.bx0, k.by1, "\u6bcf\u4e00\u6bb5\u90fd\u5728\u6389\uff1a"
-                        "\u4ece\u5730\u91cc\u5230\u7897\u91cc\u53ea\u5269\u516d\u6210", _ui(0.5))
-    # **...and the right two thirds of the box** (batch 53, the user: "茄子营养那里比较空旷"). The flow is
-    # nine cells of hexagon and a label, so seventy columns of a ninety-five column pane were black. What
-    # goes there is the same numbers as a waterfall - the three losses and what arrives - which is the one
-    # thing this diagram is about that it was only saying in prose.
-    free_x0 = k.bx0 + bw + 14
+        # 走过的线段亮一档，没走到的暗着——这就是"路径在推进"
+        if i < cur and i < n - 1 and step >= 5:
+            k.vline(k.bx0 + bw // 2 + 1, y + 3, y + step - 1, "\u2502", _mix(_C.GREEN, 0.6))
+    k.put(k.bx0, k.by1, "\u6bcf\u4e00\u6bb5\u90fd\u5728\u88ab\u62c6\u5f00\uff1a"
+                        "\u4e00\u6839\u8304\u5b50\u5230\u6700\u540e\u53ea\u5269\u4e00\u70b9\u6b8b\u6e23", _ui(0.5))
+    # ---- 右边：**各段剩余能量**，单调递减，当前那一段最亮
+    free_x0 = k.bx0 + bw + 30
     span = k.bx1 - free_x0
-    if span >= 30:
+    if span >= 26:
         xr = free_x0 + max(0, (span - 26) // 2)
         base = k.by1 - 4
         high = max(4, (k.by1 - k.by0) // 2)
-        k.put(xr, k.by0 + 1, "\u5404\u6bb5\u635f\u8017\u4e0e\u5230\u8fbe", _ui(0.55))
-        for j, (pc, nm, col) in enumerate(((8, "\u52a0\u5de5", _C.RED), (14, "\u8fd0\u8f93", _C.RED),
-                                           (20, "\u9910\u684c", _C.RED), (63, "\u5269\u4e0b", _C.AMBER))):
+        k.put(xr, k.by0 + 1, "\u5404\u6bb5\u5269\u4f59\u80fd\u91cf", _ui(0.55))
+        for j, pc in enumerate(energy):
             x = xr + j * 6
-            h = max(1, int(high * pc / 70.0))
+            h = max(1, int(high * pc / 100.0))
+            col = _C.AMBER if j == cur else (_C.GREEN if j < cur else _C.BLUE)
             for yy in range(base - h, base):
                 k.put(x, yy, "\u2588", _mix(col, 0.55 + 0.30 * math.sin(t * 1.4 - j)))
-            k.put(x, base + 1, f"{pc}%", _mix(col, 0.85))
-            k.put(x, base + 2, nm, _ui(0.45))
-    _motes(k, "o\u00b7", t, n=max(20, k.bw * k.bh // 22), level=0.28, seed=5)
+            k.put(x, base + 1, f"{pc}%", _mix(col, 0.9))
+            k.put(x, base + 2, stages[j][0][:2], _ui(0.45))
+    _motes(k, "o\u00b7", t, n=max(14, k.bw * k.bh // 30), level=0.24, seed=5)
 
 
 def _ev_tomato(k, t: float, u: float) -> None:
@@ -1980,24 +2006,55 @@ def pane_yolo(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     颜文字用 ASCII 拼（`(^_^)` `(o_O)` `(>_<)` `(T_T)`），渲染字体里都有。
     """
     import school_courses as _C
-    k = _kit(s, x0, y0, x1, y1, 0, "YOLO \u00b7 \u6253\u6807")
+    k = _kit(s, x0, y0, x1, y1, 0, "YOLO \u6253\u6807")
     if k is None or k.bh < 7 or k.bw < 40:
         return
-    # 候选：颜文字 + 类别 + 本命（`satisfaction` 是这一句歌词要框住的那一个）
+    # 候选：颜文字 + 类别 + 本命（`satisfaction` 是这一句歌词要框住的那一个）。
+    #
+    # **批 147 从四个加到六个**（清单2 第 4 条跟进）：用户："yolo动画还是有点空旷，再在原来4个
+    # 标签基础上加2个，注意不要和已有的重了（表情颜文字可以 web search）"。
+    # 新增的两个是 `(*_*)` starstruck 与 `(-_-)` bored——**与已有的四个在形状和语义上都不重**：
+    #   * `(^_^)` satisfaction / `(o_O)` just so so / `(>_<)` nervous / `(T_T)` disheartened
+    #   * 新加的是这段情感刻度的**两端**：比 satisfaction 更亮的 starstruck、比 so so 更平的 bored
+    #     （候选里 `(O_O)` 与 `(o_O)`、`(^o^)` 与 `(^_^)`、`(=_=)` 与 `(-_-)` 都太像，没选）。
+    # 只用了 `*` 与 `-` 两个新字符，都是纯 ASCII，`*` 本来就被 `_motes` 用着。
     faces = (("(^_^)", "satisfaction", _C.AMBER, True),
              ("(o_O)", "just so so", _C.BLUE, False),
              ("(>_<)", "nervous", _C.VIOLET, False),
-             ("(T_T)", "disheartened", _C.GREEN, False))
-    # 摆位：两行两列。**列间距要放得下"标签最长的那个"**（`disheartened 0.48` = 16 格），
+             ("(T_T)", "disheartened", _C.GREEN, False),
+             ("(*_*)", "starstruck", _C.RED, False),
+             ("(-_-)", "bored", _C.COPPER, False))
+    # 摆位：**两列三行**（原来两列两行）。六个之后两行太扁、下半部还是空的；三行占
+    # `by0+2 .. by0+14`，正好停在下方那个 YOLO 标注框（`by1-4`）之上。
+    #
+    # **列间距要放得下"标签最长的那个"**（`disheartened 0.48` = 16 格），
     # 第一版 `slot_w = max(16, (bw-4)//2)` 正好等于 16、于是第 2 列的标签压在第 3 个颜文字上。
     slot_w = max(20, (k.bw - 3) // 2)
+    # 抽屉矮的时候只放前两行：第三行的框底是 `by0+14`，不能压到标注框（`by1-4`）。
+    rows_fit = 3
+    # 行距先按 5（好看），放不下就降一档到 **4**——4 是下限：一行的占位是
+    # `标签 / 框顶 / 脸 / 框底` 四行，再紧两行就会叠。
+    gap = 5
+    if k.by0 + 3 + 2 * gap + 1 > k.by1 - 5:
+        gap = 4
+    if k.by0 + 3 + 2 * gap + 1 > k.by1 - 4:
+        rows_fit = 2                      # 抽屉实在太矮，只放前两行
     pos = []
     for i, (face, lab, tone, star) in enumerate(faces):
+        row = i // 2
+        if row >= rows_fit:
+            break
         fx = k.bx0 + 1 + (i % 2) * slot_w
-        fy = k.by0 + 2 + (i // 2) * 5          # 行距 5：留出框（框占 3 行）与标签各一行
+        # **纵向从 `by0 + 3` 起**（批 147 修的第二个碰撞）：原来 `by0 + 2`，于是第一行的**标签行**
+        # （`fy - 1`）正好是 `by0`——**那是抬头行**，检测标签把 `YOLO · 打标` 整个盖掉了。
+        # 下移一行之后标签在 `by0 + 1`，抬头露出来。
+        fy = k.by0 + 3 + row * gap          # `gap` 行距：留出框（框占 3 行）与标签各一行
         pos.append((fx, fy, face, lab, tone, star))
         k.put(fx, fy, face, _mix(tone, 0.92))
-        k.put(fx + len(face) + 1, fy, lab, _mix(tone, 0.70))
+        # **标签从 `fx + len(face) + 2` 起**（批 147 修的第一个碰撞）：框是
+        # `bx .. bx + bw_` = `fx - 1 .. fx + len(face) + 1`，右边框落在 `fx + len(face) + 1`；
+        # 原来标签正好也从这一格起画，于是首字母被框吃掉（实测 `┆atisfaction`）。
+        k.put(fx + len(face) + 2, fy, lab, _mix(tone, 0.70))
     # ---- 三拍（**按这一行的绝对秒数**，不按比例）
     # 比例分拍不行：行的头 0.9 s 是 `fx_reveal` 的转场（上一屏的字符还在），按比例的话
     # "搜寻"整段被转场吃掉、看不到框在动。
@@ -2033,6 +2090,36 @@ def pane_yolo(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         locked = pick == star_i and lt0 >= T_LOCK
         k.put(bx, by - 1, f"{lab} {conf:.2f}",
               _mix(_C.AMBER if locked else tone, 0.99 if locked else 0.80))
+    # ---- **YOLO 格式的标注数**（批 146，清单2 第 4 条）：用户："YOLO打标动画下方较为空旷，
+    # 加上 YOLO 格式参数（class_id / x_center, y_center / width, height），参数会随框的移动变化"。
+    #
+    # 画在下方那块空处的"标注文件"小框：一行五个数（YOLO 的 txt 就是这个格式），再加一行字段名。
+    # **数值真的从框算出来**（归一化到抽屉），不是写着好看的常量——所以框一跳这五个数跟着变；
+    # 锁定时 `class_id` 也定在本命那一类上。
+    #
+    # **这一块画在 `if pick is not None` 之外**：前 0.45 s 还没开始检测（`pick` 是 None），
+    # 若跟着框一起不画，"待检测…"那一拍下面就是空的、版面会跳一下。那时给占位符 `-`。
+    yb = k.by1 - 4
+    if yb > k.by0 + 11 and k.bw >= 34:
+        if pick is None:
+            line = "-  -.--  -.--  -.--  -.--"
+        else:
+            ncx = (bx - k.bx0 + (bw_ + 1) / 2.0) / max(1, k.bw)
+            ncy = (by - k.by0 + (bh_ + 1) / 2.0) / max(1, k.bh)
+            nw = (bw_ + 1) / float(max(1, k.bw))
+            nh = (bh_ + 1) / float(max(1, k.bh))
+            cls = star_i if (pick == star_i and lt0 >= T_LOCK) else pick
+            line = f"{cls}  {ncx:.3f}  {ncy:.3f}  {nw:.3f}  {nh:.3f}"
+        inner = max(len(line) + 2, 34)
+        k.put(k.bx0, yb, "\u250c" + "\u2500" * inner + "\u2510",
+              _mix(_C.GREEN, 0.55))
+        k.put(k.bx0, yb + 1, "\u2502 " + line.ljust(inner - 1) + "\u2502",
+              _mix(_C.GREEN, 0.98))
+        k.put(k.bx0, yb + 2, "\u2514" + "\u2500" * inner + "\u2518",
+              _mix(_C.GREEN, 0.55))
+        k.put(k.bx0, yb + 3,
+              "class_id   x_center  y_center   width   height",
+              _ui(0.42))
     # ---- 底部：一句话说明这一拍
     if lt0 < T_SEARCH:
         k.put(k.bx0, k.by1, "\u5f85\u68c0\u6d4b\u2026", _ui(0.45))
@@ -2170,7 +2257,7 @@ def pane_spinoza(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     **不做擦除**（批 118 的硬规矩）：每一步只是把该行**画出来**，不亮的那几行不画。
     """
     import school_courses as _C
-    k = _kit(s, x0, y0, x1, y1, 0, "Spinoza \u00b7 E! 1")
+    k = _kit(s, x0, y0, x1, y1, 0, "Spinoza")
     if k is None or k.bh < 8 or k.bw < 40:
         return
     steps = (
@@ -2182,9 +2269,15 @@ def pane_spinoza(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     # 一步一步亮；四步走完剩下的时间把结论**留着**（不再变化）。
     # **`int(...)+1` 要夹在 `len(steps)+1`**（批 128）：第一版夹在 `len(steps)`，于是
     # "四步都走完"这个状态永远取不到，底部那句结论一次都没画出来。
-    # **步子 0.30 s**：这一行只有 1.61 s（84.60→86.21），0.26 s 时第 ④ 步要到 1.30 s 才亮、
-    # 结论（第 5 个状态）要到 1.56 s——只剩 0.05 s，等于没有。0.30 s 让结论有 0.4 s。
-    step = min(len(steps) + 1, int((lt if lt is not None else 0.0) / 0.30) + 1)
+    #
+    # **步子按行时长铺开**（批 148，清单2 第 5 条）：用户要 `If I'm the only God` 与
+    # `Then you're the proof of my existence` **两句都归斯宾诺莎**，于是这一行从 1.61 s
+    # 变成 **3.74 s**。原来写死 0.30 s，四步 1.20 s 就完了，**后面 2.2 s 静止**——用户说的
+    # "注意展示速度要调"就是这个。现在把 `len(steps)+1` 个状态铺在行长的 **82%** 上
+    # （留 18% 让结论停住一会儿，读得完），并且给步长一个下限，行很短时不会快到看不清。
+    _dur = dur if (dur and dur > 0.4) else 1.8
+    _per = max(0.16, (_dur * 0.82) / (len(steps) + 1))
+    step = min(len(steps) + 1, int((lt if lt is not None else 0.0) / _per) + 1)
     col = _mix(_C.AMBER, 0.92)
     for i, (num, text) in enumerate(steps):
         if i >= step:
@@ -2241,14 +2334,26 @@ def pane_supervisory(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     轮到 M 时把"M 选的那一列"点亮，两个角色的名字一起变亮，让人看出是谁在动。
     """
     import school_courses as _C
-    k = _kit(s, x0, y0, x1, y1, 0, "\u76d1\u5bdf\u535a\u5f08 \u00b7 S / M")
+    k = _kit(s, x0, y0, x1, y1, 0, "\u76d1\u5bdf\u535a\u5f08")
     if k is None or k.bh < 10 or k.bw < 46:
         return
     lt0 = lt if lt is not None else 0.0
-    turn = int(lt0 / 0.8) % 2                       # 0 = 轮到 S，1 = 轮到 M
+    # **节奏按行时长铺开**（批 150，清单2 第 8 条）：用户："Oh, switch my role, to S to M 两句
+    # 歌词均对应监察博弈动画（**相应播放速度、SM字符交替闪烁要调整**）"。
+    #
+    # 原来写死 `turn` 每 0.8 s 换、双方换选每 1.6 s——那是按 **1.61 s** 的行配的（当时这一行
+    # 只有 `To S, to M` 一句）。现在这一行 95.28-98.93 = **3.65 s**，写死的节奏会让 S/M 闪烁
+    # 变得又碎又重复（4 次交替、2 次换选，和画面里那张矩阵对不上拍）。
+    #
+    # 改成**按一行里有几次**来定：S/M 交替 **3 次**、每一方换一次选择（即 2 段），
+    # 并给周期一个下限，行很短时不会闪成一片。
+    _d = dur if (dur and dur > 0.6) else 1.6
+    turn_per = max(0.50, _d / 3.0)
+    pick_per = max(0.80, _d / 2.0)
+    turn = int(lt0 / turn_per) % 2                  # 0 = 轮到 S，1 = 轮到 M
     # 当前"被选中的那一路"——两个角色都还没定，所以先各按奇数帧轮着走
-    row_pick = int(lt0 / 1.6) % 2                   # S 先试监督、再试不监督
-    col_pick = int(lt0 / 1.6 + 0.5) % 2             # M 同理
+    row_pick = int(lt0 / pick_per) % 2              # S 先试监督、再试不监督
+    col_pick = int(lt0 / pick_per + 0.5) % 2        # M 同理
     DIM, HOT = 0.55, 1.0
     s_name = "\u59d4\u6258\u4eba S"                  # 委托人 S
     m_name = "\u4ee3\u7406\u4eba M"                  # 代理人 M
@@ -2299,8 +2404,13 @@ def pane_supervisory(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     }
     gw, gh = len(GLYPH["S"][0]), len(GLYPH["S"])
     total = gw * 2 + 3
-    gx0 = k.bx0 + max(0, (k.bw - total) // 2)
-    gy0 = y_note + 6
+    # **位置改成"矩阵右边那块空处"**（批 162）。用户："监察博弈动画在**矩阵旁**空旷处增加交替闪烁的
+    # S/M 字符画"。这套 5x7 点阵批 135 就有了，但它原来画在**矩阵正下方、水平居中**
+    # （`gx0 = k.bx0 + (k.bw - total)//2`、`gy0 = y_note + 6`）；而矩阵只用到
+    # `x_c1 + 18 = k.bx0 + 60`，右边还有约 35 列是空的——用户指的正是那块。
+    # 现在贴到矩阵右侧、与表头齐平，两个大字就"站在矩阵旁边"。
+    gx0 = min(max(k.bx0, k.bx1 - total - 1), x_c1 + 22)
+    gy0 = y_hdr + 1
     if gy0 + gh + 2 <= k.by1:
         for idx, (gname, grows) in enumerate(GLYPH.items()):
             on = idx == turn                          # 轮到谁，谁亮
@@ -2319,6 +2429,70 @@ def pane_supervisory(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
               "\u8f6e\u5230\u4ed6\u4e86", _ui(0.55))
 
 
+def _ex_venn(k, t: float, u: float, lt: float = None, dur: float = None) -> None:
+    """集合 F 与集合 M 的文氏图（批 146，清单2 第 6 条）。
+
+    用户："F→M动画（对应歌词 switch my gender, to F to M），当前为数 F 和 M 的异或运算，
+    感觉和歌词不搭。改为集合 F 和集合 M 相交的文氏图。集合 F 和 M 的圆框交替闪烁，
+    下方写运算：F ∪ M = Human，F ∩ M = LOVE?"。
+
+    所以画两个相交的圆（终端一格约 1 宽 2 高，纵向半径减半才是圆）：
+
+    * **两圆交替闪烁**：前半段 F 亮、后半段 M 亮（另一半只留暗骨架）；
+    * **交集那一片**单独上色——它就是 `F ∩ M`，也就是这句要说的东西；
+    * 下方两行写 `F ∪ M = Human` 与 `F ∩ M = LOVE?`。
+
+    驱动量仍然是 `lt/dur`（`_rowprog`）：`clock_probe` 传的 `u` 是常量，只认 `u` 的版本会被
+    正确判成静止。
+    """
+    import school_courses as _C
+    p = _rowprog(u, lt, dur)
+    cx = (k.bx0 + k.bx1) // 2
+    cy = (k.by0 + k.by1) // 2 - 1
+    # **半径按抽屉取，并且不许溢出**（批 146 定、**批 149 修正**）。
+    # 用户："FM集合还是有些小了，可以加大"。
+    #
+    # 实测抽屉是 `bx0=100 by0=3 bx1=194 by1=46`（`bw=95, bh=44`）。两个圆并排占
+    # `2*(r + 0.65r) = 3.3r` 列，所以**横向约束是 `r <= bw/3.3`**；
+    # 纵向每个圆占 `2*vr = r` 行（`vr = r//2`），所以**纵向约束是 `r <= bh - 8`**。
+    #
+    # 原来写的是 `min(bw//3, bh-10)`：`bw//3 = 31`，但 31 需要 `3.4*31 = 105` 列，
+    # **比抽屉宽 10 格——两个圆横向溢出**（F 圆左端到 x95、M 圆右端到 x199，抽屉只有 100-194），
+    # 于是被裁掉两侧、看着反而"小"。现在按 `bw/3.3` 取，两圆刚好铺满抽屉宽度。
+    r = max(7, min(int(k.bw / 3.3), max(7, (k.by1 - k.by0) - 8)))
+    vr = max(4, r // 2)
+    # **圆心间距 0.65r**：第一版 0.52r 时透镜宽 `2*(r-off) = 0.96r`，几乎是整个圆、
+    # 两个圆糊成一团、读不出"两个集合"；0.70r 时 `3.4r` 又超出抽屉宽度。
+    # 0.65r 下并排占 `3.3r`，`r = bw/3.3` 正好铺满，透镜约 `0.7r` 宽。
+    off = int(r * 0.65)
+    cxf, cxm = cx - off, cx + off
+    f_on = p < 0.5                     # 交替闪烁：前半 F、后半 M
+    for yy in range(k.by0 + 2, k.by1 - 2):
+        for xx in range(k.bx0, k.bx1 + 1):
+            dF = ((xx - cxf) / float(r)) ** 2 + ((yy - cy) / float(vr)) ** 2
+            dM = ((xx - cxm) / float(r)) ** 2 + ((yy - cy) / float(vr)) ** 2
+            inF, inM = dF <= 1.0, dM <= 1.0
+            if not (inF or inM):
+                continue
+            if inF and inM:
+                # 交集：填一层暗底，边界那一圈亮——`F ∩ M` 是这张图的重点
+                edge = 0.80 <= dF <= 1.0 or 0.80 <= dM <= 1.0
+                k.put(xx, yy, "\u2591" if edge else "\u00b7",
+                      _mix(_C.AMBER, 0.90 if edge else 0.30))
+            else:
+                # 只在两圆自己的**圆周**上画：`0.80 <= d <= 1.0` 是一圈壳
+                d = dF if inF else dM
+                if d < 0.80:
+                    continue
+                on = f_on if inF else (not f_on)
+                k.put(xx, yy, "\u2022" if on else "\u00b7",
+                      _mix(_C.AMBER if inF else _C.BLUE, 0.85 if on else 0.20))
+    k.put(cxf - 1, cy, "F", _mix(_C.AMBER, 0.85 if f_on else 0.30))
+    k.put(cxm, cy, "M", _mix(_C.BLUE, 0.30 if f_on else 0.85))
+    k.put(k.bx0, k.by1 - 1, "F \u222a M = Human", _mix(_C.GREEN, 0.92))
+    k.put(k.bx0, k.by1, "F \u2229 M = LOVE?", _mix(_C.AMBER, 0.95))
+
+
 def pane_hyper(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     """**第一处间奏的中段**（21.00-25.14）：超椭圆（清单第 11 条）。
 
@@ -2329,10 +2503,14 @@ def pane_hyper(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     `n` 从 1 的菱形呼吸到 6 的圆角方框）。这里只负责给它一个自己的抽屉、并把抬头换成间奏的说法
     （那一段的 `_ex_hyper` 原来是"互换"的语境）。
     """
-    k = _kit(s, x0, y0, x1, y1, 0, "\u8d85\u692d\u5706 \u00b7 \u6821\u5fbd\u91cc\u7684\u4e00\u90e8\u5206")
+    # **抬头去掉"校徽里的一部分"**（批 163，清单2 第 14 条点名）：用户："超椭圆动画抬头去掉
+    # '校徽里的一部分'"。那句话是这一格**还没独立出来**时候的来历（它原本是"替换一部分校徽动画"），
+    # 观众看的是超椭圆本身，不是校徽的零件。改成描述它**实际在动什么**：n 从 1 走到 6。
+    k = _kit(s, x0, y0, x1, y1, 0, "\u8d85\u692d\u5706")
     if k is None or k.bh < 7:
         return
-    _ex_hyper(k, t, u)
+    # `lt/dur` 也传下去：超椭圆的"完整缩涨"由这一行的进度驱动（见 `_ex_hyper` 的说明）。
+    _ex_hyper(k, t, u, lt, dur)
 
 
 def pane_fourier(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
@@ -2353,7 +2531,7 @@ def pane_fourier(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     同一秒永远同一幅，拉动进度条不会看到两种画面。
     """
     import school_courses as _C
-    k = _kit(s, x0, y0, x1, y1, 0, "\u5085\u91cc\u53f6\u5206\u6790 \u00b7 \u97f3\u4e50\u5206\u89e3")
+    k = _kit(s, x0, y0, x1, y1, 0, "\u5085\u91cc\u53f6\u5206\u6790")
     if k is None or k.bh < 8 or k.bw < 40:
         return
     lt0 = lt if lt is not None else 0.0
@@ -2445,7 +2623,7 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
     # **抬头要和里面画的东西一致**（批 98e，用户："你修改动画后，动画和动画框抬头又不对应了"）：
     # 这个 pane 的四个小面板说的是四件不同的事，抬头写死 "互换" 时，画着钟面的框上写的是"互换"。
     # 所以每个 `panel` 带自己的名字，`panel=""`（四格并排那一种）才用 "互换"。
-    TITLE = {"bits": "F \u2192 M \u00b7 3 \u4f4d", "clock": "12 \u5c0f\u65f6 \u00b7 \u53cc\u91cd\u8986\u76d6",
+    TITLE = {"bits": "F \u2192 M \u00b7 3 \u4f4d", "clock": "12 \u5c0f\u65f6\u949f\u9762",
              # **`braid` 的抬头要写"辫群"**（批 119，清单第 27 条："动画框抬头没有写辫群，加上"）：
              # 原来只有 `σ1 · 编织`，读者看不出这是辫群。`_ex_braid` 自己的 `k.section` 写的是
              # `辫群 σ1 · 可逆`，两处说法不一致，这里统一成它那一个。
@@ -2455,6 +2633,9 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
              "phyllo": "\u5411\u65e5\u8475\u53f6\u5e8f",
              "gate": "\u903b\u8f91\u95e8 \u00b7 \u6676\u4f53\u7ba1",
              "timeline": "\u65f6\u95f4\u7ebf",
+             # **`venn` 的抬头**（批 146）：这一格画的是两个集合的关系，抬头写 `F → M · 3 位`
+             # 是 `bits` 的名字，和里面的文氏图对不上（抬头必须和里面画的东西一致——批 98e 的规矩）。
+             "venn": "F \u2229 M \u96c6\u5408",
              "letters": "S \u2192 M \u00b7 \u5b57\u5f62\u7ffb\u4f4d"}
     # **抬头要和里面画的东西一致**（批 98e 的规矩，批 111 又用到一次）：40.36-45.52 这一段
     # 里面画的是 `sin x / x`（见下），所以抬头这时不能还写 `F → M · 3 位`——那是 `panel="bits"`
@@ -2466,7 +2647,7 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
         # `lim x→∞ sin x / x = 0（这不是洛必达！）`——同一张图两段两个说法。现在两段同一个。
         try:
             import school_courses as _CC
-            _CC.PANE_SUB[0] = ("lim x\u2192\u221e sin x / x = 0"
+            _CC.PANE_SUB[0] = ("\u8d8b\u4e8e\u65e0\u7a77\u5927\u65f6\u6781\u9650\u4e3a 0"
                                "\uff08\u8fd9\u4e0d\u662f\u6d1b\u5fc5\u8fbe\uff01\uff09")
         except Exception:
             pass
@@ -2487,7 +2668,7 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
     # the braid on "blind my vision", the superellipse on "we can travel".
     one = {"bits": _ex_bits, "clock": _ex_clock, "braid": _ex_braid, "hyper": _ex_hyper,
            "acdc": _ex_acdc, "phyllo": _ex_phyllo, "gate": _ex_gate,
-           "timeline": _ex_timeline, "letters": _ex_letters}.get(panel)
+           "timeline": _ex_timeline, "letters": _ex_letters, "venn": _ex_venn}.get(panel)
     if one is not None:
         # **先撒装饰、后画主体**（批 98f）。原来的顺序是反的（主体先、装饰后），而 `_motes` 的
         # 判据是 `_C.blank`——"这一格还是空的"。主体画完之后它照样认为别处是空的，于是那些
@@ -2497,11 +2678,22 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
         # 空白格很多，`_motes` 会把 `+# < * : }^ ;` 这类字符直接落在花上，那就是"框内有文字"。
         # **`gate` 也不要**（批 121）：它是一张线路图（晶体管＋真值表），撒点是"字符杂乱"
         # ——清单第 7 条点名的就是这件事。
-        if panel not in ("phyllo", "gate", "timeline"):
+        # **`clock` 也不要**（批 145）：钟面在这一批里补上了数字刻度、时针、分针、24 小时外圈，
+        # 已经是一件"满"的图；再撒 `o·` 只是在读图上加噪（用户："感觉太单调了"要的是内容，
+        # 不是撒点）。原来 `clock` 的装饰串正是 `"o·"`。
+        # **`venn` 也不要**（批 146）：这一格是两张圆 + 两行等式，`_motes` 撒的 `·` 会落在圆里
+        # 圆外、把"哪些点属于哪个集合"这件事搅浑。第 6 条要的是集合关系，不是底纹。
+        if panel not in ("phyllo", "gate", "timeline", "clock", "venn"):
             _motes(k, {"bits": "01", "clock": "o\u00b7", "braid": "/\\",
                        "hyper": "o\u00b7\u00b7", "letters": "S M \u00b7"}.get(panel, "\u00b7"),
                    t, level=0.34, seed=13)
-        one(k, t, u)
+        # **`hyper` 与 `clock` 要多收两个参数**（批 142/144）：两者的"完整一轮"都必须由
+        # `lt/dur` 驱动，而不是 `u`——`_dev/clock_probe.py` 调 pane 时 `u` 是常量 `1.0`、
+        # 只有 `lt` 在变，只认 `u` 的版本被它正确判成 `STILL / NEEDS A CLOCK`。
+        if panel in ("hyper", "clock", "venn"):
+            one(k, t, u, lt, dur)
+        else:
+            one(k, t, u)
         return
     # Four columns when the pane is wide enough for all of them, three when it is not, one when it is
     # narrow: the superellipse is the fourth of `想法.md`'s five motifs for this section and it was left
@@ -2549,7 +2741,7 @@ def _ex_timeline(k, t: float, u: float) -> None:
     * **"不要最下方的小字"** —— 删掉原来那句"同一块地方，换了三个名字 / 一条路走到今天"；
     * **"按照歌词节点应该从后往前亮"** —— 这一步**只对西安那一段**（批 122 我误改了两段，
       批 123 用户更正："西工大校史节点亮还是顺序，西安历史时间线才是倒序"）：
-      * **校史**（`Oh, we can travel`）：**顺序**，1938 → 1957 → 1970 → 2026，游标从左往右；
+      * **校史**（`Oh, we can travel`）：**顺序**，1938 → 1957 → 1970 → 2006，游标从左往右；
       * **西安**（`To AD, to BC`）：**倒序**，今天 → 明 → 唐 → 汉 → 秦 → 丰镐 → 半坡，
         游标从右端往左走——与"往公元前后回望"的歌词同向。
     """
@@ -2560,13 +2752,31 @@ def _ex_timeline(k, t: float, u: float) -> None:
     xian = t >= TRAVEL_XIAN_AT
     title = ("\u897f\u5b89 \u00b7 \u516c\u5143\u524d\u540e" if xian else "\u897f\u5de5\u5927 \u00b7 \u6821\u53f2")
     # **7 个节点**：8 个时年份标签会互相撞（`BC 1046` 与 `1370` 叠在一起，实测）。
-    # 年份写短（`BC 1046` 缩成 `1046BC` 太拗口，改成把"公元前"放到标题里），名字截 4 字。
+    # 年份写短（`BC 1046` 缩成 `1046BC` 太拗口，改成把"公元前"放到标题里）。
+    #
+    # **校史段的四个节点在批 152 全部改成核实过的全称**（清单2 第 9 条）。用户："去掉所有 24 院的
+    # 表述（比如时间线中 24 院），因为很难说当前有多少学院，改为**长安校区的建成时间**；
+    # 西工大时间线中的表述请 web search 核实，并使用**全称**"。
+    #
+    # 核实结果（2026-10 联网）：
+    #   * **1938 国立西北工学院**——建校（北洋工学院、北平大学工学院、东北大学工学院、焦作工学院
+    #     等内迁合并）；原来写"国立西工"是简称；
+    #   * **1957 西北工业大学**——由**西北工学院**与**西安航空学院**合并成立。原来这里写的是
+    #     "西安航院"，那是**参与合并的一方**、不是这一年成立的那个学校，属于表述错误；
+    #   * **1970 航空工程系并入**——中国人民解放军军事工程学院（哈军工）航空工程系并入西工大，
+    #     校名不变，所以这一格写的是**事件**而不是校名；
+    #   * **2006 长安校区启用**——用户点名要的"长安校区的建成时间"。原来这是 `2026` + "24 院 72
+    #     专业"：学院数量很难说得准，用户要求去掉。长安校区 **2006 年 9 月正式启用**
+    #     （新浪 2006-09-10《西工大长安校区昨日正式启用》、西工大新闻网《长安校区投入运行十周年》）；
+    #     `72 专业` 一并去掉——同一类"数量难说准"的表述。
     nodes = (
         (("4000BC", "\u534a\u5761"), ("1046BC", "\u4e30\u9549"), ("221BC", "\u79e6\u54b8\u9633"),
          ("202BC", "\u6c49\u957f\u5b89"), ("618", "\u5510\u957f\u5b89"), ("1370", "\u660e\u897f\u5b89"),
          ("\u4eca\u5929", "\u897f\u5b89")) if xian else
-        (("1938", "\u56fd\u7acb\u897f\u5de5"), ("1957", "\u897f\u5b89\u822a\u9662"),
-         ("1970", "\u897f\u5de5\u5927"), ("2026", "24 \u9662 72 \u4e13\u4e1a")))
+        (("1938", "\u56fd\u7acb\u897f\u5317\u5de5\u5b66\u9662"),
+         ("1957", "\u897f\u5317\u5de5\u4e1a\u5927\u5b66"),
+         ("1970", "\u822a\u7a7a\u5de5\u7a0b\u7cfb\u5e76\u5165"),
+         ("2006", "\u957f\u5b89\u6821\u533a\u542f\u7528")))
     y_axis = k.by0 + max(2, k.bh // 2)
     k.put(k.bx0, k.by0, title, _mix(_C.AMBER, 0.9))
     k.hline(k.bx0, y_axis, k.bx0 + w - 1, "\u2500", _ui(0.35))
@@ -2585,14 +2795,123 @@ def _ex_timeline(k, t: float, u: float) -> None:
         k.put(x, y_axis, "\u25cf" if lit else "\u25cb", col)
         k.put(x, y_axis - 1, "|", col)
         k.put(x - len(year) // 2, y_axis - 2, year, col)
-        k.put(x - min(len(name), 4) // 2, y_lab, name[:4], _mix(_C.AMBER, 0.85) if lit else _ui(0.40))
+        # **名字宽度按格子算，不再写死 4 字**（批 152）：校史段换成全称之后
+        # "国立西北工学院" 是 7 字、"航空工程系并入" 是 7 字，写死 4 字会被截成
+        # "国立西北"/"航空工程"——那比简称更难认。每格间距是 `span / n`，留 1 格空隙即可。
+        lab_w = max(4, min(12, span // max(1, n) - 1))
+        k.put(x - min(len(name), lab_w) // 2, y_lab, name[:lab_w],
+              _mix(_C.AMBER, 0.85) if lit else _ui(0.40))
     # 游标：西安段从右端往左走，校史段从左端往右走
     _u = min(1.0, max(0.0, prog))
     curx = k.bx0 + 2 + int(span * ((1.0 - _u) if xian else _u))
     k.put(curx, y_lab + 2, "\u25b2", _mix(_C.RED, 0.9))
 
 
-def _ex_hyper(k, t: float, u: float) -> None:
+def _rowprog(u, lt, dur) -> float:
+    """这一行演到哪儿了（0 → 1）。**用 `lt/dur`，不用 `u`。**
+
+    `u` 是"这一行走到哪儿"，但只有调用方老实传它才有效：`_dev/clock_probe.py` 调 pane 时传的是
+    **常量 `u = 1.0`、只让 `lt` 变**（批 142 实测），于是只认 `u` 的动画在探针眼里是静止的，
+    也被正确判成 `STILL / NEEDS A CLOCK`。`lt/dur`（这一行已经演了多久 / 这一行多长）
+    是播放器与探针的公共量，两个路径都对。
+    """
+    if dur and dur > 0.2 and lt is not None:
+        return max(0.0, min(1.0, float(lt) / float(dur)))
+    return max(0.0, min(1.0, float(u)))
+
+
+def _hand(k, cx: int, cy: int, r: int, vr: int, ang: float, frac: float, col) -> None:
+    """从圆心沿 `ang` 画一条指针，到 `frac` 倍半径为止。
+
+    方向决定线符：横向为主用 `─`、纵向为主用 `│`、斜的按"往右下还是往左下"分 `╲` / `╱`。
+    **不加这个函数就只能拿点凑指针**——那正是"只有一些点"的另一半原因。
+    """
+    dx = r * math.cos(ang)
+    dy = vr * math.sin(ang)
+    n = max(3, int(frac * max(abs(dx), abs(dy)) * 1.7))
+    for i in range(1, n + 1):
+        f = frac * i / n
+        x = int(round(cx + dx * f))
+        y = int(round(cy + dy * f))
+        if abs(dx) >= 2 * abs(dy):
+            ch = "\u2500"
+        elif abs(dy) >= 2 * abs(dx):
+            ch = "\u2502"
+        elif dx * dy > 0:
+            ch = "\u2572"
+        else:
+            ch = "\u2571"
+        k.put(x, y, ch, col)
+
+
+def _ex_clock(k, t: float, u: float, lt: float = None, dur: float = None) -> None:
+    """一天 24 小时走完一遍，而**表盘只转两圈**——这首歌说的就是这件事。
+
+    批 144 按清单2 第 7 条重做（画大、居中、去掉框内文字、画出 AM → PM）；
+    **批 145 又重做一次**，因为用户看完说"目前只有一些点，感觉太单调了"。
+    批 144 那一版把钟面做大了，但里面还是：一圈点 + 12 个点 + 两个弧上的点。
+    **钟该有的东西一个都没有**——没有数字刻度、没有指针。这一版把它们补上：
+
+    * **外圈 = 一整天**：24 个刻度，前 12 个是 **AM**（暖色）、后 12 个是 **PM**（蓝色），
+      一个 `●` 游标沿外圈走完 24 小时。这才是 "from AM to PM"。
+    * **内盘 = 12 小时**：12 个数字刻度（`12` 在正上，顺时针 `1`…`11`），
+      当前那一小时亮一档。
+    * **时针**走内盘，一天里**转两圈**——同一根针，上午指过 3 点，下午又指回 3 点。
+      "12 小时是 24 小时的二重覆盖"这句说明**不写出来，看这根针走两圈就懂了**。
+    * **分针**更长更细，走得快，让画面活着。
+    * 圆心 `⊕`。**没有别的文字**（批 144 已把原来那四行说明删掉）。
+
+    驱动量仍然是 `lt/dur`（`_rowprog`），理由同 `_ex_hyper`：`clock_probe` 传的 `u` 是常量。
+    """
+    import school_courses as _C
+    p = _rowprog(u, lt, dur)
+    cx = (k.bx0 + k.bx1) // 2
+    cy = (k.by0 + k.by1) // 2
+    r = max(6, min(max(6, k.bw // 2 - 6), max(6, (k.by1 - k.by0) - 8)))
+    vr = max(3, r // 2)                       # 终端一格约 1 宽 2 高，纵向半径减半才是圆
+    vr2 = max(3, (r + 3) // 2)
+    hour24 = p * 24.0
+
+    # --- 外圈：一整天 24 格。前 12 是 AM、后 12 是 PM；游标走到哪儿，那天就过到哪儿。
+    for i in range(24):
+        th = math.radians(270 + i * 15)
+        am = i < 12
+        passed = i <= hour24
+        k.put(int(round(cx + (r + 3) * math.cos(th))),
+              int(round(cy + vr2 * math.sin(th))),
+              "\u2022" if passed else "\u00b7",
+              _mix(_C.AMBER if am else _C.BLUE, 0.8 if passed else 0.20))
+    th_c = math.radians(270 + hour24 * 15)
+    k.put(int(round(cx + (r + 3) * math.cos(th_c))),
+          int(round(cy + vr2 * math.sin(th_c))),
+          "\u25cf", _mix(_C.GREEN, 1.0))
+
+    # --- 钟面本身
+    for a in range(0, 360, 4):
+        th = math.radians(a)
+        k.put(int(round(cx + r * math.cos(th))), int(round(cy + vr * math.sin(th))),
+              "\u00b7", _ui(0.18))
+
+    # --- 12 个数字刻度：`12` 在正上，顺时针 1…11
+    rr = r - 6
+    vrr = max(2, int(vr * rr / max(1, r)))
+    for h in range(12):
+        th = math.radians(270 + h * 30)
+        lab = "12" if h == 0 else str(h)
+        on = int(hour24 % 12) == h
+        k.put(int(round(cx + rr * math.cos(th))) - len(lab) // 2,
+              int(round(cy + vrr * math.sin(th))), lab,
+              _mix(_C.AMBER, 0.95) if on else _ui(0.40))
+
+    # --- 指针：时针在一天里转**两圈**（24 小时 ÷ 表盘 12 小时 = 2，这就是"二重覆盖"）
+    _hand(k, cx, cy, r, vr, math.radians(270 + (hour24 % 12) * 30), 0.60,
+          _mix(_C.AMBER, 1.0))
+    _hand(k, cx, cy, r, vr, math.radians(270 + (hour24 * 60 % 60) * 6), 0.90,
+          _mix(_C.BLUE, 0.85))
+    k.put(cx, cy, "\u2295", _mix(_C.RED, 0.95))
+
+
+def _ex_hyper(k, t: float, u: float, lt: float = None, dur: float = None) -> None:
     """`|x|^n + |y|^n = r^n`, with the exponent breathing from a diamond to a rounded square.
 
     The fifth of this section's motifs and the one the songs's line is *about*: `Switch my current` is a
@@ -2605,7 +2924,23 @@ def _ex_hyper(k, t: float, u: float) -> None:
     cy = (k.by0 + k.by1) // 2
     rx = max(3, min(12, k.bw // 3))
     ry = max(2, min(8, (k.by1 - k.by0) // 3))
-    n = 1.0 + 2.5 * (1.0 + math.sin(t * 0.45))
+    # **一整轮"缩—涨—缩"**（批 142，清单第 3 条：用户："超椭圆动画播放不太完整，要完整缩涨变化
+    # （但总时间不变）"）。
+    #
+    # 成因：原来 `n = 1 + 2.5*(1 + sin(0.45 t))`——**由绝对时钟驱动，周期 2π/0.45 ≈ 13.96 s**，
+    # 而用它的那两行都短得多（间奏里 `pane_hyper` 只有 4.14 s，`panel="hyper"` 那一行同理）。
+    # 于是一行之内只演到正弦的一部分：要么一直涨、要么一直缩，**看不到一个完整来回**。
+    #
+    # 改法的第一版我用了行进度 `u`，被 `_dev/clock_probe.py` 判成 `STILL / NEEDS A CLOCK`——
+    # 那个探针调 pane 时把 `u` 固定成 `1.0`、只让 `lt` 变。**这不是探针的毛病：`u` 是"这一行
+    # 走到哪儿"，只有调用方老实传它才有效**。所以驱动量取 **`lt/dur`**（这一行已经演了多久 /
+    # 这一行多长）——播放器与探针都会传它。
+    #
+    # `0.5 - 0.5cos(2πp)` 在 p=0 与 p=1 都是 0、p=0.5 取 1，所以 `n` 恰好走完
+    # **1（菱形）→ 6（圆角方框）→ 1（菱形）** 一整轮：涨和缩都完整，而**行的时间长度一点没动**。
+    prog = _rowprog(u, lt, dur)
+    phase = 0.5 - 0.5 * math.cos(2 * math.pi * prog)
+    n = 1.0 + 5.0 * phase
     for a in range(0, 360, 4):
         th = math.radians(a)
         ct, st = math.cos(th), math.sin(th)
@@ -2685,33 +3020,6 @@ def _ex_letters(k, t: float, u: float) -> None:
         k.put(k.bx0, k.by1, "\u626e\u6f14 \u00b7 \u6027\u522b \u00b7 \u89d2\u8272", _mix(_C.GREEN, 0.7))
 
 
-def _ex_clock(k, t: float, u: float) -> None:
-    """The twelve-hour clock: two laps of the dial are one day, and the dial does not say which."""
-    import school_courses as _C
-    k.section(k.by0, "12 \u5c0f\u65f6 \u00b7 \u53cc\u91cd\u8986\u76d6", 0.25)
-    cx = k.bx0 + min(16, k.bw // 2)
-    cy = (k.by0 + k.by1) // 2
-    r = max(3, min(9, (k.by1 - k.by0) // 3, k.bw // 5))
-    for a in range(0, 360, 6):
-        th = math.radians(a)
-        k.put(int(cx + r * math.cos(th)), int(cy + r * math.sin(th) * 0.5), "\u00b7", _ui(0.3))
-    spin = (t * 0.8) % (2 * math.pi)
-    for lap in range(2):
-        th = spin + lap * math.pi
-        k.put(int(cx + r * math.cos(th)), int(cy + r * math.sin(th) * 0.5),
-              "\u25cf" if lap == 0 else "\u25cb", _mix(_C.AMBER if lap == 0 else _C.BLUE, 0.9))
-    k.put(cx - 1, cy, "\u2295", _mix(_C.RED, 0.9))
-    # the captions go *under* the dial, clipped to the column: beside it they ran into the next panel,
-    # which the pane probe cannot see (they are inside the pane, just in the wrong panel)
-    from school_courses import _clip
-    for i, line in enumerate(("\u4e24\u5708 = \u4e00\u5929", "\u8868\u76d8\u4e0d\u544a\u8bc9\u4f60\u54ea\u4e00\u5708",
-                              "12h \u662f 24h \u7684\u4e8c\u91cd\u8986\u76d6")):
-        y = cy + r // 2 + 1 + i
-        if y <= k.by1 - 1:
-            k.put(k.bx0, y, _clip(line, k.bw), _ui(0.55 - 0.05 * i))
-    k.put(k.bx0, k.by1, "\u4e0a\u5348\u4e0e\u4e0b\u5348\u662f\u540c\u4e00\u4e2a\u4f4d\u7f6e", _ui(0.5))
-
-
 def _ex_braid(k, t: float, u: float) -> None:
     """The braid group: σ1 is two strands crossing, and its inverse undoes it."""
     import school_courses as _C
@@ -2785,7 +3093,7 @@ def pane_isolation(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     exists to catch).
     """
     import school_courses as _C
-    k = _kit(s, x0, y0, x1, y1, 0, "\u5b64\u7acb \u00b7 in isolation")
+    k = _kit(s, x0, y0, x1, y1, 0, "\u5b64\u7acb")
     if k is None:
         return
     # **框内加一幅 `ISOLATION` 字符画**（批 128/129，清单第 48 条："动画孤立框内加上字符画
@@ -2894,7 +3202,7 @@ def pane_fragments(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     `pane_ai_diffusion`'s denoise here would have spent it twice.
     """
     import school_courses as _C
-    k = _kit(s, x0, y0, x1, y1, 0, "\u5220\u9664 \u00b7 erase fragments")
+    k = _kit(s, x0, y0, x1, y1, 0, "\u5220\u9664 erase fragments")
     if k is None or k.bw < 12 or k.bh < 5:
         return
     k.section(k.by0, "\u65e0\u610f\u4e49\u7684\u788e\u7247", 0.25)
@@ -2935,6 +3243,15 @@ def pane_fragments(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
           _C._mix(_C.BLUE, 0.7))
 
 
+#: `pane_memory` 从这一刻起交给 `2^53` 的量化动画（批 161）。
+#:
+#: 那五行 `You have left` 是 **110.40 → 115.90**（5.5 s），取**正中偏后**的 113.75 为界：
+#: 前三行画 MEMORY 的层数（"在记"）、后两行画 `2^53`（"记满了"）。
+#: 取 113.75 而不是 113.15 是因为那个时刻正好是第四行的起点——**切在行边界上**，
+#: 不会让同一行里画到一半换内容（这条规矩来自清单1 的切点约定）。
+MEMORY_FULL_AT = 113.75
+
+
 def pane_memory(s, x0, y0, x1, y1, t, lt, dur, u, layers: int = 1, ghost: float = 0.42) -> None:
     """`MEMORY` - the graduation sculpture, drawn rather than characterised.
 
@@ -2953,7 +3270,33 @@ def pane_memory(s, x0, y0, x1, y1, t, lt, dur, u, layers: int = 1, ghost: float 
     grows with the layer index so that six layers read as a smear and two read as a doubled word.
     """
     import school_courses as _C
-    k = _C._Kit(s, x0, y0, x1, y1, "MEMORY", 0, 0, u)
+    # **标题也要随时间切**（批 174，用户："2^53动画处的抬头仍然是 memory，我给你说过改成
+    # `2^53 · IEEE-754 double 的边界 · 你的记忆已超上限`"）。
+    # 抬头是 `pane 自己的标题 · 排期行的 sub` 拼出来的；批 164 我只改了**行的 sub**，
+    # 而 pane 的标题还写死 `MEMORY`，于是渲染成 `MEMORY · 2^53 · IEEE-754 …`——多了一截。
+    # 现在标题在 `MEMORY_FULL_AT` 之后换成 `2^53`，行的 sub 也相应去掉开头那截。
+    _title = "2\u2075\u00b3" if t >= MEMORY_FULL_AT else "MEMORY"
+    k = _C._Kit(s, x0, y0, x1, y1, _title, 0, 0, u)
+    # **后半段换成 `2^53` 的量化动画**（批 161，用户："memory 动画是 Though you have left you have left
+    # ... 那长段歌词对应的动画" / "可以把 memory 动画的后半部分替换为 2^53 的动画，寓意为'记忆已经
+    # 填满'，与后面的擦除很好地衔接"）。
+    #
+    # 这一段歌词是连着五行的 `You have left`（110.40 / 111.98 / 112.89 / 113.75 / 114.75 → 115.90），
+    # 是一条"记忆在一层层叠上去"的长段。**前半段仍然画 MEMORY 的层数**（那是"在记"），
+    # **后半段交给 `2^53` 的量化**：`2^53` 是双精度能**精确**表示的最大整数，再往上就
+    # "记不清了"——正是"记忆已经填满"这件事，而且紧接着 119.81 那一行就是
+    # `Erase all the pointless fragments`，衔接得上。
+    #
+    # 用**绝对时刻**切，不用行内进度：这五行是同一段歌词，按行内切会变成每 1 秒切一次。
+    # 顺带解决了另一件事：`2^53` 的 `quantize` 在第 9 条之后**没有任何排期行引用它**
+    # （当时为了文氏图把 `Switch my gender` 那一行改掉了），现在它又回到片子里了。
+    if t >= MEMORY_FULL_AT:
+        try:
+            import school_motifs as _M
+            _M.quantize(k, t)
+        except Exception:
+            pass
+        return
     word = "MEMORY"
     cell_w = 6                                     # one block letter is 6 cells wide, 5 rows tall
     total = len(word) * cell_w
@@ -3060,11 +3403,24 @@ def _motif(name: str):
 
     def pane(s, x0, y0, x1, y1, t, lt, dur, u, args=None) -> None:
         title, fn = _M.MOTIFS[name]
+        # **标题可以是可调用的**（批 172）：`sine` 那一屏跨两句歌词，框内的 `k.section`
+        # 会自己切（`sin x 与切线包络` → `sin x / x`），抬头里的标题也该跟着切，
+        # 否则后半行会出现"标题写包络、画面是 sin x / x"。
+        # 可调用的标题带 `t` 调一次；字符串标题原样用（其余 motif 都是字符串，不受影响）。
+        if callable(title):
+            title = title(t)
         k = _kit(s, x0, y0, x1, y1, 0, title)
         if k is None or k.bh < 5:
             return
         band = max(4, min(k.bh - 2, _M.BAND_MAX.get(name, 99)))
-        fn(k.sub(k.bx0, k.by0 + 1, k.bx1, k.by0 + band), t)
+        sub = k.sub(k.bx0, k.by0 + 1, k.bx1, k.by0 + band)
+        # **少数画法要"这一行的进度"**（批 151）：`fork_bomb` 的指数增长必须在一行之内走完。
+        # 用一个**显式名单**，不用 `try/except TypeError`——后者会把函数内部的 TypeError 也吞掉、
+        # 变成"悄悄退回没有行时钟"，那正是要避免的静默失败。
+        if name in _M.ROW_CLOCK:
+            fn(sub, t, lt, dur)
+        else:
+            fn(sub, t)
 
     pane.__name__ = "pane_motif_" + name
     return pane
@@ -3221,7 +3577,7 @@ def draw_pane(name: str, s, x0: int, y0: int, x1: int, y1: int, t: float,
     if name == "pane_motif_sine":
         try:
             import school_motifs as _M
-            _frame_sub = ("lim x \u2192 \u221e  sin x / x = 0"
+            _frame_sub = ("\u8d8b\u4e8e\u65e0\u7a77\u5927\u65f6\u6781\u9650\u4e3a 0"
                           if t >= _M.APPROACH_INFINITY_AT
                           else "sin x \u4e0e\u5b83\u7684\u5207\u7ebf\u5305\u7edc")
         except Exception:

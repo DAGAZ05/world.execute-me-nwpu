@@ -142,30 +142,30 @@ def gauge_script(pane: str) -> str:
 # like, and each instrument answers the number being counted down. They live here rather than inside the
 # rows because `_exec_rows` builds those rows from these two tables.
 EXEC_SUB = {
-    "pane_exec_embedded": "一次执行：从复位向量到中断返回",
-    "pane_exec_c": "一次执行：main 里的语句一条条走",
-    "pane_exec_ds": "一次执行：插入之后重新平衡",
-    "pane_exec_algo": "一次执行：三种范式挑一种",
-    "pane_exec_se": "一次执行：数据沿 DFD 的箭头流一遍",
-    "pane_exec_oop": "一次执行：消息在 UML 对象间传递",
-    "pane_exec_net": "一次执行：握手三次，连上一条线",
-    "pane_exec_os": "一次执行：调度器切到下一个进程",
-    "pane_exec_co": "一次执行：一位一位地移加",
-    "pane_exec_db": "一次执行：按 EXPLAIN 走一遍索引",
-    "pane_exec_pm": "一次执行：冲激进来，响应出去",
-    "pane_exec_test": "一次执行：用例跑完，覆盖率涨一格",
-    "pane_exec_dl": "一次执行：前向一遍、反向一遍",
-    "pane_exec_compiler": "一次执行：源码穿过五步管道",
-    "pane_exec_industrial": "一次执行：整条产线的求解器跑一遍",
+    "pane_exec_embedded": "\u4e00\u6b21\u6267\u884c\uff1a\u4ece\u590d\u4f4d\u5411\u91cf\u5230\u4e2d\u65ad\u8fd4\u56de",
+    "pane_exec_c": "\u4e00\u6b21\u6267\u884c\uff1a main \u91cc\u7684\u8bed\u53e5\u4e00\u6761\u6761\u8d70",
+    "pane_exec_ds": "\u7ea2\u9ed1\u6811  \u00b7 \u4e00\u6b21\u6267\u884c\uff1a\u63d2\u5165\u4e4b\u540e\u91cd\u65b0\u5e73\u8861",
+    "pane_exec_algo": "\u5206\u6cbb /\u52a8\u89c4 /\u8d2a\u5fc3  \u00b7 \u4e00\u6b21\u6267\u884c\uff1a\u4e09\u79cd\u8303\u5f0f\u6311\u4e00\u79cd",
+    "pane_exec_se": "\u6570\u636e\u6d41\u56fe  \u00b7 \u4e00\u6b21\u6267\u884c\uff1a\u6570\u636e\u6cbf  DFD \u7684\u7bad\u5934\u6d41\u4e00\u904d",
+    "pane_exec_oop": "UML  \u00b7 \u4e00\u6b21\u6267\u884c\uff1a\u6d88\u606f\u5728 UML \u5bf9\u8c61\u95f4\u4f20\u9012",
+    "pane_exec_net": "\u4e09\u6b21\u63e1\u624b  \u00b7 \u4e00\u6b21\u6267\u884c\uff1a\u63e1\u624b\u4e09\u6b21\uff0c\u8fde\u4e0a\u4e00\u6761\u7ebf",
+    "pane_exec_os": "OpenEuler \u00b7 \u4e00\u6b21\u6267\u884c\uff1a\u8c03\u5ea6\u5668\u5207\u5230\u4e0b\u4e00\u4e2a\u8fdb\u7a0b",
+    "pane_exec_co": "\u8865\u7801\u4e58\u6cd5  \u00b7 \u4e00\u6b21\u6267\u884c\uff1a\u4e00\u4f4d\u4e00\u4f4d\u5730\u79fb\u52a0",
+    "pane_exec_db": "EXPLAIN \u4e0e B+ \u6811 \u00b7 \u4e00\u6b21\u6267\u884c\uff1a\u6309 EXPLAIN \u8d70\u4e00\u904d\u7d22\u5f15",
+    "pane_exec_pm": "\u5085\u91cc\u53f6 /\u51b2\u6fc0  \u00b7 \u4e00\u6b21\u6267\u884c\uff1a\u51b2\u6fc0\u8fdb\u6765\uff0c\u54cd\u5e94\u51fa\u53bb",
+    "pane_exec_test": "\u8986\u76d6\u7387  \u00b7 \u4e00\u6b21\u6267\u884c\uff1a\u7528\u4f8b\u8dd1\u5b8c\uff0c\u8986\u76d6\u7387\u6da8\u4e00\u683c",
+    "pane_exec_dl": "\u53cd\u5411\u4f20\u64ad  \u00b7 \u4e00\u6b21\u6267\u884c\uff1a\u524d\u5411\u4e00\u904d\u3001\u53cd\u5411\u4e00\u904d",
+    "pane_exec_compiler": "\u4e94\u6b65\u7ba1\u9053 \u00b7 \u4e00\u6b21\u6267\u884c\uff1a\u6e90\u7801\u7a7f\u8fc7\u4e94\u6b65\u7ba1\u9053",
+    "pane_exec_industrial": "\u4e00\u6b21\u6267\u884c\uff1a\u6574\u6761\u4ea7\u7ebf\u7684\u6c42\u89e3\u5668\u8dd1\u4e00\u904d",
     "pane_motif_powerdown": "十二次执行收束：N 一直数到 1",
 }
 GAUGE_SUB = {
-    "pane_gauge_burndown": "数到 ein、dos：燃尽图还剩几天",
-    "pane_gauge_pareto": "数到 ein、dos：两成模块背八成缺陷",
-    "pane_gauge_attention": "数到 trois、ne：权重压在同一个词上",
-    "pane_gauge_fem": "数到 trois、ne：连续体被切成网格",
-    "pane_gauge_assembly": "数到 fem、liu：零件按约束装成整机",
-    "pane_gauge_final": "数到 fem、liu：最后一个格子是毕设",
+    "pane_gauge_burndown": "\u71c3\u5c3d\u56fe  \xb7 \u71c3\u5c3d\u56fe\u8fd8\u5269\u51e0\u5929",
+    "pane_gauge_pareto": "\u7f3a\u9677\u5e15\u7d2f\u6258  \xb7 \u4e24\u6210\u6a21\u5757\u80cc\u516b\u6210\u7f3a\u9677",
+    "pane_gauge_attention": "\u6ce8\u610f\u529b  \xb7 \u6743\u91cd\u538b\u5728\u540c\u4e00\u4e2a\u8bcd\u4e0a",
+    "pane_gauge_fem": "FEM \xb7 \u8fde\u7eed\u4f53\u88ab\u5207\u6210\u7f51\u683c",
+    "pane_gauge_assembly": "\u88c5\u914d\u4f53 \xb7 \u96f6\u4ef6\u6309\u7ea6\u675f\u88c5\u6210\u6574\u673a",
+    "pane_gauge_final": "\u7518\u7279\u56fe \xb7 \u6700\u540e\u4e00\u4e2a\u683c\u5b50\u662f\u6bd5\u8bbe",
 }
 
 # the three countdown numbers: each is a lyric line of its own, and each carries two instruments.
@@ -306,19 +306,24 @@ SHOT_ROWS: list[dict] = [
     # crest(0.03) -> power_on(1.33) -> protection(3.58) -> class(5.16), which is also the order the
     # lyric puts them in: the protection line comes *before* "object creation", not after it.
     dict(at=1.33, name="pane_power_on", lyric="Remember to put on protection",
-         ops=["POWER_ON", "VCC", "GND", "5V"], mascot=False, sub="先接地线，再通 VCC 与 5V"),
+         ops=["POWER_ON", "VCC", "GND", "5V"], mascot=False, sub="\u5148\u63a5\u5730\u7ebf\uff0c\u518d\u901a VCC \u4e0e 5V"),
     dict(at=3.58, name="pane_protection", lyric="Lay down your pieces",
-         ops=["ESD", "STRAP", "FUSE"], mascot=False, sub="腕带、地线与保险丝，护住自己"),
+         ops=["ESD", "STRAP", "FUSE"], mascot=False, sub="\u8155\u5e26\u3001\u5730\u7ebf\u4e0e\u4fdd\u62a4\u4e1d\uff0c\u62a4\u4f4f\u81ea\u5df1"),
     dict(at=5.16, name="pane_class", lyric="And let's begin object creation",
-         ops=["CLASS", "OBJECT", "INIT"], mascot=False, sub="写下 class，造出第一个对象"),
+         ops=["CLASS", "OBJECT", "INIT"], mascot=False, sub="\u5199\u4e0b class\uff0c\u9020\u51fa\u7b2c\u4e00\u4e2a\u5bf9\u8c61"),
     dict(at=7.19, name="pane_parameters", lyric="Fill in my data parameters",
-         ops=["PARAM", "SET", "COMMIT"], mascot=False, sub="一行行填参数，齐了才 COMMIT"),
+         ops=["PARAM", "SET", "COMMIT"], mascot=False, sub="\u4e00\u884c\u884c\u586b\u53c2\u6570\uff0c\u9f50\u4e86\u624d COMMIT"),
     dict(at=9.75, name="pane_motif_he_init", lyric="Initialization",
-         ops=["He 初始化", "REPLACE"], mascot=False, sub="格点先乱、再被替成有序"),
+         ops=["He 初始化", "REPLACE"], mascot=False, sub="\u4e16\u754c\u7531\u65e0\u5e8f\u53d8\u6709\u5e8f"),
+    # **13 s 附近那个倒计时删掉**（批 164，用户："13s附近，动画框有个倒计时，左下角 sim.start 框中
+    # 也有倒计时，把动画框的这个倒计时删了吧"）。原来这里是一行 `pane_countdown`（12.47-13.20），
+    # 而**左下角 `sim.start` 那个框本来就在倒数**——同一个倒计时画了两遍。
+    # 处理办法是**把上一行（三旋臂）延长到 13.20 盖住这一段**，而不是删掉 `pane_countdown` 这个
+    # pane：pane 留着（别处/以后可能要用），只是**不再有排期行引用它**。
+    # 这样这一段时间里动画框演的还是三旋臂，倒计时只在左下角出现一次。
     dict(at=10.90, name="pane_three_arms", lyric="Set up our new world",
-         ops=["AERO", "ASTRO", "MARINE"], mascot=True, sub="航空、航天、航海，各一条旋臂"),
-    dict(at=12.47, name="pane_countdown", lyric="And let's begin the simulation",
-         ops=["RUN", "SIM", "t=0"], mascot=False, sub="3-2-1 归零，模拟从 t=0 起跑"),
+         ops=["AERO", "ASTRO", "MARINE"], mascot=True, end=13.20,
+         sub="\u822a\u7a7a\u3001\u822a\u5929\u3001\u822a\u6d77\uff08\u4e09\u822a\u7279\u8272\uff09"),
     # The gap is the campus, not the timetable. The user's audit (2026-10-03) found the four-year
     # curriculum list here, at 00:13-00:29, which is exactly the content the first act must not have:
     # the college is chosen at 02:11.9 and until then the film is about the *school*. The curriculum
@@ -329,8 +334,12 @@ SHOT_ROWS: list[dict] = [
     # The instrumental gap (13.2-29.3) has no words, so the two campus marks alternate over it rather than
     # one of them holding for sixteen seconds: the vessel, then the crest, then back. Nothing is asserted
     # by either, which is what a gap screen is for.
+    # **17.00 校徽那一行补上副标题**（批 170）。用户的抬头表里这一行是
+    # `西北工业大学 · Northwestern Polytechnical University`——标题（`西北工业大学`）本来就在画，
+    # 但这一行**没有 `sub=` 字段**，所以抬头只有前半句。补上后半句（学校的英文全称）。
     dict(at=17.00, name="pane_landmark_crest", lyric="[gap]",
-         ops=["\u6821\u5fbd", "1938"], mascot=False, ),
+         ops=["\u6821\u5fbd", "1938"], mascot=False,
+         sub="Northwestern Polytechnical University"),
     # **第一处间奏的中段：超椭圆**（批 137，清单第 11 条）。用户："第一处间奏的动画内容为
     # 校徽 + **超椭圆（替换一部分校徽动画）** + 刚才的傅里叶分析 两部分"、"超椭圆之前做过，
     # 可以改一下直接沿用"。所以这一行从"校徽"换成 `pane_hyper`——它直接调 `pane_exchange` 里
@@ -338,7 +347,7 @@ SHOT_ROWS: list[dict] = [
     # **17.00 校徽 → 21.00 超椭圆 → 25.14 傅里叶** 三段。
     dict(at=21.00, name="pane_hyper", lyric="[gap]",
          ops=["\u8d85\u692d\u5706", "n"], mascot=False, end=25.14,
-         sub="|x|^n + |y|^n = r^n\uff1a\u83f1\u5f62 \u2192 \u5706 \u2192 \u65b9\u6846"),
+         sub="\u8bbe\u5b9a\u4e0d\u540c\uff0c\u80d6\u7626\u6709\u5f02 \xb7 |x|^n + |y|^n = r^n"),
     # **第一处间奏：叶序 → 傅里叶分解**（批 136，清单第 9 + 11 条）。
     # 用户："scene12动画框沿用之前场景的动画，不要使用叶序（这段是间奏），改用傅里叶分析的动态图示
     # （音乐分解）"、"第一处间奏的动画内容为校徽 + 超椭圆 + 刚才的傅里叶分析 两部分"。
@@ -346,7 +355,7 @@ SHOT_ROWS: list[dict] = [
     # 唯一错的东西**；上一行（17.00-25.14，`pane_landmark_crest`）就是"校徽"那一半。
     dict(at=25.14, name="pane_fourier", lyric="[gap]",
          ops=["FFT", "\u8c10\u6ce2"], mascot=False,
-         sub="\u97f3\u4e50\u62c6\u6210\u8c10\u6ce2\uff1a\u4e00\u6839\u4e00\u6839\u52a0\u56de\u53bb"),
+         sub="\u97f3\u4e50\u62c6\u6210\u8c10\u6ce2\uff0c\u6790\u6784\u4e07\u7406"),
     # Batch 50 split this row for the matrix: 线性代数, 计算方法, 离散数学 and 深度学习 are all about the
     # same object and the film had none (the user: "增加矩阵的要素（线性代数、计算方法、离散数学、深度学习
     # 中均涉及矩阵）"). It belongs on this line rather than in the college section because a matrix *is* a
@@ -372,9 +381,28 @@ SHOT_ROWS: list[dict] = [
     # `If I'm a sine wave`（36.77-40.36）与 **`If I approach infinity`（40.36-41.92）**。
     # 后半段画的是 `sin x / x`（用户："请改为函数 sin x / x…并在框内进行文字说明"），
     # 所以抬头不能再写"波与它的全部切线"，ops 也不能再写 ENVELOPE。
+    #
+    # **批 163（清单2 第 14 条点名）**：用户："**sin x 包络抬头去掉 sinx/x 的描述**"。
+    # **批 171 更正**：当时我的处理是"把 sinc 的描述从这一行删掉"，那是**错的**——
+    # 用户看到的 `sin x / x` 不是错的描述，而是这一行**后半句真的在画的东西**：
+    #
+    #   `school_motifs.sine` 第 16-18 行：`if t >= APPROACH_INFINITY_AT: _sine_over_x(k, t); return`
+    #   `APPROACH_INFINITY_AT` = 40.36，正是 `If I approach infinity` 那一句。
+    #
+    # 所以这一行**跨了两句歌词、两个动画，却只有一个抬头**——用户在 41.9 s 截图里看到的
+    # 画面是 `sin x / x`、抬头却写着包络，根因就在这里。删掉描述只是把不一致藏起来。
+    #
+    # **正确做法是按 40.36 拆行**（下一条）。`sine` 是按 `t` 判断切不切的、与行进度 `u` 无关，
+    # 所以拆行**不会**破坏它的切换：后半行照样画 sinc。
     dict(at=36.77, name="pane_motif_sine", lyric="If I'm a sine wave",
-         ops=["正弦", "sin x / x", "趋近 0"], mascot=False,
-         sub="sin x / x：振荡在衰减，极限是 0"),
+         ops=["\u6b63\u5f26", "\u5e45\u503c 1", "\u5207\u7ebf\u5305\u7edc"], mascot=False,
+         sub="\u6b63\u5f26\u4e0e\u5b83\u7684\u5207\u7ebf\u5305\u7edc\uff0c\u6211\u4e0e\u4f60\u76f8\u5bb9",
+         end=40.36),
+    # 后半行：`If I approach infinity`（40.36-41.92），框内画的是 `sin x / x`。
+    # 抬头现在是它自己的那句（用户表里写的是 `sin x / x · 趋于无穷大时极限为 0（这不是洛必达！）`）。
+    dict(at=40.36, name="pane_motif_sine", lyric="If I approach infinity",
+         ops=["sin x / x", "\u6781\u9650", "sinc"], mascot=False,
+         sub="\u8d8b\u4e8e\u65e0\u7a77\u5927\u65f6\u6781\u9650\u4e3a 0\uff08\u8fd9\u4e0d\u662f\u6d1b\u5fc5\u8fbe\uff01\uff09"),
     # The overlay stops at the end of P1 and the film's own 97-shot table takes the column back from
     # here to the end of the song. That is not a gap left by accident: a school pane only exists where
     # the school content exists, and the alternative - holding the last pane on screen for 166 seconds
@@ -404,7 +432,7 @@ LANDMARK_ROWS: list[dict] = [
     # a zero-length span, so `pane_power_on` was never drawn at all. Caught by the sweep, which reports
     # non-positive spans rather than dropping them.
     dict(at=0.03, name="pane_landmark_crest", lyric="Switch on the power line",
-         ops=["NWPU", "1938", "1957"], mascot=False, sub="通电，校徽先亮"),
+         ops=["NWPU", "1938", "1957"], mascot=False, sub="\u901a\u7535\uff0c\u6821\u5fbd\u70b9\u4eae"),
     # `pane_power_on` is *not* repeated here: it is a `SHOT_ROWS` row. Listing it in both places is
     # what produced the collision this comment replaced - the crest and the board both wanted 0.03 s.
     # "unite" / "deeply" / "only God": the two hands - but at three *short* appearances, not three
@@ -417,31 +445,31 @@ LANDMARK_ROWS: list[dict] = [
     # of a day, the braid group σ1), and it is drawn by `school_scenes.pane_exchange`. Four rows, one per
     # motif, on the line each belongs to rather than all four small at once for twelve seconds.
     dict(at=41.92, name="pane_exchange", lyric="Switch my current",
-         ops=["XOR", "F\u2192M", "3 bits"], mascot=False, args=dict(panel="bits"), sub="三位取反：电流从 F 换向 M"),
+         ops=["XOR", "F\u2192M", "3 bits"], mascot=False, args=dict(panel="bits"), sub="\u8d8b\u4e8e\u65e0\u7a77\u5927\u65f6\u6781\u9650\u4e3a 0\uff08\u8fd9\u4e0d\u662f\u6d1b\u5fc5\u8fbe\uff01\uff09"),
     # AC/DC：用户批 119（清单第 25 条）"动画框内展出应当是直流、交流电示意" ⇒ `panel="acdc"`。
     dict(at=45.52, name="pane_exchange", lyric="To AC, to DC",
          ops=["AC", "DC", "RECTIFY"], mascot=False, args=dict(panel="acdc"),
-         sub="\u4ea4\u6d41\u53d8\u76f4\u6d41\uff1a\u6574\u6d41 \u2192 \u6ee4\u6ce2"),
+         sub="\u6574\u6d41  \u2192 \u6ee4\u6ce2"),
     # 辫群（对应 `and then blind my vision`）。
     dict(at=47.27, name="pane_exchange", lyric="And then blind my vision",
          ops=["\u03c31", "BRAID"], mascot=False, args=dict(panel="braid"),
-         sub="\u4e24\u80a1\u7ebf\u4e00\u4ea4\u53c9\uff0c\u89c6\u7ebf\u5c31\u65ad\u4e86"),
+         sub="\u590d\u6742\u7684\u7f20\u7ed5\u8fc7\u7a0b\uff0c\u8ba9\u89c6\u7ebf\u8ff7\u79bb"),
     # **`so dizzy, so dizzy`（49.11）单独一行**（批 119，清单第 27 条）：它原来落在上面那一行里，
     # 于是同一行要演"辫群"和"向日葵叶序"两张**不同的画**——pane 的格子不会自己清，两段笔迹会叠。
     # 分成两行，各画各的。叶序**框内不留文字**（`phyllotaxis(titles=False)`）。
     dict(at=49.11, name="pane_exchange", lyric="So dizzy, so dizzy",
          ops=["PHYLLO", "137.5\u00b0"], mascot=False, args=dict(panel="phyllo"),
-         sub="\u5411\u65e5\u8475\u53f6\u5e8f"),
+         sub="137.5\xb0 \u9ec4\u91d1\u89d2\uff0c\u91c7\u96c6\u70ab\u76ee\u9633\u5149"),
     # **`Oh, we can travel` 与 `To AD, to BC` 各占一行**（批 121，清单第 29 条）：它们是**两张
     # 不同的时间线**（西工大校史 / 西安的公元前后），而 pane 的格子不会自己清——批 119 的教训。
     # **原来是 `hyper`（超椭圆），已改成 `timeline`**：这份清单第 29 条就是"当前为超椭圆，改为
     # 时间线"。
     dict(at=50.95, name="pane_exchange", lyric="Oh, we can travel",
-         ops=["1938", "1957", "1970", "2026"], mascot=False, args=dict(panel="timeline"),
-         sub="\u4e00\u6761\u8def\u8d70\u5230\u4eca\u5929\uff1a1938 \u2192 1957 \u2192 1970 \u2192 2026"),
+         ops=["1938", "1957", "1970", "2006"], mascot=False, args=dict(panel="timeline"),
+         sub="\u5982\u679c\u80fd\u56de\u52301938"),
     dict(at=52.99, name="pane_exchange", lyric="To AD, to BC",
          ops=["BC 202", "AD 618", "\u4eca"], mascot=False, args=dict(panel="timeline"),
-         sub="\u540c\u4e00\u5757\u5730\u65b9\uff0c\u6362\u4e86\u4e09\u4e2a\u540d\u5b57\uff1a\u6c49\u957f\u5b89 \u2192 \u5510\u957f\u5b89 \u2192 \u897f\u5b89"),
+         sub="\u4ece\u53e4\u90fd\u56de\u7738\u5f80\u4e8b\u6570\u5343\u5e74"),
     # **`If I can, if I can`（58.65）起放双星旋进**（批 124，清单第 33 条："歌词第一次
     # if I can, if I can 开始就放双星旋进动画"）。
     # **这个 pane 本来就有**：`pane_motif_binary`（`school_motifs.binary`，抬头就是"双星旋进"），
@@ -455,7 +483,7 @@ LANDMARK_ROWS: list[dict] = [
     # 那个位置现在给了 YOLO 打标。
     dict(at=128.42, name="pane_motif_pixelsort", lyric="You have made some",
          ops=["PIXELSORT", "\u6392\u5e8f"], mascot=False, end=130.74,
-         sub="\u6742\u8272\u6309\u4eae\u5ea6\u6392\u6210\u4e00\u5217"),
+         sub="\u6211\u8bd5\u56fe\u6e32\u67d3\u5fc3\u7eea"),
     # **`Illegal arguments`（130.74）→ IEEE-754**（批 127，清单第 52 条："illegal arguments
     # 歌词处动画框内改为：IEEE-754 精度丢失 → Infinity → NaN 的动画演出"）。
     # 到 136.90（学院闸门）为止；批 124 为了不留空洞临时让像素排序顶到 136.90，
@@ -463,13 +491,22 @@ LANDMARK_ROWS: list[dict] = [
     # 那条理由要删掉**。
     dict(at=130.74, name="pane_ieee754", lyric="Illegal arguments",
          ops=["IEEE-754", "Inf", "NaN"], mascot=False, end=136.90,
-         sub="\u7cbe\u5ea6\u4e22\u5931 \u2192 Infinity \u2192 NaN"),
+         sub="\u7cbe\u5ea6\u4e22\u5931  \u2192 Infinity \u2192 NaN"),
     # Acts 1 and 2 only (`max_phase=1`): `unite` shows the hands approaching and `deeply` the star
     # between them. **Act 3 - the star alone - is its own row at 84.60**, on the lyric `02b §3.3` pins
     # it to; it used to be the tail of this row, which put "只剩那颗星" under `If I can, if I can` at
     # ~57 s. See `pane_landmark_dialogue`.
+    # **拆成两句**（批 148，清单2 第 5 条）：用户："目前歌词 And we can unite, so deeply so deeply
+    # 对应的动画为对话雕塑。现在修改为：歌词 And we can unite 对应对话雕塑，so deeply so deeply
+    # 对应动画调整为衍射星芒"。
+    # 原来这一行 54.74-58.65 一句 `pane_landmark_dialogue` 盖住了两句歌词，现在在 56.79
+    # （`So deeply, so deeply` 的时刻）切开：前一句留雕塑，后一句给星芒。
     dict(at=54.74, name="pane_landmark_dialogue", lyric="And we can unite",
-         ops=["UNITE", "\u5bf9\u8bdd"], mascot=False, args=dict(max_phase=1), sub="两只手将触未触：这就是「合」"),
+         ops=["UNITE", "\u5bf9\u8bdd"], mascot=False, end=56.79,
+         args=dict(max_phase=1), sub="\u4eba\u673a\u534f\u540c\uff0c\u8fd9\u662f\u300c\u5408\u300d"),
+    dict(at=56.79, name="pane_motif_stardiff", lyric="So deeply, so deeply",
+         ops=["DIFFRACT", "星芒"], mascot=False, end=58.65,
+         sub="\u661f\u5149\u4e00\u70b9\uff0c\u644a\u6210\u4e00\u7247\uff0c\u6df1\u9083\u7470\u4e3d"),
     # **The binary stars had 1.43 s and that was not enough to watch** (batch 56, the user: "双星旋进的时间
     # 太短了，适当加点"). The row is what the drawing reads for its own clock (`school_motifs._row_span`),
     # so lengthening the row *is* lengthening the inspiral: 60.57-64.29 is 3.72 s, of which 0.45 s is the
@@ -487,7 +524,7 @@ LANDMARK_ROWS: list[dict] = [
     # （`school_motifs._row_here`），所以并合正好落在 60.57——`Give you all the simulations`
     # 这一句上，之后画的是并合后的残骸（一颗亮星 + 一圈扩散的环，随拍脉动）。
     dict(at=60.57, name="pane_motif_binary", lyric="Give you all the simulations",
-         ops=["0101", "模拟"], mascot=False, end=62.41, sub="两颗星越绕越近，直到并合"),
+         ops=["0101", "模拟"], mascot=False, end=62.41, sub="\u5c06\u878d\u5408\u7684\u59ff\u6001\u6a21\u62df"),
     # 62.00-70.00 was the cat, held for eight seconds across five different lines - including "I will run
     # the execution", which is not a cat. The cat belongs on the two lines that *are* a cat (80.93,
     # below); here the hands carry "Then I can / satisfaction" and the conditional device carries
@@ -504,22 +541,27 @@ LANDMARK_ROWS: list[dict] = [
     # 到 66.17 为止（3.76 s，比原来的 1.88 s 宽裕，三拍因此重新配时）。
     dict(at=62.41, name="pane_yolo", lyric="Then I can, then I can",
          ops=["YOLO", "satisfaction"], mascot=False, end=66.17,
-         sub="\u4e00\u4e2a\u68c0\u6d4b\u6846 \u00b7 \u4e00\u4e2a\u6807\u7b7e"),
+         sub="\u6ee1\u610f\u5177\u6709\u6700\u9ad8\u7f6e\u4fe1\u5ea6"),
     dict(at=66.17, name="pane_motif_galaxy", lyric="If I can make you happy",
-         ops=["GALAXY", "星系"], mascot=False, sub="星星按引力排队，旋成三条臂"),
+         ops=["GALAXY", "星系"], mascot=False, sub="\u661f\u661f\u6309\u5f15\u529b\u6392\u961f"),
     dict(at=70.02, name="pane_motif_en_limit", lyric="Though we are trapped",
-         ops=["存在n", "LIMIT"], mascot=False, sub="被困住，也收敛到一点"),
+         ops=["存在n", "LIMIT"], mascot=False, sub="\u88ab\u56f0\u4f4f\u5728\u6536\u655b\u503c"),
     # 万物皆点 is three couplets - eggplant, tomato, cat - and the film cuts on each one. All three panels
     # held for 11.07 s was the user's example of a performance that outlasts its lyric ("右边panel的西红柿
     # 那个光谱界面占了过长时间，和左侧歌词都不对应了"): the spectrum was still on screen while the words
     # had moved on to the cat. Now each panel gets its own couplet, and the cat - which had the wrong row
     # entirely - gets the two lines about a tabby.
+    # **抬头随内容一起改**（批 159，清单2 第 11 条）：这一格从"田间-加工-运输"的物流链改成了
+    # "茄子在人体内分解的路径及产物"，而抬头原来还写着"茄子的营养：从土壤一路到餐桌"——
+    # 那句话描述的是**已经不存在的那张图**（批 98e 的规矩：抬头必须和里面画的东西一致）。
     dict(at=73.53, name="pane_everything_point", lyric="If I'm an eggplant",
-         ops=["USDA", "\u8425\u517b\u6d41\u5411"], mascot=False, args=dict(panel="food"), sub="茄子的营养：从土壤一路到餐桌"),
+         ops=["\u53e3\u8154", "\u80c3", "\u5c0f\u80a0", "\u5927\u80a0"], mascot=False,
+         args=dict(panel="food"),
+         sub="\u4e00\u6839\u8304\u5b50\u7ecf\u4eba\u4f53\u6d88\u5316\uff0c\u80fd\u91cf\u9010\u7ea7\u51cf\u5c11"),
     dict(at=77.16, name="pane_everything_point", lyric="If I'm a tomato",
-         ops=["444nm", "472nm", "503nm"], mascot=False, args=dict(panel="tomato"), sub="番茄吸收 444/472/503 nm"),
+         ops=["444nm", "472nm", "503nm"], mascot=False, args=dict(panel="tomato"), sub="\u756a\u8304\u5438\u6536 444/472/503 nm"),
     dict(at=80.93, name="pane_landmark_cat", lyric="If I'm a tabby cat",
-         ops=["\u732b\u5b66\u957f", "\u5b57\u7b26\u753b", "\u53e0\u52a0\u6001"], mascot=False, sub="猫学长：又生又死的叠加态"),
+         ops=["\u732b\u5b66\u957f", "\u5b57\u7b26\u753b", "\u53e0\u52a0\u6001"], mascot=False, sub="\u53c8\u751f\u53c8\u6b7b\u7684\u53e0\u52a0\u6001"),
     # 84.6-110.4 is the last verse's "only God / switch my gender / trance" run: the switch lines belong to
     # the swap pane (a gender switch is the same three-bit flip as a current switch), the "if I can / feel
     # your vibrations" lines to the conditional device, and "finally be completion" to the Love class - the
@@ -533,35 +575,51 @@ LANDMARK_ROWS: list[dict] = [
     # 一闪而过对话雕塑，请删除，这段歌词对应的动画改为 斯宾诺莎对于上帝为唯一实体（∃!）的证明"。
     # 那一闪而过的就是这条 `pane_landmark_dialogue` 的 `phase=2`（"手放下了，只剩那颗星"）。
     # `pane_landmark_dialogue` 本身没删——它还在 54.74 那一行演"两只手"。
+    # **两句都归斯宾诺莎**（批 148，清单2 第 5 条）：用户："原来衍射星芒动画删除（当前对应歌词
+    # then you're the proof of my existence），改为歌词 If I'm the only god, then you're the
+    # proof of my existence **两句均对应斯宾诺莎证明的动画**（注意展示速度要调）"。
+    # 所以 86.21 那一行的 `pane_motif_stardiff` 删掉，并进这一行（84.60-88.34，3.74 s）；
+    # `pane_spinoza` 里的步长原本按 1.61 s 配的，也一并按行时长铺开（见 `pane_spinoza`）。
     dict(at=84.60, name="pane_spinoza", lyric="If I'm the only God",
-         ops=["E!", "SUBSTANCE"], mascot=False,
-         sub="\u53ea\u6709\u4e00\u4e2a\u5b9e\u4f53\uff1a\u5c5e\u6027\u4e0d\u540c\u3001\u6837\u5f0f\u4e0d\u540c\uff0c\u4e24\u6761\u90fd\u4e0d\u6210\u7acb"),
-    dict(at=86.21, name="pane_motif_stardiff", lyric="Then you're the proof of my existence",
-         ops=["STAR", "衍射"], mascot=False, sub="你在，就是我在的证据"),
-    dict(at=88.34, name="pane_motif_quantize", lyric="Switch my gender",
-         ops=["QUANTIZE", "3 bits"], mascot=False, sub="性别与电流是同一个开关"),
-    dict(at=92.00, name="pane_motif_chladni", lyric="From AM to PM",
-         ops=["CHLADNI", "节点"], mascot=False, sub="频率一换，节点就换一组"),
-    dict(at=95.28, name="pane_motif_fork_bomb", lyric="Oh, switch my role",
-         ops=["FORK", "角色"], mascot=False, end=97.32, sub="换个角色就指数膨胀"),
-    # **`To S, to M`（97.32）→ 监察博弈**（清单第 31 条："oh, switch my role, to s to m 歌词处改为
-    # 博弈论监察博弈（supervisory game）的支付矩阵，博弈中的两个角色（委托人 S，代理人 M）交替闪烁"）。
-    # 原来这一处钉的是 `pane_exchange`/`letters`（"S 与 M：一个字的两个身份，来回翻"）——那是字形
-    # 互换、不是博弈；那条钉子已撤。**切开 95.28 那一行**（把它的 `end` 改成 97.32、这里新起一行），
-    # 不是新插一条同 `at` 的行（那会造出零长行）。
-    dict(at=97.32, name="pane_supervisory", lyric="To S, to M",
-         ops=["S", "M", "支付矩阵"], mascot=False,
-         sub="委托人 S 选行 · 代理人 M 选列"),
+         ops=["E!", "SUBSTANCE"], mascot=False, end=88.34,
+         sub="E! 1 \xb7 \u795e\u662f\u552f\u4e00\u5b9e\u4f53"),
+    # **`switch my gender` + `to F, to M` 两句 = 集合 F 与 M 的文氏图**（批 146，清单2 第 6 条）。
+    # 用户："To F, to M的前一句是 switch my gender，我要求的是文氏图对应 switch my gender,
+    # to F to M 两句，和 switch my current 没有任何关系"。
+    #
+    # 所以这一行**按 89.91 那一句的后边界 91.44 切**（`And then do whatever` 在 91.44，
+    # 它属于 `from AM to PM` 那个钟面，归下一行），一行正好盖住这两句。
+    # 原来这一行的 `pane_motif_quantize`（`2^53` 浮点量化）**没有别的行用它**——见下面那条记录。
+    dict(at=88.34, name="pane_exchange", lyric="Switch my gender",
+         ops=["F", "M", "\u96c6\u5408"], mascot=False, end=91.44,
+         args=dict(panel="venn"), sub="\u76f8\u5f02\u53c8\u76f8\u4ea4"),
+    # 钟面从 **91.44** 起（原来 92.00）：`And then do whatever, from AM to PM` 是两句，
+    # 前一句 91.44 原来落在那条量化行里。`panel=clock` 由 93.52 的钉子钉上（见 `THEME_PINS`）。
+    dict(at=91.44, name="pane_motif_chladni", lyric="From AM to PM",
+         ops=["CHLADNI", "节点"], mascot=False, sub="\u4ece\u65e9\u5230\u665a\uff0c\u4e00\u5929\u88ab\u8986\u76d6\u4e24\u6b21"),
+    # **两句都归监察博弈**（批 150，清单2 第 8 条）：用户："目前歌词 Oh, switch my role 对应
+    # fork炸弹动画，去掉该动画，改为歌词 Oh, switch my role, to S to M **两句歌词均对应监察博弈
+    # 动画**（相应播放速度、SM字符交替闪烁要调整）"。
+    #
+    # 所以原来这一行的 `pane_motif_fork_bomb` 撤掉、并进下一行，`pane_supervisory` 从 97.32
+    # **提前到 95.28**，一行 95.28-98.93（**3.65 s**，原来它只有 1.61 s）。
+    # fork 炸弹没有删代码，按用户要求**转移到学院部分**（见 167.75 那一行）。
+    #
+    # `pane_supervisory` 里的 S/M 交替闪烁与双方换选是写死 0.8 s / 1.6 s 的，行长了之后
+    # 会显得碎——已改成按行时长铺开（见 `pane_supervisory`）。
+    dict(at=95.28, name="pane_supervisory", lyric="Oh, switch my role",
+         ops=["S", "M", "支付矩阵"], mascot=False, end=98.93,
+         sub="\u59d4\u6258\u4eba  S / \u4ee3\u7406\u4eba  M"),
     dict(at=98.93, name="pane_motif_lattice", lyric="So we can enter",
          ops=["LATTICE", "TRANCE"], mascot=False, sub="向消失点收缩，入口在深处"),
     dict(at=101.13, name="pane_motif_moire", lyric="The trance, the trance",
-         ops=["MOIRE", "TRANCE"], mascot=False, sub="两层栅格错开，就进入恍惚"),
+         ops=["MOIRE", "TRANCE"], mascot=False, sub="\u4e24\u5c42\u6805\u683c\u9519\u5f00\uff0c\u4ee4\u4eba\u604d\u60da"),
     # The superellipse played twice (here and in the 互换 panel at 50.95). The user's rule is
     # once, so this slot is the resonance curve - the row covers "Feel your vibrations" (batch 34).
     dict(at=103.03, name="pane_motif_resonance", lyric="If I can, if I can",
-         ops=["f0", "RESONANCE", "Q=6"], mascot=False, sub="f0 处最高：条件对上才响"),
+         ops=["f0", "RESONANCE", "Q=6"], mascot=False, sub="\u6211\u4e0e\u4f60\u540c\u9891\u5171\u632f"),
     dict(at=106.84, name="pane_motif_epicycles", lyric="Then I can, then I can",
-         ops=["EPICYCLE", "FOURIER"], mascot=False, sub="一个圆套一个圆，画出那颗心"),
+         ops=["EPICYCLE", "FOURIER"], mascot=False, sub="\u4e00\u4e2a\u5706\u5957\u4e00\u4e2a\u5706\uff0c\u753b\u51fa\u5b8c\u6574\u7684\u5fc3"),
     # "Challenging your God": the sword, as the accusation
     dict(at=125.33, name="pane_landmark_sword", lyric="Challenging your God",
          ops=["\u94f8\u5251", "CHALLENGE"], mascot=False, sub="把质问铸成一把剑"),
@@ -575,29 +633,40 @@ LANDMARK_ROWS: list[dict] = [
     # (02:41.5 to the end), which is where the last two panes above stop. They are the four moments
     # `02b_图像对位与可视化表达.md` §4.3-4.6 names, and each is pinned to the lyric it belongs to rather
     # than to a share of the time.
-    dict(at=162.23, name="pane_converge", lyric="If I can, if I can",         ops=["DFD", "ER", "\u6d3b\u52a8\u56fe", "\u72b6\u6001\u56fe", "\u2192", "CLASS"], mascot=False, sub="四张图收进一个类"),
+    dict(at=162.23, name="pane_converge", lyric="If I can, if I can",         ops=["DFD", "ER", "\u6d3b\u52a8\u56fe", "\u72b6\u6001\u56fe", "\u2192", "CLASS"], mascot=False, sub="多张图收进一个类"),
     # Euclid I.47 was a plate about proof on a line about *selection*; this is the selection (batch 34)
-    dict(at=166.05, name="pane_motif_one_path", lyric="Be your only execution",
-         ops=["ONE PATH", "唯一执行"], mascot=False, sub="十六个分支，只亮一条路"),
+    # **学院部分再拆一次**（批 150，清单2 第 8 条）：用户："fork炸弹动画转移到学院部分，
+    # 当前动画 one path 对应歌词 then I can then I can, be your only execution，现在改为
+    # 歌词 then I can then I can 对应动画 one path，歌词 be your only execution 对应 fork炸弹"。
+    #
+    # 原来这一行 166.05-169.61 是 `pane_motif_one_path`，但它一句盖住了两句歌词
+    # （`Then I can, then I can` 在 166.05、`Be your only execution` 在 167.75）。
+    # 在 **167.75** 切开：前半留给 one path，后半换成 fork 炸弹（从学校段 95.28 挪过来的那个）。
+    dict(at=166.05, name="pane_motif_one_path", lyric="Then I can, then I can",
+         ops=["ONE PATH", "唯一执行"], mascot=False, end=167.75,
+         sub="十六个分支，只亮一条路"),
+    dict(at=167.75, name="pane_motif_fork_bomb", lyric="Be your only execution",
+         ops=["FORK", "角色"], mascot=False, end=169.61,
+         sub="同一个函数调用自己：一次变两个、两个变四个"),
     dict(at=169.61, name="pane_backlog", lyric="If I can have you back",
-         ops=["SCRUM", "TODO", "DOING", "DONE"], mascot=False, sub="把你从 DONE 挪回 TODO"),
+         ops=["SCRUM", "TODO", "DOING", "DONE"], mascot=False, sub="\u628a\u4f60\u4ece  DONE \u632a\u56de  TODO"),
     # The four AI motifs. They are laid out around `shot_collapse` (174.90-177.50), which the TUI draws
     # full-bleed *in this variant too* - the film's picture collapses into a line and a dot, and there is
     # no chrome left to draw a pane in. The first version of this table put `pane_ai_rl` at 175.31, where
     # the column is empty for its whole life and the pane is simply not on screen. Two motifs before the
     # collapse and two after it also gives that moment something to divide.
     dict(at=171.31, name="pane_ai_cnn", lyric="If I can have you back",
-         ops=["CONV", "KERNEL", "FEATURE MAP"], mascot=False, sub="卷积核扫一遍，认出这段回忆"),
+         ops=["CONV", "KERNEL", "FEATURE MAP"], mascot=False, sub="\u7279\u5f81\u56fe  \xb7 \u5377\u79ef\u6838\u626b\u4e00\u904d\uff0c\u8ba4\u51fa\u8fd9\u6bb5\u56de\u5fc6"),
     dict(at=173.10, name="pane_ai_attention", lyric="Though we are trapped",
-         ops=["Q", "K", "V", "SOFTMAX"], mascot=False, end=174.90, sub="Q 在 K 里找最像的那一段"),
+         ops=["Q", "K", "V", "SOFTMAX"], mascot=False, end=174.90, sub="\u6743\u91cd\u77e9\u9635  \xb7 Q \u5728  K \u91cc\u627e\u6700\u50cf\u7684\u90a3\u4e00\u6bb5"),
     # the film's own collapse, 174.90-177.50, with no pane behind it: `shot_collapse` is drawn
     # full-bleed in this variant too, so a name here would be a pane nobody can see
     dict(at=174.90, name=None, lyric="Though we are trapped", ops=["COLLAPSE"], mascot=False,
          end=177.50),
     dict(at=177.50, name="pane_ai_rl", lyric="I've studied, I've studied",
-         ops=["POLICY", "ROLLOUT", "ADVANTAGE"], mascot=False, sub="试很多遍，取优势最大的那条"),
+         ops=["POLICY", "ROLLOUT", "ADVANTAGE"], mascot=False, sub="\u5956\u52b1  \xb7 \u8bd5\u5f88\u591a\u904d\uff0c\u53d6\u4f18\u52bf\u6700\u5927\u7684\u90a3\u6761"),
     dict(at=179.30, name="pane_ai_diffusion", lyric="I've studied, I've studied",
-         ops=["NOISE", "DENOISE", "\u6b65\u6570"], mascot=False, sub="从噪声里一步步找出你"),
+         ops=["NOISE", "DENOISE", "\u6b65\u6570"], mascot=False, sub="\u53bb\u566a  \xb7 \u4ece\u566a\u58f0\u91cc\u4e00\u6b65\u6b65\u627e\u51fa\u4f60"),
     dict(at=181.20, name="pane_knowledge", lyric="I've studied, I've studied",
          ops=["STUDIED", "\u77e5\u8bc6\u56fe\u8c31"], mascot=False, sub="学过的东西连成一张网"),
     # The curriculum, moved here from 00:13 where the audit found it: this is the answer to the college
@@ -639,8 +708,8 @@ LANDMARK_ROWS: list[dict] = [
     # out of the MEMORY run, which had six rows of the same word. What the closing chapter needed instead
     # was the subject the software-engineering chapter is for; see `pane_sw_project` at 187.97.
     dict(at=187.97, name="pane_sw_project", lyric="Though you are free",
-         ops=["\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406", "\u8f6f\u4ef6\u5f00\u53d1\u7efc\u5408\u8bad\u7ec3"],
-         mascot=False, sub="自由也得排进甘特图"),
+         ops=["\u654f\u6377", "\u51b2\u523a", "\u770b\u677f"],
+         mascot=False, sub="\u81ea\u7531\u65f6\u5149\u4e5f\u5f97\u6392\u8fdb\u7518\u7279\u56fe"),
     # MEMORY: one more layer on every "You have left", then down to one, then none.
     #
     # This is the one place in the film where a pane is drawn *differently* on lines that are otherwise
@@ -663,22 +732,34 @@ LANDMARK_ROWS: list[dict] = [
          ops=["MEMORY", "x3"], mascot=False, args=dict(layers=3), sub="你走一次，就多叠一层"),
     dict(at=112.89, name="pane_memory", lyric="You have left",
          ops=["MEMORY", "x4"], mascot=False, args=dict(layers=4), sub="你走一次，就多叠一层"),
+    # **这两行的前半段已经不是 MEMORY 了**（批 164，用户："113.75-114.75 和 114.75-115.90 原本
+    # memory 处，现在是 2^53，把 pane_memory 改了，抬头写成
+    # `2^53 · IEEE-754 double 的边界 · 你的记忆已超上限`"）。
+    # 批 161 把 `pane_memory` 的后半段换成了 `2^53` 的量化（`MEMORY_FULL_AT = 113.75`），
+    # 但这两行的抬头还写着 MEMORY 的那句——抬头和内容对不上了。现在改成用户给的那句。
+    # **抬头 = pane 标题 + 这行的 sub**（批 174）。批 164 我改过这两行的 sub，但**批 165 的批量套用
+    # 把它覆盖回去了**——那一次是拿"你当时的表"整体套用，而那张表是批 164 之前生成的，
+    # 里面这两行还是 `你走一次，就多叠一层`。所以你在成片里看到的一直是 MEMORY 那句。
+    # 现在：pane 的标题在 `MEMORY_FULL_AT` 之后切成 `2^53`（见 `pane_memory`），
+    # 这里的 sub 只留后半截，拼起来正好是你要的那一整句。
     dict(at=113.75, name="pane_memory", lyric="You have left",
-         ops=["MEMORY", "x5"], mascot=False, args=dict(layers=5), sub="你走一次，就多叠一层"),
+         ops=["2^53", "IEEE-754"], mascot=False, args=dict(layers=5),
+         sub="IEEE-754 double \u7684\u8fb9\u754c \u00b7 \u4f60\u7684\u8bb0\u5fc6\u5df2\u8d85\u4e0a\u9650"),
     dict(at=114.75, name="pane_memory", lyric="You have left",
-         ops=["MEMORY", "x6"], mascot=False, args=dict(layers=6), sub="你走一次，就多叠一层"),
+         ops=["2^53", "IEEE-754"], mascot=False, args=dict(layers=6),
+         sub="IEEE-754 double \u7684\u8fb9\u754c \u00b7 \u4f60\u7684\u8bb0\u5fc6\u5df2\u8d85\u4e0a\u9650"),
     # "You have left me in isolation": the field emptying, one point left
     dict(at=115.90, name="pane_isolation", lyric="You have left me in isolation",
-         ops=["ISOLATION", "\u4e00\u4e2a\u70b9"], mascot=False, sub="只剩一个点：场里没人了"),
+         ops=["ISOLATION", "\u4e00\u4e2a\u70b9"], mascot=False, sub="in isolation \xb7 \u53ea\u5269\u4e00\u4e2a\u70b9\uff0c\u5b64\u7acb\u4e8e\u8bb0\u5fc6\u7684\u89d2\u843d"),
     # ...and then the plate mode, in the slot the single-layer MEMORY used to hold. The count 2-3-4-5-6
     # is the sculpture's own idea and it is intact; `layers=1` was a callback on a different lyric
     # ("If I can, if I can"), so it is the row that costs the design least - and "memory 部分有点长了" is
     # the user's own reading of the same thing.
     dict(at=117.95, name="pane_motif_bessel", lyric="If I can, if I can",
-         ops=["BESSEL", "\u5706\u677f\u6a21\u6001"], mascot=False, sub="节线一圈圈，像一句「如果」"),
+         ops=["BESSEL", "\u5706\u677f\u6a21\u6001"], mascot=False, sub="\u8bbe\u60f3\u8282\u5f84\u5728\u8bb0\u5fc6\u6df1\u5904\u6446\u52a8"),
     # "Erase all the pointless fragments": the instruction carried out, cell by cell
     dict(at=119.81, name="pane_fragments", lyric="Erase all the pointless fragments",
-         ops=["ERASE", "\u788e\u7247"], mascot=False, sub="游标一行行删，碎片就没了"),
+         ops=["ERASE", "\u788e\u7247"], mascot=False, sub="\u6e38\u6807\u4e00\u884c\u884c\u5220\uff0c\u8bb0\u5fc6\u7684\u788e\u7247\u5c31\u6b64\u6d88\u5931"),
     # closing: the crest alone
     dict(at=193.46, name="pane_landmark_crest", lyric="[gap] \u5c3e\u58f0",
          ops=["NWPU", "\u516c\u8bda\u52c7\u6bc5"], mascot=False, ),
@@ -855,8 +936,19 @@ def cut_here(t: float, prev_t: float) -> float | None:
 THEME_PINS: list[tuple[float, str, str, str]] = [
     # 12 小时钟面 = 一天的双覆盖 —— 只在字面讲时间的这一行
     (93.52, "pane_exchange", "clock", "12 小时钟面：一天被这半圈覆盖两次"),
-    # F→M：三位取反的两个名字 —— 字面念出 F 与 M 的这一行
-    (89.91, "pane_exchange", "bits", "F 与 M 只差三位：翻过去还能翻回来"),
+    # F→M：**改成集合 F 与 M 的文氏图**（批 146，清单2 第 6 条：用户："F→M动画（对应歌词
+    # switch my gender, to F to M），当前为数 F 和 M 的异或运算，感觉和歌词不搭。改为集合 F 和
+    # 集合 M 相交的文氏图。集合 F 和 M 的圆框交替闪烁，下方写运算：F ∪ M = Human，F ∩ M = LOVE?"）。
+    #
+    # **这一格不再用钉子，改用排期行自己的 `args`**：用户随后澄清"文氏图对应 switch my gender,
+    # to F to M **两句**"——而钉子只能钉它命中的那一行，89.91 那一句的后边界是 91.44，
+    # 所以直接把 88.34-91.44 那一行改成 `pane_exchange` + `panel="venn"` 最直接
+    # （钉在 89.91 也行，但两处说同一件事就多了一个会走样的地方）。
+    #
+    # **`panel="bits"`（`0x46 XOR 0x4D = 0x0B`）现在没有任何地方渲染它了**：排期里 41.92 那一行
+    # 虽然写着 `panel="bits"`，但 41.92 被钉成了 `gate`（逻辑门，见下面那条），
+    # 所以异或只在 89.91 出现过一次——那一次就是用户要换掉的那一次。
+    # `_ex_bits` 的代码留着，它没有被删，只是暂时没有排期引用它。
     # 逻辑门 / 晶体管 —— **清单第 23 条**："歌词 switch my current 处改为逻辑门开关示例
     # （晶体管构成）"。原来这一处钉的是 `bits`（F→M 三位取反），而"三位取反"那件事对应的歌词是
     # 后面的 `To F, to M`（**清单第 21 条**：'F->M 三位取反应放在后面歌词 to f to m（实际上
@@ -870,8 +962,8 @@ THEME_PINS: list[tuple[float, str, str, str]] = [
     # **时间线**（清单第 29 条）："scene 20 当前为超椭圆，改为时间线，歌词 if we can travel 展示
     # 时间线西工大校史，to ad to bc 展示西工大所在西安的公元前后历史"。两个 pane 行分别钉，
     # `_ex_timeline` 按时刻自己切两段内容——**不合并成一行**（批 119 的教训：一行演两张画会叠）。
-    (50.95, "pane_exchange", "timeline", "一条路走到今天：1938 → 1957 → 1970 → 2026"),
-    (52.99, "pane_exchange", "timeline", "同一块地方，换了三个名字：汉长安 → 唐长安 → 西安"),
+    (50.95, "pane_exchange", "timeline", "\u5982\u679c\u80fd\u56de\u52301938"),
+    (52.99, "pane_exchange", "timeline", "\u4ece\u53e4\u90fd\u56de\u7738\u5f80\u4e8b\u6570\u5343\u5e74"),
     # 角色 S/M：字形互换 —— 与 F→M 是同一台机器上的另一次翻位。
     # **批 133 撤掉了这条钉子**（清单第 31 条）：`To S, to M`(97.32) 改成**监察博弈支付矩阵**
     # （新 pane `pane_supervisory`），不再是"一个字的两个身份"。钉子留着会把新 pane 顶掉。
