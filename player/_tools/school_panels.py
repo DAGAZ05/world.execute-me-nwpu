@@ -334,8 +334,12 @@ SHOT_ROWS: list[dict] = [
     # The instrumental gap (13.2-29.3) has no words, so the two campus marks alternate over it rather than
     # one of them holding for sixteen seconds: the vessel, then the crest, then back. Nothing is asserted
     # by either, which is what a gap screen is for.
+    # **17.00 校徽那一行补上副标题**（批 170）。用户的抬头表里这一行是
+    # `西北工业大学 · Northwestern Polytechnical University`——标题（`西北工业大学`）本来就在画，
+    # 但这一行**没有 `sub=` 字段**，所以抬头只有前半句。补上后半句（学校的英文全称）。
     dict(at=17.00, name="pane_landmark_crest", lyric="[gap]",
-         ops=["\u6821\u5fbd", "1938"], mascot=False, ),
+         ops=["\u6821\u5fbd", "1938"], mascot=False,
+         sub="Northwestern Polytechnical University"),
     # **第一处间奏的中段：超椭圆**（批 137，清单第 11 条）。用户："第一处间奏的动画内容为
     # 校徽 + **超椭圆（替换一部分校徽动画）** + 刚才的傅里叶分析 两部分"、"超椭圆之前做过，
     # 可以改一下直接沿用"。所以这一行从"校徽"换成 `pane_hyper`——它直接调 `pane_exchange` 里
