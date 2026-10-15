@@ -3250,12 +3250,26 @@ DETAIL.update({
 
 
 def draw_ai(name: str, s, x0: int, y0: int, x1: int, y1: int,
-            t: float, lt: float, dur: float, u: float, run: int = 1) -> bool:
-    """Draw one of the four AI panes. False if `name` is not one of them."""
+            t: float, lt: float, dur: float, u: float, run: int = 0) -> bool:
+    """Draw one of the four AI panes. False if `name` is not one of them.
+
+    **`run` 默认从 0 改成"按 pane 在 `AI` 里的位置算"**（批 176）。用户："学院部分在各国语言
+    123456 后出现的动画抬头的 EXEC 一直是 EXEC 01/04，其数值没有更新"。
+
+    根因：这个参数原来的默认值是 **`1`**，而调用方（`school_panels.draw_scene_pane`）只给
+    `draw_course` / `draw_gauge` 传了 `run=_run_of(pane)`，**没给 `draw_ai` 传**——
+    于是四个 AI 格永远显示 `EXEC 01/04`。`_run_of` 也救不了它：它查的是 `EXEC_PANES`（十六门课），
+    AI 这四个不在里面，会返回 0（那就连 tag 都不画了）。
+
+    所以改成**由 `AI` 自己的顺序算**（1 起）：01/04 → 02/04 → 03/04 → 04/04。
+    调用方若显式传 `run`，仍然以传进来的为准。
+    """
     spec = AI.get(name)
     if spec is None:
         return False
     title, fn = spec
+    if not run:
+        run = list(AI).index(name) + 1
     k = _Kit(s, x0, y0, x1, y1, title, run, len(AI), u)
     fn(k, lt, dur)
     # the vocabulary goes in whatever the drawing left, found by looking at the buffer rather than by
