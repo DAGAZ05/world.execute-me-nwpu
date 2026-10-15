@@ -315,10 +315,15 @@ SHOT_ROWS: list[dict] = [
          ops=["PARAM", "SET", "COMMIT"], mascot=False, sub="一行行填参数，齐了才 COMMIT"),
     dict(at=9.75, name="pane_motif_he_init", lyric="Initialization",
          ops=["He 初始化", "REPLACE"], mascot=False, sub="格点先乱、再被替成有序"),
+    # **13 s 附近那个倒计时删掉**（批 164，用户："13s附近，动画框有个倒计时，左下角 sim.start 框中
+    # 也有倒计时，把动画框的这个倒计时删了吧"）。原来这里是一行 `pane_countdown`（12.47-13.20），
+    # 而**左下角 `sim.start` 那个框本来就在倒数**——同一个倒计时画了两遍。
+    # 处理办法是**把上一行（三旋臂）延长到 13.20 盖住这一段**，而不是删掉 `pane_countdown` 这个
+    # pane：pane 留着（别处/以后可能要用），只是**不再有排期行引用它**。
+    # 这样这一段时间里动画框演的还是三旋臂，倒计时只在左下角出现一次。
     dict(at=10.90, name="pane_three_arms", lyric="Set up our new world",
-         ops=["AERO", "ASTRO", "MARINE"], mascot=True, sub="航空、航天、航海，各一条旋臂"),
-    dict(at=12.47, name="pane_countdown", lyric="And let's begin the simulation",
-         ops=["RUN", "SIM", "t=0"], mascot=False, sub="3-2-1 归零，模拟从 t=0 起跑"),
+         ops=["AERO", "ASTRO", "MARINE"], mascot=True, end=13.20,
+         sub="\u4e09\u65cb\u81c2 \u00b7 \u822a\u7a7a \u00b7 \u822a\u5929 \u00b7 \u822a\u6d77"),
     # The gap is the campus, not the timetable. The user's audit (2026-10-03) found the four-year
     # curriculum list here, at 00:13-00:29, which is exactly the content the first act must not have:
     # the college is chosen at 02:11.9 and until then the film is about the *school*. The curriculum
@@ -710,10 +715,17 @@ LANDMARK_ROWS: list[dict] = [
          ops=["MEMORY", "x3"], mascot=False, args=dict(layers=3), sub="你走一次，就多叠一层"),
     dict(at=112.89, name="pane_memory", lyric="You have left",
          ops=["MEMORY", "x4"], mascot=False, args=dict(layers=4), sub="你走一次，就多叠一层"),
+    # **这两行的前半段已经不是 MEMORY 了**（批 164，用户："113.75-114.75 和 114.75-115.90 原本
+    # memory 处，现在是 2^53，把 pane_memory 改了，抬头写成
+    # `2^53 · IEEE-754 double 的边界 · 你的记忆已超上限`"）。
+    # 批 161 把 `pane_memory` 的后半段换成了 `2^53` 的量化（`MEMORY_FULL_AT = 113.75`），
+    # 但这两行的抬头还写着 MEMORY 的那句——抬头和内容对不上了。现在改成用户给的那句。
     dict(at=113.75, name="pane_memory", lyric="You have left",
-         ops=["MEMORY", "x5"], mascot=False, args=dict(layers=5), sub="你走一次，就多叠一层"),
+         ops=["2^53", "IEEE-754"], mascot=False, args=dict(layers=5),
+         sub="2^53 \u00b7 IEEE-754 double \u7684\u8fb9\u754c \u00b7 \u4f60\u7684\u8bb0\u5fc6\u5df2\u8d85\u4e0a\u9650"),
     dict(at=114.75, name="pane_memory", lyric="You have left",
-         ops=["MEMORY", "x6"], mascot=False, args=dict(layers=6), sub="你走一次，就多叠一层"),
+         ops=["2^53", "IEEE-754"], mascot=False, args=dict(layers=6),
+         sub="2^53 \u00b7 IEEE-754 double \u7684\u8fb9\u754c \u00b7 \u4f60\u7684\u8bb0\u5fc6\u5df2\u8d85\u4e0a\u9650"),
     # "You have left me in isolation": the field emptying, one point left
     dict(at=115.90, name="pane_isolation", lyric="You have left me in isolation",
          ops=["ISOLATION", "\u4e00\u4e2a\u70b9"], mascot=False, sub="只剩一个点：场里没人了"),
