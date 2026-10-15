@@ -2332,7 +2332,8 @@ def pane_hyper(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     k = _kit(s, x0, y0, x1, y1, 0, "\u8d85\u692d\u5706 \u00b7 \u6821\u5fbd\u91cc\u7684\u4e00\u90e8\u5206")
     if k is None or k.bh < 7:
         return
-    _ex_hyper(k, t, u)
+    # `lt/dur` 也传下去：超椭圆的"完整缩涨"由这一行的进度驱动（见 `_ex_hyper` 的说明）。
+    _ex_hyper(k, t, u, lt, dur)
 
 
 def pane_fourier(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
@@ -2501,7 +2502,13 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
             _motes(k, {"bits": "01", "clock": "o\u00b7", "braid": "/\\",
                        "hyper": "o\u00b7\u00b7", "letters": "S M \u00b7"}.get(panel, "\u00b7"),
                    t, level=0.34, seed=13)
-        one(k, t, u)
+        # **`hyper` 要多收两个参数**（批 142，清单第 3 条）：它的"完整缩涨"必须由 `lt/dur`
+        # 驱动，而不是 `u`——`_dev/clock_probe.py` 调 pane 时 `u` 是常量 `1.0`、只有 `lt` 在变，
+        # 早先只认 `u` 的版本被它正确判成 `STILL / NEEDS A CLOCK`。`lt/dur` 是两边的公共量。
+        if panel == "hyper":
+            _ex_hyper(k, t, u, lt, dur)
+        else:
+            one(k, t, u)
         return
     # Four columns when the pane is wide enough for all of them, three when it is not, one when it is
     # narrow: the superellipse is the fourth of `想法.md`'s five motifs for this section and it was left
@@ -2592,7 +2599,7 @@ def _ex_timeline(k, t: float, u: float) -> None:
     k.put(curx, y_lab + 2, "\u25b2", _mix(_C.RED, 0.9))
 
 
-def _ex_hyper(k, t: float, u: float) -> None:
+def _ex_hyper(k, t: float, u: float, lt: float = None, dur: float = None) -> None:
     """`|x|^n + |y|^n = r^n`, with the exponent breathing from a diamond to a rounded square.
 
     The fifth of this section's motifs and the one the songs's line is *about*: `Switch my current` is a
@@ -2605,7 +2612,26 @@ def _ex_hyper(k, t: float, u: float) -> None:
     cy = (k.by0 + k.by1) // 2
     rx = max(3, min(12, k.bw // 3))
     ry = max(2, min(8, (k.by1 - k.by0) // 3))
-    n = 1.0 + 2.5 * (1.0 + math.sin(t * 0.45))
+    # **一整轮"缩—涨—缩"**（批 142，清单第 3 条：用户："超椭圆动画播放不太完整，要完整缩涨变化
+    # （但总时间不变）"）。
+    #
+    # 成因：原来 `n = 1 + 2.5*(1 + sin(0.45 t))`——**由绝对时钟驱动，周期 2π/0.45 ≈ 13.96 s**，
+    # 而用它的那两行都短得多（间奏里 `pane_hyper` 只有 4.14 s，`panel="hyper"` 那一行同理）。
+    # 于是一行之内只演到正弦的一部分：要么一直涨、要么一直缩，**看不到一个完整来回**。
+    #
+    # 改法的第一版我用了行进度 `u`，被 `_dev/clock_probe.py` 判成 `STILL / NEEDS A CLOCK`——
+    # 那个探针调 pane 时把 `u` 固定成 `1.0`、只让 `lt` 变。**这不是探针的毛病：`u` 是"这一行
+    # 走到哪儿"，只有调用方老实传它才有效**。所以驱动量取 **`lt/dur`**（这一行已经演了多久 /
+    # 这一行多长）——播放器与探针都会传它。
+    #
+    # `0.5 - 0.5cos(2πp)` 在 p=0 与 p=1 都是 0、p=0.5 取 1，所以 `n` 恰好走完
+    # **1（菱形）→ 6（圆角方框）→ 1（菱形）** 一整轮：涨和缩都完整，而**行的时间长度一点没动**。
+    if dur and dur > 0.2 and lt is not None:
+        prog = max(0.0, min(1.0, float(lt) / float(dur)))
+    else:
+        prog = max(0.0, min(1.0, float(u)))
+    phase = 0.5 - 0.5 * math.cos(2 * math.pi * prog)
+    n = 1.0 + 5.0 * phase
     for a in range(0, 360, 4):
         th = math.radians(a)
         ct, st = math.cos(th), math.sin(th)

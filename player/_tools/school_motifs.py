@@ -991,20 +991,45 @@ def _sine_over_x(k, t: float) -> None:
     k.hline(x0_ax, mid, k.bx0 + n + 1, BOX_H, _ui(0.18))
     k.put(k.bx0 + n + 2, mid, "\u2192", _ui(0.35))
     k.put(x0_ax, mid + 1, "0", _ui(0.45))
+    # **x 的跨度从 24 收到 11**（批 142，清单第 2 条：用户："sinx/x 的动画演示集中在动画框
+    # 左半边了，将坐标轴的单位刻度增大"）。
+    #
+    # 成因：`sin x / x` 的振幅是 `1/x`，x 一过 9 曲线就贴在零线上了。原来 x 从 1 走到 **25**、
+    # 横铺满整个 `n` 列，于是**所有看得见的振荡都落在左边约 35%**，右边 65% 是一条几乎笔直的
+    # 零线——那就是"集中在左半边"。跨度改成 `X_SPAN = 11`（x 从 1 走到 12）等于**把每单位 x
+    # 拉宽一倍多**：三次振荡铺满整幅，右端仍是"趋于 0"的那一段。
+    #
+    # 刻度按整数画短线、偶数标数字，让"单位刻度增大"这件事在画面上看得见。
+    X_SPAN = 11.0
+
+    def _x_at(i: int) -> float:
+        return 1.0 + (i / max(1, n - 1)) * X_SPAN
+
     # **x 从 1 起**：sin x / x 在 x=0 是 1（可去奇点），画出来会有一个假的尖峰
     for i in range(n):
-        x = 1.0 + (i / max(1, n - 1)) * 24.0          # x 从 1 走到 25
+        x = _x_at(i)
         y = math.sin(x * 1.15 + t * 0.9) / x
         yy = mid - int(amp * y * 2.4)
         k.put(x0_ax + i, max(hi, min(lo, yy)), "\u2022", _mix(_C.BLUE, 0.9))
     # 包络 ±k/x：它才是"为什么趋于 0"的说明
     for i in range(n):
-        x = 1.0 + (i / max(1, n - 1)) * 24.0
+        x = _x_at(i)
         e = min(1.0, 2.4 / x)
         for sgn in (-1, 1):
             yy = mid - int(amp * sgn * e)
             if hi <= yy <= lo:
                 k.put(x0_ax + i, yy, "\u00b7", _mix(_C.GREEN, 0.42))
+    # **刻度最后画**（批 142）：包络在右端收敛到零线附近，`amp*e` 还有两三格，会盖在 `mid+2`
+    # 那一行的刻度数字上——实测只剩 `2 4 6`，`8 10 12` 被 `····` 吃掉了。刻度是读图的尺子，
+    # 不能被数据盖掉，所以放到曲线与包络之后。
+    for xv in range(1, int(1 + X_SPAN) + 1):
+        tx = x0_ax + int(round((xv - 1) / X_SPAN * (n - 1)))
+        if tx > k.bx0 + n:
+            break
+        k.put(tx, mid + 1, "|" if xv % 2 else "+", _ui(0.34))
+        if xv % 2 == 0 and mid + 2 <= lo:
+            lab = str(xv)
+            k.put(tx - len(lab) // 2, mid + 2, lab, _ui(0.34))
     # **只留一条关键说明**（批 114，用户："去掉最下方的文字说明"）：原来最下面两行是
     # `lim x->∞ sin x / x = 0` 与`（这不是洛必达！）`。`lim` 这一条是用户点名要的
     # （"在框内进行文字说明：lim x->∞ sin x / x = 0"），所以**保留它、去掉 `（这不是洛必达！）`**
