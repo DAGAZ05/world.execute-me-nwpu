@@ -38,8 +38,12 @@ ACT_ONE: list[tuple[float, str, str, str]] = [
      "\u5361\u5356\u7b14\u3002"),
     (1.33, "Remember to put on protection", "meta", "\u7528\u65f6 1.9 \u79d2|00:02"),
     (3.58, "Lay down your pieces", "user", "\u529f\u6210\u6c38\u9038\uff0c\u4e09\u5341\u4ebf\u85aa\uff1f\u5443\u2026\u2026\u8fd9\u662f\u2026\u2026\u6821\u5fbd\u5417\uff1f"),
-    (3.58, "Lay down your pieces", "ai", "\u662f\u30021938 \u5e74\u5230\u73b0\u5728\uff0c\u5b83\u6362\u8fc7\u4e24\u6b21\u3002"),
-    (3.58, "Lay down your pieces", "sub", "\u91cc\u9762\u90a3\u67b6\u98de\u673a\uff0c\u662f\u5b83\u4e00\u5f00\u59cb\u5c31\u6709\u7684\u3002"),
+    # **校徽那两句按用户给的文本改**（批 154）：原句是"是。1938 年到现在，它换过两次。"与
+    # "里面那架飞机，是它一开始就有的。"——**两处我都没能核实**（本会话没有 `web_fetch`，
+    # `web_search` 只给源列表、拿不到正文），所以上一批我没有凭猜改动、只报了上去。
+    # 用户据此给了替换文本："是的，校徽也会发生变化。" / "里面的飞机，已经存在很长时间了。"
+    (3.58, "Lay down your pieces", "ai", "\u662f\u7684\uff0c\u6821\u5fbd\u4e5f\u4f1a\u53d1\u751f\u53d8\u5316\u3002"),
+    (3.58, "Lay down your pieces", "sub", "\u91cc\u9762\u7684\u98de\u673a\uff0c\u5df2\u7ecf\u5b58\u5728\u5f88\u957f\u65f6\u95f4\u4e86\u3002"),
     (3.58, "Lay down your pieces", "meta", "\u7528\u65f6 1.6 \u79d2|00:05"),
     (5.16, "And let's begin object creation", "user", "1938 \u2014\u2014 \u90a3\u8fd9\u6240\u5b66\u6821\u662f\u600e\u4e48\u6765\u7684\uff1f"),
     (5.16, "And let's begin object creation", "ai", "\u56db\u6240\u5b66\u6821\u5728\u6c49\u4e2d\u5408\u5e76\uff0c\u90a3\u662f 1938 \u5e74\u3002"),
