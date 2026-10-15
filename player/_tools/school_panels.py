@@ -538,9 +538,19 @@ LANDMARK_ROWS: list[dict] = [
          sub="\u53ea\u6709\u4e00\u4e2a\u5b9e\u4f53\uff1a\u5c5e\u6027\u4e0d\u540c\u3001\u6837\u5f0f\u4e0d\u540c\uff0c\u4e24\u6761\u90fd\u4e0d\u6210\u7acb"),
     dict(at=86.21, name="pane_motif_stardiff", lyric="Then you're the proof of my existence",
          ops=["STAR", "衍射"], mascot=False, sub="你在，就是我在的证据"),
-    dict(at=88.34, name="pane_motif_quantize", lyric="Switch my gender",
-         ops=["QUANTIZE", "3 bits"], mascot=False, sub="性别与电流是同一个开关"),
-    dict(at=92.00, name="pane_motif_chladni", lyric="From AM to PM",
+    # **`switch my gender` + `to F, to M` 两句 = 集合 F 与 M 的文氏图**（批 146，清单2 第 6 条）。
+    # 用户："To F, to M的前一句是 switch my gender，我要求的是文氏图对应 switch my gender,
+    # to F to M 两句，和 switch my current 没有任何关系"。
+    #
+    # 所以这一行**按 89.91 那一句的后边界 91.44 切**（`And then do whatever` 在 91.44，
+    # 它属于 `from AM to PM` 那个钟面，归下一行），一行正好盖住这两句。
+    # 原来这一行的 `pane_motif_quantize`（`2^53` 浮点量化）**没有别的行用它**——见下面那条记录。
+    dict(at=88.34, name="pane_exchange", lyric="Switch my gender",
+         ops=["F", "M", "\u96c6\u5408"], mascot=False, end=91.44,
+         args=dict(panel="venn"), sub="\u5e76\u8d77\u6765\u662f\u4eba\uff0c\u4ea4\u8d77\u6765\u662f\u7231"),
+    # 钟面从 **91.44** 起（原来 92.00）：`And then do whatever, from AM to PM` 是两句，
+    # 前一句 91.44 原来落在那条量化行里。`panel=clock` 由 93.52 的钉子钉上（见 `THEME_PINS`）。
+    dict(at=91.44, name="pane_motif_chladni", lyric="From AM to PM",
          ops=["CHLADNI", "节点"], mascot=False, sub="频率一换，节点就换一组"),
     dict(at=95.28, name="pane_motif_fork_bomb", lyric="Oh, switch my role",
          ops=["FORK", "角色"], mascot=False, end=97.32, sub="换个角色就指数膨胀"),
@@ -855,8 +865,19 @@ def cut_here(t: float, prev_t: float) -> float | None:
 THEME_PINS: list[tuple[float, str, str, str]] = [
     # 12 小时钟面 = 一天的双覆盖 —— 只在字面讲时间的这一行
     (93.52, "pane_exchange", "clock", "12 小时钟面：一天被这半圈覆盖两次"),
-    # F→M：三位取反的两个名字 —— 字面念出 F 与 M 的这一行
-    (89.91, "pane_exchange", "bits", "F 与 M 只差三位：翻过去还能翻回来"),
+    # F→M：**改成集合 F 与 M 的文氏图**（批 146，清单2 第 6 条：用户："F→M动画（对应歌词
+    # switch my gender, to F to M），当前为数 F 和 M 的异或运算，感觉和歌词不搭。改为集合 F 和
+    # 集合 M 相交的文氏图。集合 F 和 M 的圆框交替闪烁，下方写运算：F ∪ M = Human，F ∩ M = LOVE?"）。
+    #
+    # **这一格不再用钉子，改用排期行自己的 `args`**：用户随后澄清"文氏图对应 switch my gender,
+    # to F to M **两句**"——而钉子只能钉它命中的那一行，89.91 那一句的后边界是 91.44，
+    # 所以直接把 88.34-91.44 那一行改成 `pane_exchange` + `panel="venn"` 最直接
+    # （钉在 89.91 也行，但两处说同一件事就多了一个会走样的地方）。
+    #
+    # **`panel="bits"`（`0x46 XOR 0x4D = 0x0B`）现在没有任何地方渲染它了**：排期里 41.92 那一行
+    # 虽然写着 `panel="bits"`，但 41.92 被钉成了 `gate`（逻辑门，见下面那条），
+    # 所以异或只在 89.91 出现过一次——那一次就是用户要换掉的那一次。
+    # `_ex_bits` 的代码留着，它没有被删，只是暂时没有排期引用它。
     # 逻辑门 / 晶体管 —— **清单第 23 条**："歌词 switch my current 处改为逻辑门开关示例
     # （晶体管构成）"。原来这一处钉的是 `bits`（F→M 三位取反），而"三位取反"那件事对应的歌词是
     # 后面的 `To F, to M`（**清单第 21 条**：'F->M 三位取反应放在后面歌词 to f to m（实际上

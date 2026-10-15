@@ -2033,6 +2033,36 @@ def pane_yolo(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
         locked = pick == star_i and lt0 >= T_LOCK
         k.put(bx, by - 1, f"{lab} {conf:.2f}",
               _mix(_C.AMBER if locked else tone, 0.99 if locked else 0.80))
+    # ---- **YOLO 格式的标注数**（批 146，清单2 第 4 条）：用户："YOLO打标动画下方较为空旷，
+    # 加上 YOLO 格式参数（class_id / x_center, y_center / width, height），参数会随框的移动变化"。
+    #
+    # 画在下方那块空处的"标注文件"小框：一行五个数（YOLO 的 txt 就是这个格式），再加一行字段名。
+    # **数值真的从框算出来**（归一化到抽屉），不是写着好看的常量——所以框一跳这五个数跟着变；
+    # 锁定时 `class_id` 也定在本命那一类上。
+    #
+    # **这一块画在 `if pick is not None` 之外**：前 0.45 s 还没开始检测（`pick` 是 None），
+    # 若跟着框一起不画，"待检测…"那一拍下面就是空的、版面会跳一下。那时给占位符 `-`。
+    yb = k.by1 - 4
+    if yb > k.by0 + 11 and k.bw >= 34:
+        if pick is None:
+            line = "-  -.--  -.--  -.--  -.--"
+        else:
+            ncx = (bx - k.bx0 + (bw_ + 1) / 2.0) / max(1, k.bw)
+            ncy = (by - k.by0 + (bh_ + 1) / 2.0) / max(1, k.bh)
+            nw = (bw_ + 1) / float(max(1, k.bw))
+            nh = (bh_ + 1) / float(max(1, k.bh))
+            cls = star_i if (pick == star_i and lt0 >= T_LOCK) else pick
+            line = f"{cls}  {ncx:.3f}  {ncy:.3f}  {nw:.3f}  {nh:.3f}"
+        inner = max(len(line) + 2, 34)
+        k.put(k.bx0, yb, "\u250c" + "\u2500" * inner + "\u2510",
+              _mix(_C.GREEN, 0.55))
+        k.put(k.bx0, yb + 1, "\u2502 " + line.ljust(inner - 1) + "\u2502",
+              _mix(_C.GREEN, 0.98))
+        k.put(k.bx0, yb + 2, "\u2514" + "\u2500" * inner + "\u2518",
+              _mix(_C.GREEN, 0.55))
+        k.put(k.bx0, yb + 3,
+              "class_id   x_center  y_center   width   height",
+              _ui(0.42))
     # ---- 底部：一句话说明这一拍
     if lt0 < T_SEARCH:
         k.put(k.bx0, k.by1, "\u5f85\u68c0\u6d4b\u2026", _ui(0.45))
@@ -2319,6 +2349,63 @@ def pane_supervisory(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
               "\u8f6e\u5230\u4ed6\u4e86", _ui(0.55))
 
 
+def _ex_venn(k, t: float, u: float, lt: float = None, dur: float = None) -> None:
+    """集合 F 与集合 M 的文氏图（批 146，清单2 第 6 条）。
+
+    用户："F→M动画（对应歌词 switch my gender, to F to M），当前为数 F 和 M 的异或运算，
+    感觉和歌词不搭。改为集合 F 和集合 M 相交的文氏图。集合 F 和 M 的圆框交替闪烁，
+    下方写运算：F ∪ M = Human，F ∩ M = LOVE?"。
+
+    所以画两个相交的圆（终端一格约 1 宽 2 高，纵向半径减半才是圆）：
+
+    * **两圆交替闪烁**：前半段 F 亮、后半段 M 亮（另一半只留暗骨架）；
+    * **交集那一片**单独上色——它就是 `F ∩ M`，也就是这句要说的东西；
+    * 下方两行写 `F ∪ M = Human` 与 `F ∩ M = LOVE?`。
+
+    驱动量仍然是 `lt/dur`（`_rowprog`）：`clock_probe` 传的 `u` 是常量，只认 `u` 的版本会被
+    正确判成静止。
+    """
+    import school_courses as _C
+    p = _rowprog(u, lt, dur)
+    cx = (k.bx0 + k.bx1) // 2
+    cy = (k.by0 + k.by1) // 2 - 1
+    # **半径按抽屉取**（批 146）：第一版写 `(k.by1 - k.by0) // 3`，实测这一格的 `by1-by0` 约 26
+    # ⇒ `r = 8`，两圆直径才 16 格、交集只剩 6 格宽，文氏图读不出来。
+    # 圆在终端里纵向要 `2*vr = r` 行（`vr = r // 2`），所以纵向的约束是 `r <= (by1-by0) - 10`；
+    # 横向两圆并排要 `2*(r + 0.52r) ≈ 3.04r <= bw`。取两者的小者。
+    r = max(7, min(max(7, k.bw // 3), max(7, (k.by1 - k.by0) - 10)))
+    vr = max(4, r // 2)
+    # **圆心间距 0.70r**：第一版 0.52r 时透镜宽 `2*(r-off) = 0.96r`，几乎是整个圆，
+    # 两个圆糊成一团、读不出"两个集合"。0.70r 之后透镜约 `0.6r` 宽，两个圆各自的外弧也看得清。
+    off = int(r * 0.70)
+    cxf, cxm = cx - off, cx + off
+    f_on = p < 0.5                     # 交替闪烁：前半 F、后半 M
+    for yy in range(k.by0 + 2, k.by1 - 2):
+        for xx in range(k.bx0, k.bx1 + 1):
+            dF = ((xx - cxf) / float(r)) ** 2 + ((yy - cy) / float(vr)) ** 2
+            dM = ((xx - cxm) / float(r)) ** 2 + ((yy - cy) / float(vr)) ** 2
+            inF, inM = dF <= 1.0, dM <= 1.0
+            if not (inF or inM):
+                continue
+            if inF and inM:
+                # 交集：填一层暗底，边界那一圈亮——`F ∩ M` 是这张图的重点
+                edge = 0.80 <= dF <= 1.0 or 0.80 <= dM <= 1.0
+                k.put(xx, yy, "\u2591" if edge else "\u00b7",
+                      _mix(_C.AMBER, 0.90 if edge else 0.30))
+            else:
+                # 只在两圆自己的**圆周**上画：`0.80 <= d <= 1.0` 是一圈壳
+                d = dF if inF else dM
+                if d < 0.80:
+                    continue
+                on = f_on if inF else (not f_on)
+                k.put(xx, yy, "\u2022" if on else "\u00b7",
+                      _mix(_C.AMBER if inF else _C.BLUE, 0.85 if on else 0.20))
+    k.put(cxf - 1, cy, "F", _mix(_C.AMBER, 0.85 if f_on else 0.30))
+    k.put(cxm, cy, "M", _mix(_C.BLUE, 0.30 if f_on else 0.85))
+    k.put(k.bx0, k.by1 - 1, "F \u222a M = Human", _mix(_C.GREEN, 0.92))
+    k.put(k.bx0, k.by1, "F \u2229 M = LOVE?", _mix(_C.AMBER, 0.95))
+
+
 def pane_hyper(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     """**第一处间奏的中段**（21.00-25.14）：超椭圆（清单第 11 条）。
 
@@ -2456,6 +2543,9 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
              "phyllo": "\u5411\u65e5\u8475\u53f6\u5e8f",
              "gate": "\u903b\u8f91\u95e8 \u00b7 \u6676\u4f53\u7ba1",
              "timeline": "\u65f6\u95f4\u7ebf",
+             # **`venn` 的抬头**（批 146）：这一格画的是两个集合的关系，抬头写 `F → M · 3 位`
+             # 是 `bits` 的名字，和里面的文氏图对不上（抬头必须和里面画的东西一致——批 98e 的规矩）。
+             "venn": "F \u2229 M \u00b7 \u96c6\u5408",
              "letters": "S \u2192 M \u00b7 \u5b57\u5f62\u7ffb\u4f4d"}
     # **抬头要和里面画的东西一致**（批 98e 的规矩，批 111 又用到一次）：40.36-45.52 这一段
     # 里面画的是 `sin x / x`（见下），所以抬头这时不能还写 `F → M · 3 位`——那是 `panel="bits"`
@@ -2488,7 +2578,7 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
     # the braid on "blind my vision", the superellipse on "we can travel".
     one = {"bits": _ex_bits, "clock": _ex_clock, "braid": _ex_braid, "hyper": _ex_hyper,
            "acdc": _ex_acdc, "phyllo": _ex_phyllo, "gate": _ex_gate,
-           "timeline": _ex_timeline, "letters": _ex_letters}.get(panel)
+           "timeline": _ex_timeline, "letters": _ex_letters, "venn": _ex_venn}.get(panel)
     if one is not None:
         # **先撒装饰、后画主体**（批 98f）。原来的顺序是反的（主体先、装饰后），而 `_motes` 的
         # 判据是 `_C.blank`——"这一格还是空的"。主体画完之后它照样认为别处是空的，于是那些
@@ -2501,14 +2591,16 @@ def pane_exchange(s, x0, y0, x1, y1, t, lt, dur, u, panel: str = "") -> None:
         # **`clock` 也不要**（批 145）：钟面在这一批里补上了数字刻度、时针、分针、24 小时外圈，
         # 已经是一件"满"的图；再撒 `o·` 只是在读图上加噪（用户："感觉太单调了"要的是内容，
         # 不是撒点）。原来 `clock` 的装饰串正是 `"o·"`。
-        if panel not in ("phyllo", "gate", "timeline", "clock"):
+        # **`venn` 也不要**（批 146）：这一格是两张圆 + 两行等式，`_motes` 撒的 `·` 会落在圆里
+        # 圆外、把"哪些点属于哪个集合"这件事搅浑。第 6 条要的是集合关系，不是底纹。
+        if panel not in ("phyllo", "gate", "timeline", "clock", "venn"):
             _motes(k, {"bits": "01", "clock": "o\u00b7", "braid": "/\\",
                        "hyper": "o\u00b7\u00b7", "letters": "S M \u00b7"}.get(panel, "\u00b7"),
                    t, level=0.34, seed=13)
         # **`hyper` 与 `clock` 要多收两个参数**（批 142/144）：两者的"完整一轮"都必须由
         # `lt/dur` 驱动，而不是 `u`——`_dev/clock_probe.py` 调 pane 时 `u` 是常量 `1.0`、
         # 只有 `lt` 在变，只认 `u` 的版本被它正确判成 `STILL / NEEDS A CLOCK`。
-        if panel in ("hyper", "clock"):
+        if panel in ("hyper", "clock", "venn"):
             one(k, t, u, lt, dur)
         else:
             one(k, t, u)
