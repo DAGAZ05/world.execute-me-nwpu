@@ -383,13 +383,26 @@ SHOT_ROWS: list[dict] = [
     # 所以抬头不能再写"波与它的全部切线"，ops 也不能再写 ENVELOPE。
     #
     # **批 163（清单2 第 14 条点名）**：用户："**sin x 包络抬头去掉 sinx/x 的描述**"。
-    # 框内实际画的是 `sin x 与切线包络`（`school_motifs.py` 的 `k.section`），
-    # 而这一行的 `sub` 原来写的是 `sin x / x：振荡在衰减，极限是 0`——**那是另一个动画**
-    # （sinc，见 `pane_motif_sinc`）。抬头和内容说的不是一件事，按批 98e 的规矩要一致。
-    # `ops` 里的 `"sin x / x"` 与 `"趋近 0"` 同样是 sinc 的，一并换掉。
+    # **批 171 更正**：当时我的处理是"把 sinc 的描述从这一行删掉"，那是**错的**——
+    # 用户看到的 `sin x / x` 不是错的描述，而是这一行**后半句真的在画的东西**：
+    #
+    #   `school_motifs.sine` 第 16-18 行：`if t >= APPROACH_INFINITY_AT: _sine_over_x(k, t); return`
+    #   `APPROACH_INFINITY_AT` = 40.36，正是 `If I approach infinity` 那一句。
+    #
+    # 所以这一行**跨了两句歌词、两个动画，却只有一个抬头**——用户在 41.9 s 截图里看到的
+    # 画面是 `sin x / x`、抬头却写着包络，根因就在这里。删掉描述只是把不一致藏起来。
+    #
+    # **正确做法是按 40.36 拆行**（下一条）。`sine` 是按 `t` 判断切不切的、与行进度 `u` 无关，
+    # 所以拆行**不会**破坏它的切换：后半行照样画 sinc。
     dict(at=36.77, name="pane_motif_sine", lyric="If I'm a sine wave",
          ops=["\u6b63\u5f26", "\u5e45\u503c 1", "\u5207\u7ebf\u5305\u7edc"], mascot=False,
-         sub="\u6b63\u5f26\u4e0e\u5b83\u7684\u5207\u7ebf\u5305\u7edc\uff0c\u6211\u4e0e\u4f60\u76f8\u5bb9"),
+         sub="\u6b63\u5f26\u4e0e\u5b83\u7684\u5207\u7ebf\u5305\u7edc\uff0c\u6211\u4e0e\u4f60\u76f8\u5bb9",
+         end=40.36),
+    # 后半行：`If I approach infinity`（40.36-41.92），框内画的是 `sin x / x`。
+    # 抬头现在是它自己的那句（用户表里写的是 `sin x / x · 趋于无穷大时极限为 0（这不是洛必达！）`）。
+    dict(at=40.36, name="pane_motif_sine", lyric="If I approach infinity",
+         ops=["sin x / x", "\u6781\u9650", "sinc"], mascot=False,
+         sub="\u8d8b\u4e8e\u65e0\u7a77\u5927\u65f6\u6781\u9650\u4e3a 0\uff08\u8fd9\u4e0d\u662f\u6d1b\u5fc5\u8fbe\uff01\uff09"),
     # The overlay stops at the end of P1 and the film's own 97-shot table takes the column back from
     # here to the end of the song. That is not a gap left by accident: a school pane only exists where
     # the school content exists, and the alternative - holding the last pane on screen for 166 seconds
