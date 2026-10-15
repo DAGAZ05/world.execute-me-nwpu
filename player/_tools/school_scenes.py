@@ -990,7 +990,13 @@ def pane_sw_project(s, x0, y0, x1, y1, t, lt, dur, u) -> None:
     # '软件项目管理/软件开发综合训练'"): they are one line of the college's 培养方案 - the theory and the
     # course-long project that runs beside it - and this pane draws both of them, a sprint's ceremonies and
     # the board the project is worked on.
-    k = _kit(s, x0, y0, x1, y1, 0, "\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406  / \u8f6f\u4ef6\u5f00\u53d1\u7efc\u5408\u8bad\u7ec3"
+    # **`综合训练` 重复的根因（批 179）**：这是一个**跨两行的字面量**，第 993 行末尾 + 第 994 行的
+    # 续行拼起来才是完整标题。批 166 我把第 993 行末尾的 `软件开发` 改成了 `软件开发综合训练`，
+    # 却没有注意第 994 行还有一截 `"综合训练"` 的续行——于是拼出来成了
+    # `软件项目管理  /  软件开发综合训练综合训练`（截图里那两遍就是这么来的）。
+    # 现在第 993 行收在 `软件开发`，续行补上 `综合训练`，完整标题仍是
+    # `软件项目管理  /  软件开发综合训练`。
+    k = _kit(s, x0, y0, x1, y1, 0, "\u8f6f\u4ef6\u9879\u76ee\u7ba1\u7406  / \u8f6f\u4ef6\u5f00\u53d1"
                                     "\u7efc\u5408\u8bad\u7ec3")
     if k is None or k.bw < 40 or k.bh < 8:
         return
