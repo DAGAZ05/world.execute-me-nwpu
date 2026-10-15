@@ -1770,6 +1770,17 @@ def resonance(k, t: float) -> None:
           _ui(0.5))
 
 
+#: `sine` 这一行的**标题随时间切**（批 172）。这一屏跨两句歌词：
+#: `If I'm a sine wave`（36.77-40.36）画 `sin x 与切线包络`，
+#: `If I approach infinity`（40.36-41.92）画 `sin x / x`（见 `APPROACH_INFINITY_AT`）。
+#: 批 171 已经把**排期**拆成两行、让两行的 **sub** 各归各的，但抬头里的**标题**来自
+#: `MOTIFS` 那个元组的第一个元素、两行共用一个 pane 所以共用同一个标题——
+#: 于是后半行渲染成 `sin 与包络 · 趋于无穷大时极限为 0…`，标题与画面还是不一致。
+#: 做成**可调用的标题**（派发处会带 `t` 调它），标题就和框内的 `k.section` 同步切了。
+def _sine_title(t: float) -> str:
+    return "sin x / x" if t >= APPROACH_INFINITY_AT else "sin \u4e0e\u5305\u7edc"
+
+
 MOTIFS = {
     "he_init": ("He \u521d\u59cb\u5316", he_init),
     "rectifier": ("\u6574\u6d41\u4e0e\u6ee4\u6ce2", rectifier),
@@ -1781,7 +1792,7 @@ MOTIFS = {
     "epicycles": ("\u672c\u8f6e", epicycles),
     "hearts9": ("\u4e5d\u79cd\u5fc3\u5f62", hearts9),
     "fork_bomb": ("fork \u70b8\u5f39", fork_bomb),
-    "sine": ("sin \u4e0e\u5305\u7edc", sine),
+    "sine": (_sine_title, sine),
     "chladni": ("\u514b\u62c9\u5c3c", chladni),
     "moire": ("\u83ab\u5c14\u6761\u7eb9", moire),
     "galaxy": ("\u4e09\u65cb\u81c2", galaxy),

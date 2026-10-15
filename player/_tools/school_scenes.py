@@ -3391,6 +3391,12 @@ def _motif(name: str):
 
     def pane(s, x0, y0, x1, y1, t, lt, dur, u, args=None) -> None:
         title, fn = _M.MOTIFS[name]
+        # **标题可以是可调用的**（批 172）：`sine` 那一屏跨两句歌词，框内的 `k.section`
+        # 会自己切（`sin x 与切线包络` → `sin x / x`），抬头里的标题也该跟着切，
+        # 否则后半行会出现"标题写包络、画面是 sin x / x"。
+        # 可调用的标题带 `t` 调一次；字符串标题原样用（其余 motif 都是字符串，不受影响）。
+        if callable(title):
+            title = title(t)
         k = _kit(s, x0, y0, x1, y1, 0, title)
         if k is None or k.bh < 5:
             return
