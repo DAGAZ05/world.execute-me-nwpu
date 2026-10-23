@@ -34,6 +34,22 @@ if exist "%PLAYER%\python\python.exe" (
   set "PY=python"
 )
 
+REM Pre-flight: the bundled env is ~1100 binary files, and a PARTIAL copy degrades *silently*
+REM rather than failing - a missing _webp.pyd only makes Pillow say "WEBP support not installed"
+REM and the whale-sprite pane get skipped, while the film keeps running. Check first, then stop
+REM with a clear list instead of starting a crippled run.
+if exist "%PLAYER%\python\check_env.py" (
+  "%PY%" "%PLAYER%\python\check_env.py"
+  if errorlevel 1 (
+    echo.
+    echo The bundled Python environment is incomplete - see the list above.
+    echo Copy the player\python folder again, or rebuild it in the source checkout with:
+    echo     python _dev\build_portable_env.py --apply
+    pause
+    exit /b 1
+  )
+)
+
 REM a window of at least 175x52 columns is what the layout is drawn for
 "%PY%" "_tools\tui_live.py" --variant school %*
 

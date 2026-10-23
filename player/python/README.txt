@@ -14,6 +14,21 @@ clone 下来就能直接跑，不必先装 Python、也不必联网。
     run.cmd                    双击，或
     run.cmd --start 147        从 147 秒开始
 
+`run.cmd` 在启动片子之前会先跑一次 `check_env.py`。**残缺的环境不会"起不来"，而是会
+悄悄降级** —— 比如少了 `_webp.cp312-win_amd64.pyd`，Pillow 只报一句
+`WEBP support not installed`、鲸鱼那组精灵所在的 pane 被跳过，片子照跑。那种失败最费时间，
+所以自检会在开工前逐项点名：
+
+    player\python\python.exe player\python\check_env.py
+
+    文件检查: 全部存在 / 不完整 —— N 个问题
+    import numpy / PIL / PIL.Image / PIL.ImageFont      OK
+    pillow 能力 webp / jpg / zlib / freetype2           OK 或 缺失
+
+**拷贝这个目录时最要紧的一件事**：本目录应有 **约 1100 个文件、78 MB**。用资源管理器拖拽
+中途取消、或用了带过滤的同步工具，漏掉的往往是 `.pyd`（Windows 的扩展模块），而漏了它们
+不会有明显报错。拷完跑一次 `check_env.py` 就知道全不全。
+
 依赖只有 pillow 与 numpy 两个第三方包，其余全是标准库；`torch` 只在
 `player/film/pv_dsh_frontend_20260927/`（另一部片子的 GPU 渲染路径）里用到，本片不需要。
 
