@@ -25,6 +25,19 @@ player/film/world_execute_word_timing_20260927/word_timeline.json
 __pycache__/
 *.py[cod]
 
+# --------------------------------------------------------------------- 内置环境
+# `display` 分支在 `player/python/` 里内置了一个可移植的 Python 3.12（见该目录的 README.txt），
+# 目的是换一台 Windows 机器 clone 下来就能跑、不需要装 Python 也不用联网。
+#
+# **上面那条 `*.py[cod]` 会连 Windows 的扩展模块 `.pyd` 一起忽略**（`[cod]` 匹配 c/o/d，
+# 正好涵盖 `pyd`）。少了它们连 `unicodedata` / `ctypes` / `_hashlib` 都 import 不了，
+# 内置环境就是残的——实测有 151 个 `.pyd` 会被漏掉。所以这里把整个内置环境放行，
+# 但仍旧不跟踪它运行时产生的字节码缓存。
+!player/python/**
+player/python/**/__pycache__/
+player/python/**/*.pyc
+player/python/**/*.pyo
+
 # Scratch: every `_dev` probe writes its PNGs, logs and character dumps here. Nothing in `_dev/out`
 # is a deliverable - the frames worth keeping are copied into `04_验证记录/批次NN_*/` by hand.
 _dev/out/
