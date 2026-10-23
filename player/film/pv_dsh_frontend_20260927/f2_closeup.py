@@ -25,7 +25,7 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps, ImageStat
 
 HERE = Path(__file__).resolve().parent
 SRC = HERE / "avatars/f/closeup_la.png"
-SPRITE = Path(__file__).resolve().parents[1].joinpath("third_party_references/whale_maid_expanded_20260926/expressions/whale-starry.webp")
+SPRITE = Path(__file__).resolve().parents[1].joinpath("third_party_references/whale_maid_expanded_20260926/expressions/whale-starry.png")
 CROP = (250, 40, 690, 480)                   # batch_f.avatars head(): the header avatar's crop of the sprite
 MARGIN = 60                                  # closeup_la.png = CROP grown by this on every side
 BACKDROP = (9, 14, 30)                       # what head() lays the sprite on

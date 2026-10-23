@@ -144,7 +144,7 @@ CROPS = {"full": None, "upper": (0.10, 0.0, 0.90, 0.47), "face": (0.20, 0.0, 0.7
 
 @lru_cache(None)
 def sprite_src(expr: str, crop: str) -> Image.Image:
-    im = Image.open(EXPR_DIR / f"whale-{expr}.webp").convert("RGBA")
+    im = Image.open(EXPR_DIR / f"whale-{expr}.png").convert("RGBA")
     if CROPS[crop] is None:
         return im.crop(im.getchannel("A").getbbox())
     w, h = im.size

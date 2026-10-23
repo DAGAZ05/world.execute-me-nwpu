@@ -71,7 +71,7 @@ def progress(t):
 def avatars():
     out = HERE / "avatars" / "a2"
     out.mkdir(parents=True, exist_ok=True)
-    im = Image.open(EXPR / "whale-cheerful.webp").convert("RGBA")
+    im = Image.open(EXPR / "whale-cheerful.png").convert("RGBA")
     bg = Image.new("RGBA", im.size, (9, 14, 30, 255))
     bg.alpha_composite(im)
     head = ImageOps.grayscale(bg.convert("RGB").crop((250, 40, 690, 480)))

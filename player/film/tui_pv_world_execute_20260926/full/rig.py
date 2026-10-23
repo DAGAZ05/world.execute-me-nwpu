@@ -291,8 +291,8 @@ assert set(FIT) == set(POSES)
 def _sprite(pose: str):
     from PIL import Image
     if pose == "skirt":
-        return Image.open(SRC / "maid-left.webp").convert("RGBA").resize(CANVAS, Image.LANCZOS)
-    return Image.open(SRC / "expressions" / f"whale-{pose}.webp").convert("RGBA").crop((0, 0) + CANVAS)
+        return Image.open(SRC / "maid-left.png").convert("RGBA").resize(CANVAS, Image.LANCZOS)
+    return Image.open(SRC / "expressions" / f"whale-{pose}.png").convert("RGBA").crop((0, 0) + CANVAS)
 
 
 def _pixels(im) -> list:

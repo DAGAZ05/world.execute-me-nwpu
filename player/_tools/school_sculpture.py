@@ -65,7 +65,9 @@ FILES = {
     # the clean line drawing the user supplied with `何尊.html` - see `DIGITS` below for why it, and not
     # the earlier scan or the vector, is what the vessel is drawn from
     "he_zun": "\u4f55\u5c0a.png",
-    "crest": "\u6821\u5fbd.webp",
+    # 校徽用 png（见 `school_fx` 里同一条改动：webp 要 Pillow 的额外扩展模块，
+    # 在别人机器上加载不了就整格不显示；png 不需要任何额外模块）。
+    "crest": "\u6821\u5fbd.png",
     "memory": "memory_\u5355\u5c42.jpg",
 }
 # ...and the one that was supplied as a vector drawing. It is kept because the user made it, and it is no

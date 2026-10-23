@@ -35,7 +35,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPR_DIR = ROOT / "film" / "third_party_references" / "whale_maid_expanded_20260926" / "expressions"
 
 # h3_full.install() (which the film's engine calls) monkey-patches PIL.Image.open so that
-# reading a whale-*.webp raises - it exists to stop production code quietly falling back to
+# reading a whale-*.png raises - it exists to stop production code quietly falling back to
 # the legacy sprite route. This module has a legitimate reason to read them, so it keeps the
 # real open, and it warms the cache before the engine is installed.
 _OPEN = Image.open
@@ -50,7 +50,7 @@ CELL_ASPECT = 2.1
 
 @lru_cache(None)
 def sprite(expr: str) -> Image.Image:
-    return _OPEN(EXPR_DIR / f"whale-{expr}.webp").convert("RGBA")
+    return _OPEN(EXPR_DIR / f"whale-{expr}.png").convert("RGBA")
 
 
 def warm() -> None:
@@ -208,7 +208,7 @@ def halfblock(expr: str, crop: str, cols: int, rows: int, levels: int = LEVELS):
 #
 # `h3_full.install()` does not merely offer another route, it forbids the old one: it sets
 # `rig.frame = forbidden`, `dancer._stub_pose = forbidden`, and wraps `PIL.Image.open` so
-# that reading any `whale-*.webp` raises "Forbidden legacy character file" (h3_full.py:290-303).
+# that reading any `whale-*.png` raises "Forbidden legacy character file" (h3_full.py:290-303).
 # What the film plays instead is `h3_full.frame_at(t)`: a 45x70 grid of `art` glyphs with a
 # `shade` level per cell, spliced four frames deep across every seam in the PLAN table
 # (h3_full.py:30-81). `dancer.draw` (dancer.py:174-215) then paints that grid - and a cell of

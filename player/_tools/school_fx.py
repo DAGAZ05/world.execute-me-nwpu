@@ -58,7 +58,11 @@ FILES = {
     "arj21": (RESULTS, "ARJ21.png"),
     "manta": (RESULTS, "\u9b54\u9b3c\u9c7c.png"),
     "torpedo": (RESULTS, "\u9c7c\u96f7.png"),
-    "crest": (LANDMARKS, "\u6821\u5fbd.webp"),
+    # **校徽改成 png**（display 分支，为"内置环境"准备的）：`.png` 要 Pillow 的 `_webp.pyd`，
+    # 而那一层在别人机器上可能加载不了（实测报 `WEBP support not installed`，于是校徽那一格
+    # **整格不显示**——它是全片最显眼的元素）。PNG 的支持编译在 Pillow 核心里（`_imaging.pyd`），
+    # 不需要任何额外扩展模块，换成 png 就把这一类失败彻底去掉。像素一致（596x596，RGB→RGBA）。
+    "crest": (LANDMARKS, "\u6821\u5fbd.png"),
     "sword": (LANDMARKS, "\u4e3a\u56fd\u94f8\u5251\u96d5\u5851_\u4fef\u77b0.png"),
     "dialogue": (LANDMARKS, "\u5bf9\u8bdd_\u673a\u5668\u624b\u4e0e\u4eba\u7684\u624b.png"),
     "memory": (LANDMARKS, "memory_\u5355\u5c42.jpg"),
@@ -93,7 +97,7 @@ for _k, (_d, _f) in list(FILES.items()):
         continue
     _stem = _f.split(".")[0][:2]
     _hits = sorted(_p.name for _p in _d.glob("*")
-                   if _p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp")
+                   if _p.suffix.lower() in (".png", ".jpg", ".jpeg", ".png")
                    and _p.name.startswith(_stem)) if _d.is_dir() else []
     if len(_hits) == 1:
         FILES[_k] = (_d, _hits[0])

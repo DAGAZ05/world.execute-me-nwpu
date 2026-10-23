@@ -171,7 +171,7 @@ def session_at(t):
 def avatars():
     out = HERE / "avatars" / "c"
     out.mkdir(parents=True, exist_ok=True)
-    im = Image.open(A2.EXPR / "whale-cheerful.webp").convert("RGBA")
+    im = Image.open(A2.EXPR / "whale-cheerful.png").convert("RGBA")
     bg = Image.new("RGBA", im.size, (9, 14, 30, 255))
     bg.alpha_composite(im)
     g = ImageOps.grayscale(bg.convert("RGB").crop((250, 40, 690, 480))).resize((14, 14), Image.Resampling.BOX)

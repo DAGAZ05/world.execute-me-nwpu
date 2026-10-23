@@ -209,7 +209,7 @@ def avatars():
     out.mkdir(parents=True, exist_ok=True)
 
     def head(name):
-        im = Image.open(A2.EXPR / f"whale-{name}.webp").convert("RGBA")
+        im = Image.open(A2.EXPR / f"whale-{name}.png").convert("RGBA")
         bg = Image.new("RGBA", im.size, (9, 14, 30, 255))
         bg.alpha_composite(im)
         return ImageOps.grayscale(bg.convert("RGB").crop((250, 40, 690, 480)))

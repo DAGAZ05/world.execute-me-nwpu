@@ -157,7 +157,7 @@ def strings(img: Image.Image, t: float, tint: str = "blue", prev: Image.Image | 
 def _stub_pose(pose: str, flip: bool, size) -> Image.Image:
     """Until the text keyframes exist: the pose sprite, resized."""
     from tuikit import EXPR_DIR
-    path = EXPR_DIR / f"whale-{pose}.webp" if pose != "skirt" else EXPR_DIR.parent / "maid-left.webp"
+    path = EXPR_DIR / f"whale-{pose}.png" if pose != "skirt" else EXPR_DIR.parent / "maid-left.png"
     im = Image.open(path).convert("RGBA")
     if pose == "skirt":
         im = im.resize((935, 1682), Image.LANCZOS)

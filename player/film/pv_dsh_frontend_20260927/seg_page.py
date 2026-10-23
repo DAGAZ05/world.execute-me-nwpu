@@ -58,7 +58,7 @@ def avatars():
     crop = (250, 40, 690, 480)
 
     def head(name):
-        im = Image.open(EXPR / f"whale-{name}.webp").convert("RGBA")
+        im = Image.open(EXPR / f"whale-{name}.png").convert("RGBA")
         bg = Image.new("RGBA", im.size, (9, 14, 30, 255))
         bg.alpha_composite(im)
         return bg.convert("RGB").crop(crop).resize((120, 120), Image.Resampling.LANCZOS)
@@ -96,7 +96,7 @@ def avatars_d():
     crop cell for cell (object-fit: cover keeps her in place while the frame widens)."""
     out = HERE / "avatars" / "d"
     out.mkdir(parents=True, exist_ok=True)
-    im = Image.open(EXPR / "whale-cheerful.webp").convert("RGBA")
+    im = Image.open(EXPR / "whale-cheerful.png").convert("RGBA")
     bg = Image.new("RGBA", im.size, (9, 14, 30, 255))
     bg.alpha_composite(im)
     src = bg.convert("RGB")

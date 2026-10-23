@@ -2311,7 +2311,7 @@ class Engine:
         sys.path.insert(0, str(DSH / "gpu_shim"))      # stdlib audioop is gone in Python 3.13
         sys.path.insert(0, str(DSH))
         sys.path.insert(0, str(MMD))
-        # h3_full.install() patches PIL.Image.open to refuse whale-*.webp, so read the
+        # h3_full.install() patches PIL.Image.open to refuse the legacy whale sprite files (now .png), so read the
         # sprites first - otherwise her pane can never be drawn once the engine is in
         import her_glyphs
         her_glyphs.warm()

@@ -297,7 +297,7 @@ def install():
  def guarded_open(fp,*args,**kw):
   if isinstance(fp,(str,Path)):
    p=str(fp).replace('\\','/').lower()
-   if ('whale-' in p and p.endswith('.webp')) or '/sidebar_chorus_v1/source_frames/' in p:
+   if ('whale-' in p and p.endswith('.png')) or '/sidebar_chorus_v1/source_frames/' in p:
     raise RuntimeError('Forbidden legacy character file: '+str(fp))
   return original_open(fp,*args,**kw)
  Image.open=guarded_open

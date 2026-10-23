@@ -28,12 +28,13 @@ REQUIRED = [
     "Lib/site-packages/PIL/Image.py",
     "Lib/site-packages/PIL/_imaging.cp312-win_amd64.pyd",
     # ↑ Pillow 的核心；没有它 Pillow 根本 import 不了
-    "Lib/site-packages/PIL/_webp.cp312-win_amd64.pyd",
-    # ↑ 少了它：鲸鱼/女仆那组精灵读不出来，对应 pane 被静默跳过
     "Lib/site-packages/PIL/_imagingft.cp312-win_amd64.pyd",
     # ↑ 少了它：字体渲染（全片每一格文字）会失败
     "Lib/site-packages/numpy/__init__.py",
 ]
+#: **`_webp.pyd` 不在这里**：仓库里的图已经全部转成 png（校徽、鲸鱼精灵都是），
+#: png 的支持编译在 Pillow 核心里，不需要任何额外扩展模块。所以 `webp` 能力只作为
+#: "信息"报出来，缺了不影响运行——这正是这一轮为兼容性做的事。
 
 
 def main() -> int:
