@@ -183,7 +183,17 @@ ANOM = (255, 204, 0)
 UI_DIM = (120, 134, 158)       # only a fallback; draw() uses ui(UI_DIM_LEVEL)
 
 # tuikit.py:68-73 - AMBER is the plain UI colour and the film carries a global gain on it:
-#     UI_GAIN = [1.0]   # "set per frame by the engine; < 1 drains the system colour"
+#     UI_GAIN = [1.0]
+
+#: `ui()` 取源色的那个槽。**大屏/投影用的 `--bright` 只改这个槽**，不改 `UI` 常量本身
+#: ——`UI` 还被别处直接引用（`s.put(..., UI)` 之类），改常量会牵动太多。
+#: 为什么要有这个槽：`mix()` 把 level 夹在 [0, 1]（第 1749 行），所以"把增益加到 1 以上"
+#: 是无效的，想让字更亮只有**抬高源色**这一条路。
+TEXT_SRC = [UI]
+
+#: 暗角与扫描线的整体强度倍数。`--bright` 把它压到 0.45：投影环境本身就有环境光，
+#: 画面再自己压暗一层，边角的字就看不清了。
+DIM_SCALE = [1.0]   # "set per frame by the engine; < 1 drains the system colour"
 #     def amb(level): return mix(AMBER, level * UI_GAIN[0])
 # engine.py:91-94, in the film's own words: *"The system colour is 'you'. It drains when you leave
 # and never fully comes back."* It is 1.0 until 110.4 s - which is the second "Though you have
@@ -193,10 +203,19 @@ UI_DIM = (120, 134, 158)       # only a fallback; draw() uses ui(UI_DIM_LEVEL)
 # anomaly amber are not UI, and do not drain.
 UI_GAIN = [1.0]
 
+#: `--bright` 用的 **level 增益**。只换源色不够：副标题那类 `ui(0.62)` 的调用
+#: 实测只从 (125,135,150) 到 (154,158,163)，因为 0.62 这个系数本身就把亮度压掉近四成。
+#: 把 level 也乘上去，`ui(0.62)` 才真的到可读的亮度。默认 1.0 = 行为完全不变。
+TEXT_GAIN = [1.0]
+
 
 def ui(level: float):
-    """`tuikit.amb(level)` - the film's plain UI colour through this frame's gain."""
-    return mix(UI, level * UI_GAIN[0])
+    """`tuikit.amb(level)` - the film's plain UI colour through this frame's gain.
+
+    源色取自 `TEXT_SRC[0]`（默认就是 `UI`），`--bright` 会把它换成近白；
+    `TEXT_GAIN[0]` 再抬一档 level，让 `ui(0.62)` 这类副标题也亮起来。
+    """
+    return mix(TEXT_SRC[0], level * UI_GAIN[0] * TEXT_GAIN[0])
 
 # engine.py:32-38 - the film's clock, not a re-measurement of it. (audio_features.json puts its
 # own first kick onset at 0.1875 s, one 1/48 s feature row after FIRST_BEAT; the film's value wins.)
@@ -1849,7 +1868,9 @@ class Screen:
             for x in range(cols):
                 dx = (x - cx) / hx
                 v = min(1.0, max(0.0, (dx * dx + dy * dy) - 0.35) * 0.55)
-                out[y][x] = (1.0 - v * VIG_FLOOR * k) * scan
+                # `DIM_SCALE` 是 `--bright` 的旋钮：1.0 = 原样，0.45 = 投影模式
+                _s = 1.0 - (1.0 - scan) * DIM_SCALE[0]
+                out[y][x] = (1.0 - v * VIG_FLOOR * k * DIM_SCALE[0]) * _s
         return out
 
     def resize(self, cols: int, rows: int) -> None:
@@ -5591,6 +5612,12 @@ def main() -> None:
                     help="print the shot table with the ops each shot scrolls, and exit")
     ap.add_argument("--credits", action="store_true", help="print the film's credit line and exit")
     ap.add_argument("--no-audio", action="store_true", help="do not play the song")
+    ap.add_argument("--bright", action="store_true",
+                    help="演示模式（大屏 / 投影）：界面文字换成近白，暗角与扫描线压到 45%，"
+                         "并关掉余晖。起因是投影环境下 (200,214,234) 的\"白\"读起来发灰、"
+                         "副标题只剩一半亮度。不改任何美术，只提可读性")
+    ap.add_argument("--text-bright", type=float, default=None, metavar="K",
+                    help="只调界面文字：K>1 把源色往纯白抬（1.0 = 原样，约 1.5 = 接近纯白）")
     ap.add_argument("--no-fx", action="store_true",
                     help="no cut reveals and no post: no trail, no vignette, no scanlines, no "
                          "breathing frames (the picture as it was before the post pass)")
@@ -5733,6 +5760,18 @@ def main() -> None:
     FX_BUNDLE[0] = _fx_bundle(fx_triple) if fx_triple is not None else None
     if args.dissolve:
         DISSOLVE[0] = True
+    if args.bright:
+        # 近白 + 压弱暗角/扫描线 + 关余晖（余晖会把上一帧的字又压暗一层）
+        TEXT_SRC[0] = (247, 251, 255)
+        TEXT_GAIN[0] = 1.32        # 让 ui(0.62) 这类副标题也真的亮起来
+        DIM_SCALE[0] = 0.45
+        FX.update(trail=False)
+    if args.text_bright is not None:
+        # 只动文字：把源色从 `UI` 朝纯白插值过去。`mix()` 夹 [0,1]，所以这里直接算颜色。
+        k = max(1.0, min(3.0, float(args.text_bright)))
+        f = min(1.0, (k - 1.0) / 0.7)
+        TEXT_SRC[0] = tuple(int(c + (255 - c) * f) for c in UI)
+        TEXT_GAIN[0] = max(1.0, k)
     if args.no_fx:
         FX.update(on=False, reveal=False, mech=False, trail=False, vig=False)
     if args.no_mech:
